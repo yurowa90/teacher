@@ -13,11 +13,19 @@ export interface ClassRow {
 export interface ModuleRow {
   id: string;
   class_id: string;
+  title: string;
   subject: string;
   standard_code: string;
-  title: string;
+  book_title: string;
+  intro: string;
   created_at: string;
 }
+
+// 활동 보조 자료 (선택)
+export type ActivityResource =
+  | { type: 'table'; caption?: string; headers: string[]; rows: string[][] }
+  | { type: 'text'; body: string }
+  | null;
 
 export interface ActivityRow {
   id: string;
@@ -27,6 +35,23 @@ export interface ActivityRow {
   type: string;
   title: string;
   prompt: string;
+  resource: ActivityResource;
+  sort_order: number;
+}
+
+export interface RubricCriterionRow {
+  id: string;
+  module_id: string;
+  label: string;
+  description: string;
+  sort_order: number;
+}
+
+export interface MisconceptionRow {
+  id: string;
+  module_id: string;
+  label: string;
+  feedback: string;
   sort_order: number;
 }
 
@@ -53,20 +78,8 @@ export interface ReviewRow {
   student_id: string;
   activity_id: string;
   teacher_id: string;
-  scores: Record<string, number>;
-  misconception_ids: string[];
+  scores: Record<string, number>; // key = rubric_criteria.id
+  misconception_ids: string[]; // misconceptions.id[]
   feedback: string;
   updated_at: string;
-}
-
-export interface RubricCriterion {
-  id: string;
-  label: string;
-  description: string;
-}
-
-export interface Misconception {
-  id: string;
-  label: string;
-  feedback: string;
 }
