@@ -86,6 +86,13 @@
     <p>Stage 1 MVP · localStorage 전용 · 로그인/서버/AI 자동채점 없음 · 교사가 최종 평가자입니다.</p>
   </footer>
 
+  <!-- 로드 순서: 데이터 → 저장 → 지표 → 앱 (전역 네임스페이스 SRP, file:// 직접 실행 호환) -->
+  <script src="data/students.js"></script>
+  <script src="data/activities.js"></script>
+  <script src="data/rubric.js"></script>
+  <script src="data/misconceptions.js"></script>
+  <script src="services/storage.js"></script>
+  <script src="utils/metrics.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

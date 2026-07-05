@@ -8,15 +8,25 @@
 - 성취기준: `[10통과2-01-02]` — 변이·자연선택·진화·생물다양성
 - 모듈: *생명체의 구조는 '필요해서 생긴 것'인가, '선택되어 남은 것'인가?*
 
-## 파일 구성
+## 파일 구성 (Stage 2 모듈 분리)
 
 | 파일 | 역할 |
 |------|------|
-| `index.html` | 앱 구조(헤더/학생 화면/교사 대시보드/리뷰 패널) |
+| `index.html` | 앱 구조(헤더/학생 화면/교사 대시보드/리뷰 패널) + 스크립트 로드 순서 |
 | `styles.css` | 카드형 UI, 표, 대시보드 스타일 |
-| `app.js` | 데이터·localStorage 저장·지표 계산·렌더링·내보내기 로직 |
+| `data/students.js` | 학생 익명 ID 목록 |
+| `data/activities.js` | 활동 8종 + B1 자료 해석용 표 |
+| `data/rubric.js` | 루브릭 6기준 |
+| `data/misconceptions.js` | 오개념 태그 + 참고 피드백 문구 |
+| `services/storage.js` | localStorage 저장·불러오기 (artifact/review) |
+| `utils/metrics.js` | 진행률·제출률·오개념 빈도·평균 점수 등 지표 계산 |
+| `app.js` | UI 렌더링·이벤트·JSON/CSV 내보내기 |
 | `README.md` | 실행 방법과 기능 설명 |
 | `ROADMAP.md` | Stage 2·3 확장 계획 |
+
+모든 모듈은 전역 네임스페이스 `window.SRP` 하나에 붙습니다. 빌드 도구·ES module
+import 없이 `<script>` 태그를 **데이터 → 저장 → 지표 → 앱** 순서로 불러오므로
+`index.html`을 더블클릭(`file://`)해도 그대로 동작합니다.
 
 ## 실행 방법
 

@@ -21,30 +21,32 @@
 - 교사·학생 권한 분리 없음 (화면 전환만 제공)
 - 모듈 1종만 지원
 
-## Stage 2 — 코드 구조 리팩토링
+## Stage 2 — 코드 구조 리팩토링 ✅ (현재)
 
-`app.js`가 커지지 않도록 데이터·저장·지표·렌더링을 파일로 분리합니다.
+`app.js`가 커지지 않도록 데이터·저장·지표·렌더링을 파일로 분리했습니다.
 
 ```
 science-reading-portfolio-mvp/
 ├─ index.html
 ├─ styles.css
-├─ app.js
+├─ app.js            (UI·이벤트·내보내기)
 ├─ data/
-│  ├─ activities.js
 │  ├─ students.js
+│  ├─ activities.js  (+ B1 자료 표)
 │  ├─ rubric.js
 │  └─ misconceptions.js
 ├─ services/
-│  └─ storage.js
+│  └─ storage.js     (localStorage)
 ├─ utils/
-│  └─ metrics.js
+│  └─ metrics.js     (지표 계산)
 ├─ README.md
 └─ ROADMAP.md
 ```
 
-- 기존 기능·localStorage 구조를 그대로 유지
-- 리팩토링 후 테스트 체크리스트 재확인
+- 전역 네임스페이스 `window.SRP` 하나로 모듈 결합 (빌드 도구·ES module 불필요)
+- 스크립트 로드 순서: 데이터 → 저장 → 지표 → 앱 → `file://` 더블클릭 실행 유지
+- 기존 기능·localStorage 구조(`srp-mvp-v1`) 그대로 유지 → Stage 1 데이터 호환
+- 리팩토링 후 헤드리스 브라우저 수용 테스트 18/18 통과
 
 ## Stage 3 — 서버형 MVP (Next.js + Supabase)
 
