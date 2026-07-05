@@ -169,6 +169,8 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
 .btn--primary:hover { background: var(--primary-dark); }
 .btn--ghost { background: var(--surface); color: var(--primary-dark); border-color: var(--border); }
 .btn--ghost:hover { background: var(--surface-alt); }
+.btn--danger { background: var(--danger); color: #fff; }
+.btn--danger:hover { background: #8f3333; }
 
 /* ---------- Activity cards ---------- */
 .card-grid {
@@ -409,6 +411,75 @@ h1, h2, h3 { margin: 0; font-weight: 700; }
   padding: 10px 12px;
 }
 .suggested-feedback ul { margin: 6px 0 0; padding-left: 18px; }
+
+.review-panel__actions--secondary { margin-top: 8px; }
+
+/* ---------- 핵심 개념 카드 (학생 선행 조직자) ---------- */
+.concept {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--primary);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+  padding: 16px 18px;
+  margin-bottom: 18px;
+}
+.concept__head {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--primary-dark);
+  margin-bottom: 10px;
+}
+.concept__list { list-style: none; margin: 0; padding: 0; display: grid; grid-template-columns: 1fr; gap: 8px; }
+@media (min-width: 720px) { .concept__list { grid-template-columns: 1fr 1fr; } }
+.concept__list li { display: flex; gap: 8px; font-size: 14px; line-height: 1.5; }
+.concept__term {
+  flex: 0 0 auto;
+  font-weight: 700;
+  color: var(--primary-dark);
+  min-width: 66px;
+}
+.concept__desc { color: var(--text-muted); }
+
+/* ---------- B2 논술 체크리스트 ---------- */
+.checklist {
+  background: var(--surface-alt);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 12px 14px;
+}
+.checklist__head { font-size: 14px; font-weight: 700; margin-bottom: 8px; }
+.checklist__list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.checklist__list li { font-size: 14px; }
+.checklist__list label { display: flex; align-items: flex-start; gap: 8px; cursor: pointer; }
+.checklist__list input { margin-top: 3px; accent-color: var(--primary); }
+.checklist__note { margin: 8px 0 0; font-size: 12px; color: var(--text-muted); }
+
+/* ---------- 활동별 제출률 표 ---------- */
+.rate-bar {
+  height: 12px;
+  min-width: 90px;
+  background: var(--surface-alt);
+  border-radius: 999px;
+  overflow: hidden;
+}
+.rate-bar span { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+
+/* ---------- 데이터 초기화 (위험 영역) ---------- */
+.danger-zone {
+  margin-top: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+  background: #fdf1f0;
+  border: 1px solid #f0cfcc;
+  border-radius: var(--radius);
+  padding: 16px 18px;
+}
+.danger-zone__text strong { color: var(--danger); }
+.danger-zone__text p { margin: 4px 0 0; font-size: 13px; color: var(--text-muted); max-width: 620px; }
 
 /* ---------- Footer ---------- */
 .app-footer {
