@@ -1,0 +1,836 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>과학 독서·논술 포트폴리오</title>
+<style>
+  :root {
+    --ground: #eef2f3;
+    --surface: #ffffff;
+    --surface-2: #f3f7f8;
+    --ink: #16242b;
+    --muted: #5a6b72;
+    --line: #d4dee1;
+    --line-strong: #b9c8cc;
+    --primary: #1f6f83;
+    --primary-ink: #ffffff;
+    --primary-weak: #e0edf0;
+    --done: #2f7d57;
+    --done-weak: #e2f0e8;
+    --warn: #a5641f;
+    --warn-weak: #f6ecdd;
+    --danger: #b0433a;
+    --radius: 14px;
+    --radius-sm: 9px;
+    --shadow: 0 1px 2px rgba(16, 32, 39, .05), 0 6px 20px -12px rgba(16, 32, 39, .18);
+    --mono: ui-monospace, "SF Mono", "Cascadia Code", Menlo, Consolas, monospace;
+    --sans: "Pretendard", "Apple SD Gothic Neo", "Malgun Gothic", system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --ground: #0e1619;
+      --surface: #16242b;
+      --surface-2: #1b2c34;
+      --ink: #e5edef;
+      --muted: #9bb0b8;
+      --line: #294049;
+      --line-strong: #35505a;
+      --primary: #57a9be;
+      --primary-ink: #06171d;
+      --primary-weak: #1c3640;
+      --done: #6fc79a;
+      --done-weak: #16302a;
+      --warn: #d8a15c;
+      --warn-weak: #33291a;
+      --danger: #e08078;
+      --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -14px rgba(0, 0, 0, .55);
+    }
+  }
+  :root[data-theme="dark"] {
+    --ground: #0e1619;
+    --surface: #16242b;
+    --surface-2: #1b2c34;
+    --ink: #e5edef;
+    --muted: #9bb0b8;
+    --line: #294049;
+    --line-strong: #35505a;
+    --primary: #57a9be;
+    --primary-ink: #06171d;
+    --primary-weak: #1c3640;
+    --done: #6fc79a;
+    --done-weak: #16302a;
+    --warn: #d8a15c;
+    --warn-weak: #33291a;
+    --danger: #e08078;
+    --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 28px -14px rgba(0, 0, 0, .55);
+  }
+
+  * { box-sizing: border-box; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--sans);
+    font-size: 16px;
+    line-height: 1.62;
+    color: var(--ink);
+    background: var(--ground);
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3 { margin: 0; font-weight: 700; letter-spacing: -.01em; text-wrap: balance; }
+  p { margin: 0; }
+  button { font-family: inherit; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  .app { max-width: 1120px; margin: 0 auto; padding: 0 20px 64px; }
+
+  /* ---------- Header ---------- */
+  .hd {
+    position: sticky; top: 0; z-index: 20;
+    background: color-mix(in srgb, var(--ground) 88%, transparent);
+    backdrop-filter: saturate(1.4) blur(8px);
+    margin: 0 -20px; padding: 14px 20px 0;
+    border-bottom: 1px solid var(--line);
+  }
+  .hd__top { display: flex; align-items: center; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; min-width: 0; }
+  .brand__code {
+    font-family: var(--mono); font-size: 12px; font-weight: 600;
+    color: var(--primary); background: var(--primary-weak);
+    padding: 3px 8px; border-radius: 6px; white-space: nowrap;
+  }
+  .brand__title { font-size: 16px; font-weight: 700; }
+  .brand__meta { font-size: 12.5px; color: var(--muted); }
+  .seg { display: inline-flex; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; padding: 3px; gap: 2px; }
+  .seg button {
+    border: 0; background: transparent; color: var(--muted);
+    font-size: 13.5px; font-weight: 600; padding: 7px 15px; border-radius: 999px; cursor: pointer;
+    transition: color .15s;
+  }
+  .seg button[aria-selected="true"] { background: var(--primary); color: var(--primary-ink); }
+  .seg button:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .hd__sub { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 10px 0 12px; font-size: 13px; color: var(--muted); }
+
+  /* ---------- Shared ---------- */
+  main { padding-top: 22px; }
+  .stack { display: flex; flex-direction: column; gap: 18px; }
+  .section-label {
+    font-size: 12px; font-weight: 700; text-transform: uppercase; letter-spacing: .08em;
+    color: var(--muted); margin: 26px 0 12px;
+  }
+  .card {
+    background: var(--surface); border: 1px solid var(--line);
+    border-radius: var(--radius); box-shadow: var(--shadow); padding: 18px;
+  }
+  .muted { color: var(--muted); }
+  .row { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+  .grow { flex: 1; min-width: 0; }
+
+  label.fld { display: block; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 5px; letter-spacing: .01em; }
+  input[type="text"], textarea, select {
+    width: 100%; font: inherit; font-size: 14.5px; color: var(--ink);
+    background: var(--surface); border: 1px solid var(--line-strong); border-radius: var(--radius-sm);
+    padding: 9px 11px;
+  }
+  input[type="text"]:focus, textarea:focus, select:focus { outline: 2px solid var(--primary); outline-offset: 1px; border-color: var(--primary); }
+  textarea { min-height: 108px; resize: vertical; line-height: 1.55; }
+
+  .btn {
+    display: inline-flex; align-items: center; gap: 6px;
+    font-size: 14px; font-weight: 600; padding: 9px 16px; border-radius: var(--radius-sm);
+    border: 1px solid transparent; cursor: pointer; background: var(--primary); color: var(--primary-ink);
+    transition: filter .15s;
+  }
+  .btn:hover { filter: brightness(1.06); }
+  .btn:focus-visible { outline: 2px solid var(--primary); outline-offset: 2px; }
+  .btn--ghost { background: var(--surface); color: var(--primary); border-color: var(--line-strong); }
+  .btn--ghost:hover { background: var(--surface-2); filter: none; }
+  .btn--sm { padding: 6px 11px; font-size: 13px; }
+  .btn--danger { background: var(--surface); color: var(--danger); border-color: var(--line-strong); }
+  .btn--danger:hover { background: color-mix(in srgb, var(--danger) 10%, var(--surface)); filter: none; }
+
+  .pill { display: inline-block; padding: 4px 11px; border-radius: 999px; background: var(--surface-2); border: 1px solid var(--line); font-size: 12.5px; font-weight: 600; color: var(--ink); }
+  .pill--primary { background: var(--primary-weak); border-color: transparent; color: var(--primary); }
+  .notice { background: var(--warn-weak); border: 1px solid color-mix(in srgb, var(--warn) 30%, transparent); color: var(--warn); padding: 10px 14px; border-radius: var(--radius-sm); font-size: 13.5px; }
+
+  /* ---------- Activity cards (student) ---------- */
+  .cards { display: grid; grid-template-columns: 1fr; gap: 16px; }
+  @media (min-width: 800px) { .cards { grid-template-columns: 1fr 1fr; } }
+  .act { display: flex; flex-direction: column; gap: 11px; }
+  .act__head { display: flex; align-items: center; gap: 8px; }
+  .act__code { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--primary-ink); background: var(--primary); border-radius: 6px; padding: 2px 8px; }
+  .act__level { font-size: 11.5px; font-weight: 600; letter-spacing: .04em; text-transform: uppercase; color: var(--muted); }
+  .act__title { font-size: 16.5px; font-weight: 700; }
+  .act__prompt { font-size: 14px; color: var(--muted); }
+  .act__foot { display: flex; justify-content: space-between; align-items: center; font-size: 12.5px; color: var(--muted); }
+  .saved-dot { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; }
+  .saved-dot::before { content: ""; width: 7px; height: 7px; border-radius: 50%; background: var(--line-strong); }
+  .saved-dot.on { color: var(--done); }
+  .saved-dot.on::before { background: var(--done); }
+
+  /* ---------- Data table (resource) ---------- */
+  .resbox { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 12px; overflow-x: auto; }
+  .resbox caption { text-align: left; font-size: 12px; color: var(--muted); margin-bottom: 7px; caption-side: top; }
+  .resbox .note { white-space: pre-wrap; font-size: 13.5px; }
+  table.data { border-collapse: collapse; width: 100%; font-size: 12.5px; }
+  table.data th, table.data td { border: 1px solid var(--line); padding: 6px 9px; text-align: center; white-space: nowrap; }
+  table.data th { background: var(--primary-weak); color: var(--primary); font-weight: 700; }
+
+  /* ---------- Dashboard ---------- */
+  .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+  @media (min-width: 760px) { .stats { grid-template-columns: repeat(4, 1fr); } }
+  .stat { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); padding: 15px 16px; box-shadow: var(--shadow); }
+  .stat__k { font-size: 12px; font-weight: 600; color: var(--muted); }
+  .stat__v { font-size: 30px; font-weight: 750; margin-top: 3px; line-height: 1.1; letter-spacing: -.02em; }
+  .stat__s { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .stat__bar { height: 5px; border-radius: 999px; background: var(--surface-2); margin-top: 10px; overflow: hidden; }
+  .stat__bar > i { display: block; height: 100%; background: var(--primary); border-radius: 999px; }
+
+  .tablewrap { overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface); box-shadow: var(--shadow); }
+  table.grid { border-collapse: collapse; width: 100%; font-size: 13.5px; }
+  table.grid th, table.grid td { border-bottom: 1px solid var(--line); padding: 9px 8px; text-align: center; }
+  table.grid thead th { background: var(--surface-2); font-size: 12px; color: var(--muted); font-weight: 700; position: sticky; top: 0; }
+  table.grid tbody tr:last-child td { border-bottom: 0; }
+  table.grid td.name { text-align: left; font-weight: 600; white-space: nowrap; padding-left: 14px; }
+  table.grid td.name small { display: block; font-weight: 500; color: var(--muted); font-size: 11.5px; }
+  .cellbtn { border: 0; background: transparent; cursor: pointer; font-size: 15px; line-height: 1; padding: 5px 8px; border-radius: 6px; color: var(--line-strong); }
+  .cellbtn.on { color: var(--done); }
+  .cellbtn:hover { background: var(--surface-2); }
+  .cellbtn:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+
+  .bars { display: flex; flex-direction: column; gap: 9px; }
+  .bar { display: grid; grid-template-columns: minmax(120px, 220px) 1fr 34px; align-items: center; gap: 12px; }
+  .bar__l { font-size: 13px; }
+  .bar__t { height: 16px; background: var(--surface-2); border: 1px solid var(--line); border-radius: 999px; overflow: hidden; }
+  .bar__f { height: 100%; background: var(--warn); border-radius: 999px; }
+  .bar__n { text-align: right; font-weight: 700; font-size: 13px; }
+
+  /* ---------- Review panel ---------- */
+  .answer { background: var(--surface-2); border: 1px solid var(--line); border-radius: var(--radius-sm); padding: 14px; white-space: pre-wrap; font-size: 14.5px; min-height: 52px; }
+  .answer.empty { color: var(--muted); font-style: italic; }
+  .rubric { display: flex; flex-direction: column; gap: 12px; }
+  .rubric__row { display: grid; grid-template-columns: 1fr auto; gap: 10px 16px; align-items: center; padding-bottom: 11px; border-bottom: 1px dashed var(--line); }
+  .rubric__row:last-child { border-bottom: 0; padding-bottom: 0; }
+  .rubric__row strong { font-size: 14.5px; }
+  .rubric__row span { display: block; font-size: 12.5px; color: var(--muted); }
+  .score { display: inline-flex; gap: 5px; }
+  .score button { width: 38px; height: 38px; border: 1px solid var(--line-strong); background: var(--surface); border-radius: var(--radius-sm); font-size: 15px; font-weight: 700; color: var(--muted); cursor: pointer; }
+  .score button[aria-pressed="true"] { background: var(--primary); color: var(--primary-ink); border-color: var(--primary); }
+  .score button:focus-visible { outline: 2px solid var(--primary); outline-offset: 1px; }
+  .tags { display: flex; flex-wrap: wrap; gap: 8px; }
+  .tag { display: inline-flex; align-items: center; gap: 7px; font-size: 13px; padding: 7px 11px; border: 1px solid var(--line-strong); border-radius: 999px; background: var(--surface); cursor: pointer; }
+  .tag input { accent-color: var(--warn); }
+  .tag.on { background: var(--warn-weak); border-color: color-mix(in srgb, var(--warn) 40%, transparent); color: var(--warn); font-weight: 600; }
+  .hint { font-size: 12.5px; color: var(--muted); background: var(--warn-weak); border: 1px dashed color-mix(in srgb, var(--warn) 30%, transparent); border-radius: var(--radius-sm); padding: 10px 12px; }
+  .hint ul { margin: 6px 0 0; padding-left: 18px; }
+  .save-flash { font-size: 12.5px; color: var(--done); font-weight: 600; }
+
+  /* ---------- Settings / authoring ---------- */
+  .editrow { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: start; }
+  .editrow + .editrow { margin-top: 12px; }
+  .authgrid { display: grid; grid-template-columns: 1fr; gap: 10px; }
+  @media (min-width: 640px) { .authgrid.two { grid-template-columns: 1fr 1fr; } .authgrid.meta { grid-template-columns: 1fr 1fr; } }
+  .empty-state { color: var(--muted); font-size: 14px; padding: 6px 0; }
+
+  footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid var(--line); color: var(--muted); font-size: 12.5px; text-align: center; }
+
+  @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+</head>
+<body>
+<div class="app">
+  <header class="hd">
+    <div class="hd__top">
+      <div class="brand">
+        <span class="brand__code" id="brandCode"></span>
+        <span class="brand__title" id="brandTitle"></span>
+      </div>
+      <nav class="seg" role="tablist" aria-label="화면 전환">
+        <button role="tab" data-view="student" aria-selected="true">학생</button>
+        <button role="tab" data-view="teacher" aria-selected="false">교사 대시보드</button>
+        <button role="tab" data-view="settings" aria-selected="false">단원 설정</button>
+      </nav>
+    </div>
+    <div class="hd__sub" id="brandMeta"></div>
+  </header>
+
+  <main id="view" tabindex="-1"></main>
+
+  <footer>
+    로컬 저장(localStorage) 데모 · 로그인·서버·AI 자동채점 없음 · 실명·학번 미수집 · 교사가 최종 평가자입니다.
+  </footer>
+</div>
+
+<script>
+(function () {
+  "use strict";
+
+  var STORAGE_KEY = "srp-standalone-v1";
+  var uid = function () {
+    try { return crypto.randomUUID(); } catch (e) { return "id-" + Date.now() + "-" + Math.floor(Math.random() * 1e6); }
+  };
+  var nowIso = function () { return new Date().toISOString(); };
+  var esc = function (s) {
+    return String(s == null ? "" : s)
+      .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  };
+  var pct = function (r) { return Math.round(r * 100) + "%"; };
+  var fmtTime = function (iso) { try { return new Date(iso).toLocaleString("ko-KR"); } catch (e) { return ""; } };
+
+  /* ---------- Sample (example) module — 교사가 자유롭게 수정/교체 ---------- */
+  function sampleModule() {
+    return {
+      book: "이것이 생물학이다 (예시)",
+      subject: "통합과학2",
+      standard: "[10통과2-01-02]",
+      title: "생명체의 구조는 '필요해서 생긴 것'인가, '선택되어 남은 것'인가?",
+      intro: "변이·자연선택·진화·생물다양성을 다루는 예시 단원입니다. 교사가 실제 도서·성취기준에 맞게 수정하세요.",
+      activities: [
+        { id: uid(), code: "A1", level: "A형 비계", title: "핵심어 이해", prompt: "변이, 자연선택, 진화, 개체군, 생물다양성, 목적론을 자신의 말로 정리하시오.", resource: null },
+        { id: uid(), code: "A2", level: "A형 비계", title: "긴 문장 쪼개기", prompt: "자연선택 과정을 원인-과정-결과로 나누어 설명하시오.", resource: null },
+        { id: uid(), code: "B1", level: "B형 표준", title: "자료 해석", prompt: "형질 빈도 변화 자료를 해석하고 자연선택 개념과 연결하시오. 자료만으로 알 수 없는 한계도 함께 쓰시오.", resource: {
+          type: "table", caption: "세대별 몸색 형질 빈도 변화 (일부 정보는 의도적으로 제시되지 않음)",
+          headers: ["세대", "밝은 몸색 비율", "어두운 몸색 비율", "환경 배경", "표본 수", "제시되지 않은 정보"],
+          rows: [
+            ["1세대", "80%", "20%", "밝음", "200", "생존율, 번식률"],
+            ["5세대", "65%", "35%", "점차 어두워짐", "160", "포식률"],
+            ["10세대", "40%", "60%", "어두움", "120", "형질 유전 여부"],
+            ["15세대", "25%", "75%", "어두움", "90", "다른 환경 요인"]
+          ] } },
+        { id: uid(), code: "B2", level: "B형 표준", title: "논술형 답안 초안", prompt: "환경 변화가 개체군의 형질 빈도 변화에 미치는 영향을 자연선택 개념으로 설명하시오. 변이, 자연선택, 진화 중 2개 이상을 사용하고, 개체가 스스로 변한 것이 아니라 개체군의 형질 빈도가 변했음을 포함하시오.", resource: null },
+        { id: uid(), code: "B3", level: "B형 표준", title: "논술형 답안 수정본", prompt: "교사 피드백을 반영하여 B2 답안을 수정하시오. 수정한 부분이 무엇인지 마지막 문장에 쓰시오.", resource: null },
+        { id: uid(), code: "C1", level: "C형 심화", title: "탐구 질문 고도화", prompt: "넓은 질문을 대상·변인·조건이 포함된 탐구 가능 질문으로 바꾸시오. 독립변인, 종속변인, 필요한 자료도 함께 쓰시오.", resource: null },
+        { id: uid(), code: "D1", level: "C형 심화", title: "AI·빅데이터 비판", prompt: "AI가 생물 사진을 분류할 때 특정 지역이나 특정 생물군 자료가 부족하면 생물다양성 이해에 어떤 왜곡이 생길 수 있는지 설명하시오.", resource: null },
+        { id: uid(), code: "E1", level: "포트폴리오", title: "성찰 기록", prompt: "읽기 전후 생각 변화, 수정한 오개념, 다음에 탐구하고 싶은 질문을 기록하시오.", resource: null }
+      ],
+      rubric: [
+        { id: uid(), label: "개념 정확성", description: "핵심 개념을 정확히 구분하고 연결하는가" },
+        { id: uid(), label: "자료 해석", description: "자료의 수치 변화와 한계를 해석하고 개념과 연결하는가" },
+        { id: uid(), label: "논증 구조", description: "주장-근거-결론 구조가 명확한가" },
+        { id: uid(), label: "개념 전이", description: "새로운 사례나 탐구 질문에 개념을 적용하는가" },
+        { id: uid(), label: "비판적 검증", description: "자료·AI 활용의 유용성, 편향, 검증 필요성을 균형 있게 설명하는가" },
+        { id: uid(), label: "성찰", description: "읽기 전후 생각 변화와 수정한 오개념을 구체적으로 기록하는가" }
+      ],
+      misconceptions: [
+        { id: uid(), label: "목적론: 필요해서 생겼다", feedback: "필요해서 직접 생긴 것이 아니라, 유리한 형질을 가진 개체가 더 많이 남은 과정으로 설명하십시오." },
+        { id: uid(), label: "개체 변화: 개체가 스스로 변했다", feedback: "한 개체가 바뀐 것이 아니라, 세대를 거치며 개체군 안의 형질 비율이 달라진 것입니다." },
+        { id: uid(), label: "환경 결정론", feedback: "환경 변화만으로는 부족합니다. 변이와 생존·번식 차이를 함께 설명해야 합니다." },
+        { id: uid(), label: "변이 누락", feedback: "자연선택이 작동하려면 개체군 안에 변이가 먼저 존재해야 합니다." },
+        { id: uid(), label: "자료 수치 근거 부족", feedback: "몇 세대에서 몇 %로 바뀌었는지 수치를 근거로 사용하십시오." },
+        { id: uid(), label: "AI 비판 피상적", feedback: "어떤 데이터가 부족하거나 편향될 때 어떤 오류가 생기는지 구체적으로 쓰십시오." }
+      ]
+    };
+  }
+
+  function defaultStore() {
+    return {
+      module: sampleModule(),
+      students: [
+        { id: "S-001", segment: "standard" }, { id: "S-002", segment: "standard" },
+        { id: "S-003", segment: "scaffold" }, { id: "S-004", segment: "advanced" },
+        { id: "S-005", segment: "standard" }
+      ],
+      currentStudentId: "S-001",
+      view: "student",
+      artifacts: {},   // key `${sid}::${aid}` -> {content, updatedAt}
+      reviews: {}      // key `${sid}::${aid}` -> {scores, misconceptionIds, feedback, updatedAt}
+    };
+  }
+
+  var store;
+  try {
+    var raw = localStorage.getItem(STORAGE_KEY);
+    store = raw ? JSON.parse(raw) : defaultStore();
+    if (!store.module || !store.students) store = defaultStore();
+  } catch (e) { store = defaultStore(); }
+
+  var persistT = null;
+  function persist() {
+    if (persistT) clearTimeout(persistT);
+    persistT = setTimeout(function () {
+      try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) {}
+    }, 120);
+  }
+  function persistNow() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(store)); } catch (e) {} }
+
+  var akey = function (sid, aid) { return sid + "::" + aid; };
+  function getArtifact(sid, aid) { return store.artifacts[akey(sid, aid)] || null; }
+  function saveArtifact(sid, aid, content) {
+    store.artifacts[akey(sid, aid)] = { content: content, updatedAt: nowIso() };
+    persist();
+  }
+  function getReview(sid, aid) { return store.reviews[akey(sid, aid)] || null; }
+  function saveReview(sid, aid, scores, mis, feedback) {
+    store.reviews[akey(sid, aid)] = { scores: scores, misconceptionIds: mis, feedback: feedback, updatedAt: nowIso() };
+    persistNow();
+  }
+
+  /* ---------- metrics ---------- */
+  var M = function () { return store.module; };
+  function submitted(sid, aid) { var a = getArtifact(sid, aid); return !!(a && a.content && a.content.trim()); }
+  function studentProgress(sid) {
+    var acts = M().activities, done = 0;
+    acts.forEach(function (a) { if (submitted(sid, a.id)) done++; });
+    return { done: done, total: acts.length, ratio: acts.length ? done / acts.length : 0 };
+  }
+  function activityRate(aid) {
+    var done = 0; store.students.forEach(function (s) { if (submitted(s.id, aid)) done++; });
+    return { done: done, total: store.students.length, ratio: store.students.length ? done / store.students.length : 0 };
+  }
+  function metrics() {
+    var acts = M().activities, studs = store.students;
+    var totalCells = studs.length * acts.length, filled = 0;
+    studs.forEach(function (s) { acts.forEach(function (a) { if (submitted(s.id, a.id)) filled++; }); });
+    var essay = acts.find(function (a) { return a.code === "B2"; });
+    var revision = acts.find(function (a) { return a.code === "B3"; });
+    var miscFreq = {}; M().misconceptions.forEach(function (m) { miscFreq[m.id] = 0; });
+    var reviewList = Object.keys(store.reviews).map(function (k) { return store.reviews[k]; });
+    reviewList.forEach(function (r) { (r.misconceptionIds || []).forEach(function (id) { if (miscFreq[id] != null) miscFreq[id]++; }); });
+    var withFb = reviewList.filter(function (r) { return r.feedback && r.feedback.trim(); }).length;
+    return {
+      totalCells: totalCells, filled: filled,
+      emptyRatio: totalCells ? (totalCells - filled) / totalCells : 0,
+      essay: essay ? activityRate(essay.id) : { done: 0, total: studs.length, ratio: 0 },
+      revision: revision ? activityRate(revision.id) : { done: 0, total: studs.length, ratio: 0 },
+      miscFreq: miscFreq, reviewCount: reviewList.length,
+      feedbackRate: reviewList.length ? withFb / reviewList.length : 0
+    };
+  }
+
+  /* ---------- DOM helpers ---------- */
+  var view = document.getElementById("view");
+  function h(html) { return html; }
+
+  function renderHeader() {
+    var m = M();
+    document.getElementById("brandCode").textContent = m.standard || "성취기준 미지정";
+    document.getElementById("brandTitle").textContent = m.title || "(단원 제목 없음)";
+    var meta = document.getElementById("brandMeta");
+    var bits = [];
+    if (m.subject) bits.push("<span class='pill'>" + esc(m.subject) + "</span>");
+    if (m.book) bits.push("<span>📖 " + esc(m.book) + "</span>");
+    bits.push("<span>활동 " + m.activities.length + "개 · 학생 " + store.students.length + "명</span>");
+    meta.innerHTML = bits.join("");
+  }
+
+  /* =========================================================
+     STUDENT VIEW
+     ========================================================= */
+  function renderStudent() {
+    var m = M(), sid = store.currentStudentId;
+    if (!store.students.some(function (s) { return s.id === sid; })) sid = store.currentStudentId = store.students[0] ? store.students[0].id : "S-001";
+    var p = studentProgress(sid);
+    var opts = store.students.map(function (s) {
+      return "<option value='" + esc(s.id) + "'" + (s.id === sid ? " selected" : "") + ">" + esc(s.id) + " · " + esc(s.segment) + "</option>";
+    }).join("");
+
+    var cards = m.activities.map(function (a) {
+      var art = getArtifact(sid, a.id), content = art ? art.content : "", on = content && content.trim();
+      var res = "";
+      if (a.resource && a.resource.type === "table") {
+        var thead = "<tr>" + a.resource.headers.map(function (x) { return "<th>" + esc(x) + "</th>"; }).join("") + "</tr>";
+        var tbody = a.resource.rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("");
+        res = "<div class='resbox'><table class='data'><caption>" + esc(a.resource.caption || "") + "</caption><thead>" + thead + "</thead><tbody>" + tbody + "</tbody></table></div>";
+      } else if (a.resource && a.resource.type === "text" && a.resource.body) {
+        res = "<div class='resbox'><div class='note'>" + esc(a.resource.body) + "</div></div>";
+      }
+      return "<article class='card act'>" +
+        "<div class='act__head'><span class='act__code'>" + esc(a.code) + "</span><span class='act__level'>" + esc(a.level) + "</span></div>" +
+        "<div class='act__title'>" + esc(a.title) + "</div>" +
+        (a.prompt ? "<p class='act__prompt'>" + esc(a.prompt) + "</p>" : "") +
+        res +
+        "<textarea data-aid='" + a.id + "' placeholder='여기에 작성하세요…'>" + esc(content) + "</textarea>" +
+        "<div class='act__foot'><span class='saved-dot" + (on ? " on" : "") + "' data-dot='" + a.id + "'>" + (on ? "자동 저장됨" : "자동 저장 대기") + "</span>" +
+        "<span data-time='" + a.id + "'>" + (art ? "저장 " + fmtTime(art.updatedAt) : "미저장") + "</span></div>" +
+        "</article>";
+    }).join("");
+
+    view.innerHTML =
+      "<div class='row' style='justify-content:space-between'>" +
+        "<label class='fld' style='margin:0'>학생(익명 ID)" +
+          "<select id='studentSel' style='min-width:200px;margin-top:5px'>" + opts + "</select></label>" +
+        "<span class='pill pill--primary num' id='sProg'>진행률 " + p.done + "/" + p.total + " (" + pct(p.ratio) + ")</span>" +
+      "</div>" +
+      (m.intro ? "<div class='notice' style='margin-top:14px'>" + esc(m.intro) + "</div>" : "") +
+      "<div class='cards' style='margin-top:18px'>" + cards + "</div>";
+
+    document.getElementById("studentSel").addEventListener("change", function () {
+      store.currentStudentId = this.value; persistNow(); renderStudent();
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("textarea[data-aid]"), function (ta) {
+      ta.addEventListener("input", function () {
+        var aid = ta.getAttribute("data-aid");
+        saveArtifact(store.currentStudentId, aid, ta.value);
+        var on = ta.value.trim().length > 0;
+        var dot = view.querySelector("[data-dot='" + aid + "']");
+        if (dot) { dot.textContent = on ? "자동 저장됨" : "자동 저장 대기"; dot.classList.toggle("on", on); }
+        var t = view.querySelector("[data-time='" + aid + "']"); if (t) t.textContent = "저장 " + fmtTime(nowIso());
+        var pp = studentProgress(store.currentStudentId);
+        document.getElementById("sProg").textContent = "진행률 " + pp.done + "/" + pp.total + " (" + pct(pp.ratio) + ")";
+      });
+    });
+  }
+
+  /* =========================================================
+     TEACHER DASHBOARD
+     ========================================================= */
+  var reviewTarget = null; // {sid, aid}
+
+  function statsHtml(mt) {
+    var stats = [
+      { k: "전체 응답 채움", v: pct(mt.totalCells ? mt.filled / mt.totalCells : 0), s: mt.filled + "/" + mt.totalCells + " 칸", r: mt.totalCells ? mt.filled / mt.totalCells : 0 },
+      { k: "빈칸률", v: pct(mt.emptyRatio), s: (mt.totalCells - mt.filled) + " 칸 비어 있음", r: mt.emptyRatio },
+      { k: "논술 제출률 (B2)", v: pct(mt.essay.ratio), s: mt.essay.done + "/" + mt.essay.total + " 명", r: mt.essay.ratio },
+      { k: "수정본 제출률 (B3)", v: pct(mt.revision.ratio), s: mt.revision.done + "/" + mt.revision.total + " 명", r: mt.revision.ratio },
+      { k: "저장된 리뷰", v: String(mt.reviewCount), s: "교사 리뷰 수", r: null },
+      { k: "피드백 입력률", v: pct(mt.feedbackRate), s: "피드백 있는 리뷰 비율", r: mt.feedbackRate }
+    ];
+    return stats.map(function (c) {
+      return "<div class='stat'><div class='stat__k'>" + esc(c.k) + "</div>" +
+        "<div class='stat__v num'>" + esc(c.v) + "</div><div class='stat__s'>" + esc(c.s) + "</div>" +
+        (c.r == null ? "" : "<div class='stat__bar'><i style='width:" + Math.round(c.r * 100) + "%'></i></div>") + "</div>";
+    }).join("");
+  }
+  function barsHtml(mt) {
+    var m = M(), maxF = 1;
+    m.misconceptions.forEach(function (mc) { maxF = Math.max(maxF, mt.miscFreq[mc.id] || 0); });
+    return m.misconceptions.map(function (mc) {
+      var n = mt.miscFreq[mc.id] || 0;
+      return "<div class='bar'><div class='bar__l'>" + esc(mc.label) + "</div>" +
+        "<div class='bar__t'><div class='bar__f' style='width:" + Math.round((n / maxF) * 100) + "%'></div></div>" +
+        "<div class='bar__n num'>" + n + "</div></div>";
+    }).join("");
+  }
+  function refreshAggregates() {
+    var mt = metrics();
+    var sm = document.getElementById("statsMount"); if (sm) sm.innerHTML = statsHtml(mt);
+    var bm = document.getElementById("barsMount"); if (bm) bm.innerHTML = barsHtml(mt);
+  }
+
+  function renderTeacher() {
+    var m = M(), mt = metrics();
+    var statCards = statsHtml(mt);
+
+    var head = "<tr><th>학생</th>" + m.activities.map(function (a) { return "<th>" + esc(a.code) + "</th>"; }).join("") + "<th>진행률</th></tr>";
+    var body = store.students.map(function (s) {
+      var cells = m.activities.map(function (a) {
+        var on = submitted(s.id, a.id);
+        return "<td><button class='cellbtn" + (on ? " on" : "") + "' data-review='" + s.id + "|" + a.id + "' title='검토'>" + (on ? "●" : "·") + "</button></td>";
+      }).join("");
+      var p = studentProgress(s.id);
+      return "<tr><td class='name'>" + esc(s.id) + "<small>" + esc(s.segment) + "</small></td>" + cells +
+        "<td class='num'>" + p.done + "/" + p.total + "</td></tr>";
+    }).join("");
+
+    view.innerHTML =
+      "<div class='row' style='justify-content:space-between'>" +
+        "<h1 style='font-size:21px'>교사 대시보드</h1>" +
+        "<div class='row'><button class='btn btn--ghost btn--sm' id='expJson'>JSON 내보내기</button>" +
+        "<button class='btn btn--ghost btn--sm' id='expCsv'>CSV 내보내기</button></div></div>" +
+      "<div class='stats' id='statsMount' style='margin-top:16px'>" + statCards + "</div>" +
+      "<div class='section-label'>학생별 진행 현황</div>" +
+      (store.students.length && m.activities.length ? "<div class='tablewrap'><table class='grid'><thead>" + head + "</thead><tbody>" + body + "</tbody></table></div>" : "<p class='empty-state'>학생 또는 활동이 없습니다.</p>") +
+      "<div class='section-label'>오개념 빈도</div>" +
+      (m.misconceptions.length ? "<div class='card'><div class='bars' id='barsMount'>" + barsHtml(mt) + "</div></div>" : "<p class='empty-state'>단원 설정에서 오개념 태그를 추가하세요.</p>") +
+      "<div class='section-label'>답안 검토 · 채점</div>" +
+      "<div id='reviewMount'></div>";
+
+    document.getElementById("expJson").addEventListener("click", exportJson);
+    document.getElementById("expCsv").addEventListener("click", exportCsv);
+    Array.prototype.forEach.call(view.querySelectorAll("[data-review]"), function (b) {
+      b.addEventListener("click", function () {
+        var parts = b.getAttribute("data-review").split("|");
+        reviewTarget = { sid: parts[0], aid: parts[1] };
+        renderReview();
+        var mnt = document.getElementById("reviewMount");
+        if (mnt) mnt.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    });
+    renderReview();
+  }
+
+  function renderReview() {
+    var mnt = document.getElementById("reviewMount");
+    if (!mnt) return;
+    if (!reviewTarget) { mnt.innerHTML = "<p class='empty-state'>진행 표에서 셀(●/·)을 눌러 학생·활동을 선택하세요.</p>"; return; }
+    var m = M(), sid = reviewTarget.sid, aid = reviewTarget.aid;
+    var act = m.activities.find(function (a) { return a.id === aid; });
+    var stu = store.students.find(function (s) { return s.id === sid; });
+    if (!act || !stu) { mnt.innerHTML = "<p class='empty-state'>선택한 항목을 찾을 수 없습니다.</p>"; reviewTarget = null; return; }
+    var art = getArtifact(sid, aid), rev = getReview(sid, aid);
+    var draft = { scores: rev ? Object.assign({}, rev.scores) : {}, mis: rev ? rev.misconceptionIds.slice() : [] };
+
+    function hintHtml() {
+      var items = m.misconceptions.filter(function (mc) { return draft.mis.indexOf(mc.id) >= 0; })
+        .map(function (mc) { return "<li>" + esc(mc.feedback) + "</li>"; }).join("");
+      return "선택한 오개념 참고 문구 (교사가 판단·수정하는 보조 자료입니다):<ul>" + (items || "<li>선택된 오개념이 없습니다.</li>") + "</ul>";
+    }
+
+    var rubricHtml = m.rubric.map(function (c) {
+      var cur = draft.scores[c.id];
+      var btns = [1, 2, 3, 4].map(function (n) {
+        return "<button type='button' data-crit='" + c.id + "' data-score='" + n + "' aria-pressed='" + (cur === n ? "true" : "false") + "'>" + n + "</button>";
+      }).join("");
+      return "<div class='rubric__row'><div><strong>" + esc(c.label) + "</strong><span>" + esc(c.description) + "</span></div><div class='score'>" + btns + "</div></div>";
+    }).join("");
+
+    var tagsHtml = m.misconceptions.map(function (mc) {
+      var on = draft.mis.indexOf(mc.id) >= 0;
+      return "<label class='tag" + (on ? " on" : "") + "' data-tag='" + mc.id + "'><input type='checkbox' data-mis='" + mc.id + "'" + (on ? " checked" : "") + "> " + esc(mc.label) + "</label>";
+    }).join("");
+
+    mnt.innerHTML =
+      "<div class='card stack'>" +
+      "<div class='muted'><strong style='color:var(--ink)'>" + esc(sid) + "</strong> · " + esc(act.code) + " " + esc(act.title) +
+        (rev ? " · 최근 리뷰 " + fmtTime(rev.updatedAt) : " · 신규 리뷰") + "</div>" +
+      "<div><label class='fld'>학생 답안</label><div class='answer" + (art && art.content && art.content.trim() ? "" : " empty") + "'>" +
+        (art && art.content && art.content.trim() ? esc(art.content) : "아직 제출된 답안이 없습니다.") + "</div></div>" +
+      "<div><label class='fld'>루브릭 채점 (기준별 1~4점)</label>" + (m.rubric.length ? "<div class='rubric'>" + rubricHtml + "</div>" : "<p class='empty-state'>루브릭 기준이 없습니다.</p>") + "</div>" +
+      "<div><label class='fld'>오개념 태그</label>" + (m.misconceptions.length ? "<div class='tags'>" + tagsHtml + "</div>" : "<p class='empty-state'>오개념 태그가 없습니다.</p>") + "</div>" +
+      "<div class='hint' data-hint>" + hintHtml() + "</div>" +
+      "<div><label class='fld'>교사 피드백</label><textarea id='fb' placeholder='학생에게 줄 피드백을 작성하세요…'>" + esc(rev ? rev.feedback : "") + "</textarea></div>" +
+      "<div class='row'><button class='btn' id='saveRev'>리뷰 저장</button><span class='save-flash' id='revFlash'></span></div>" +
+      "</div>";
+
+    Array.prototype.forEach.call(mnt.querySelectorAll(".score button"), function (b) {
+      b.addEventListener("click", function () {
+        var cid = b.getAttribute("data-crit"), sc = Number(b.getAttribute("data-score"));
+        draft.scores[cid] = sc;
+        Array.prototype.forEach.call(mnt.querySelectorAll(".score button[data-crit='" + cid + "']"), function (x) {
+          x.setAttribute("aria-pressed", Number(x.getAttribute("data-score")) === sc ? "true" : "false");
+        });
+      });
+    });
+    Array.prototype.forEach.call(mnt.querySelectorAll("[data-mis]"), function (inp) {
+      inp.addEventListener("change", function () {
+        var id = inp.getAttribute("data-mis");
+        if (inp.checked) { if (draft.mis.indexOf(id) < 0) draft.mis.push(id); }
+        else { draft.mis = draft.mis.filter(function (x) { return x !== id; }); }
+        inp.closest(".tag").classList.toggle("on", inp.checked);
+        mnt.querySelector("[data-hint]").innerHTML = hintHtml();
+      });
+    });
+    document.getElementById("saveRev").addEventListener("click", function () {
+      saveReview(sid, aid, Object.assign({}, draft.scores), draft.mis.slice(), document.getElementById("fb").value);
+      document.getElementById("revFlash").textContent = "저장됨 · " + new Date().toLocaleTimeString("ko-KR");
+      refreshAggregates();
+    });
+  }
+
+  /* =========================================================
+     SETTINGS / AUTHORING (교사가 임의의 책·모듈 저작)
+     ========================================================= */
+  function renderSettings() {
+    var m = M();
+    function metaField(label, key, ph) {
+      return "<label class='fld'>" + label + "<input type='text' data-meta='" + key + "' value='" + esc(m[key]) + "' placeholder='" + esc(ph || "") + "'></label>";
+    }
+    var actRows = m.activities.map(function (a, i) {
+      var hasTable = a.resource && a.resource.type === "table";
+      return "<div class='card' data-act='" + a.id + "' style='margin-bottom:10px'>" +
+        "<div class='authgrid two'>" +
+          "<label class='fld'>코드<input type='text' data-af='code' value='" + esc(a.code) + "'></label>" +
+          "<label class='fld'>수준<input type='text' data-af='level' value='" + esc(a.level) + "' placeholder='예: B형 표준'></label>" +
+        "</div>" +
+        "<label class='fld' style='margin-top:10px'>제목<input type='text' data-af='title' value='" + esc(a.title) + "'></label>" +
+        "<label class='fld' style='margin-top:10px'>발문<textarea data-af='prompt' style='min-height:70px'>" + esc(a.prompt) + "</textarea></label>" +
+        "<label class='fld' style='margin-top:10px'>보조 자료(선택)" +
+          (hasTable ? " <span class='muted'>· 현재 표 자료 있음(학생 화면에 표시). 아래 텍스트 입력 시 표를 텍스트로 교체.</span>" : "") +
+          "<textarea data-af='resource' style='min-height:50px' placeholder='표·자료 등 참고 텍스트'>" + esc(a.resource && a.resource.type === "text" ? a.resource.body : "") + "</textarea></label>" +
+        "<div class='row' style='margin-top:10px;justify-content:space-between'>" +
+          "<span class='muted' style='font-size:12px'>활동 " + (i + 1) + " / " + m.activities.length + "</span>" +
+          "<span class='row'>" +
+            (hasTable ? "<button class='btn btn--ghost btn--sm' data-clearres='" + a.id + "'>표 자료 지우기</button>" : "") +
+            "<button class='btn btn--danger btn--sm' data-delact='" + a.id + "'>삭제</button></span>" +
+        "</div></div>";
+    }).join("");
+
+    var rubricRows = m.rubric.map(function (c) {
+      return "<div class='editrow' data-rub='" + c.id + "'>" +
+        "<div class='authgrid two'>" +
+          "<label class='fld'>기준명<input type='text' data-rf='label' value='" + esc(c.label) + "'></label>" +
+          "<label class='fld'>설명<input type='text' data-rf='description' value='" + esc(c.description) + "'></label>" +
+        "</div><button class='btn btn--danger btn--sm' data-delrub='" + c.id + "' style='align-self:end'>삭제</button></div>";
+    }).join("");
+
+    var misRows = m.misconceptions.map(function (mc) {
+      return "<div class='editrow' data-mis='" + mc.id + "'>" +
+        "<div class='authgrid two'>" +
+          "<label class='fld'>오개념<input type='text' data-mf='label' value='" + esc(mc.label) + "'></label>" +
+          "<label class='fld'>참고 피드백<input type='text' data-mf='feedback' value='" + esc(mc.feedback) + "'></label>" +
+        "</div><button class='btn btn--danger btn--sm' data-delmis='" + mc.id + "' style='align-self:end'>삭제</button></div>";
+    }).join("");
+
+    view.innerHTML =
+      "<div class='row' style='justify-content:space-between'>" +
+        "<h1 style='font-size:21px'>단원 설정 (교사 저작)</h1>" +
+        "<div class='row'><button class='btn btn--ghost btn--sm' id='loadSample'>샘플로 초기화</button>" +
+        "<button class='btn btn--danger btn--sm' id='clearModule'>내용 비우기</button></div></div>" +
+      "<p class='muted' style='margin-top:6px'>임의의 책·성취기준으로 단원을 구성하세요. 입력 즉시 저장됩니다. 예시(생물학)는 시작용 템플릿일 뿐입니다.</p>" +
+
+      "<div class='section-label'>단원 정보</div>" +
+      "<div class='card'><div class='authgrid meta'>" +
+        metaField("단원 제목", "title", "예: 원하는 단원 제목") +
+        metaField("들어갈 책", "book", "예: 도서명") +
+        metaField("과목", "subject", "예: 통합과학2") +
+        metaField("성취기준 코드", "standard", "예: [10통과2-01-02]") +
+      "</div><label class='fld' style='margin-top:10px'>단원/도서 맥락 안내<textarea data-meta='intro' style='min-height:64px'>" + esc(m.intro) + "</textarea></label></div>" +
+
+      "<div class='section-label'>활동 (" + m.activities.length + ")</div>" +
+      (actRows || "<p class='empty-state'>활동이 없습니다.</p>") +
+      "<button class='btn btn--ghost' id='addAct'>+ 활동 추가</button>" +
+
+      "<div class='section-label'>루브릭 기준 (" + m.rubric.length + ")</div>" +
+      "<div class='card stack'>" + (rubricRows || "<p class='empty-state'>기준이 없습니다.</p>") +
+        "<button class='btn btn--ghost btn--sm' id='addRub' style='align-self:start'>+ 기준 추가</button></div>" +
+
+      "<div class='section-label'>오개념 태그 (" + m.misconceptions.length + ")</div>" +
+      "<div class='card stack'>" + (misRows || "<p class='empty-state'>오개념이 없습니다.</p>") +
+        "<button class='btn btn--ghost btn--sm' id='addMis' style='align-self:start'>+ 오개념 추가</button></div>";
+
+    // meta live-edit (no re-render → keep focus)
+    Array.prototype.forEach.call(view.querySelectorAll("[data-meta]"), function (el) {
+      el.addEventListener("input", function () { m[el.getAttribute("data-meta")] = el.value; persist(); renderHeader(); });
+    });
+    // activity field edits
+    Array.prototype.forEach.call(view.querySelectorAll("[data-act]"), function (box) {
+      var aid = box.getAttribute("data-act");
+      var a = m.activities.find(function (x) { return x.id === aid; });
+      Array.prototype.forEach.call(box.querySelectorAll("[data-af]"), function (el) {
+        el.addEventListener("input", function () {
+          var f = el.getAttribute("data-af");
+          if (f === "resource") {
+            var v = el.value.trim();
+            if (v) a.resource = { type: "text", body: el.value };
+            else if (a.resource && a.resource.type === "text") a.resource = null;
+          } else { a[f] = el.value; }
+          persist();
+        });
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-clearres]"), function (b) {
+      b.addEventListener("click", function () {
+        var a = m.activities.find(function (x) { return x.id === b.getAttribute("data-clearres"); });
+        a.resource = null; persistNow(); renderSettings();
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-delact]"), function (b) {
+      b.addEventListener("click", function () {
+        var id = b.getAttribute("data-delact");
+        m.activities = m.activities.filter(function (x) { return x.id !== id; });
+        persistNow(); renderHeader(); renderSettings();
+      });
+    });
+    document.getElementById("addAct").addEventListener("click", function () {
+      m.activities.push({ id: uid(), code: "Q" + (m.activities.length + 1), level: "", title: "새 활동", prompt: "", resource: null });
+      persistNow(); renderHeader(); renderSettings();
+    });
+
+    // rubric edits
+    Array.prototype.forEach.call(view.querySelectorAll("[data-rub]"), function (box) {
+      var c = m.rubric.find(function (x) { return x.id === box.getAttribute("data-rub"); });
+      Array.prototype.forEach.call(box.querySelectorAll("[data-rf]"), function (el) {
+        el.addEventListener("input", function () { c[el.getAttribute("data-rf")] = el.value; persist(); });
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-delrub]"), function (b) {
+      b.addEventListener("click", function () {
+        m.rubric = m.rubric.filter(function (x) { return x.id !== b.getAttribute("data-delrub"); });
+        persistNow(); renderSettings();
+      });
+    });
+    document.getElementById("addRub").addEventListener("click", function () {
+      m.rubric.push({ id: uid(), label: "새 기준", description: "" }); persistNow(); renderSettings();
+    });
+
+    // misconception edits
+    Array.prototype.forEach.call(view.querySelectorAll("[data-mis]"), function (box) {
+      var mc = m.misconceptions.find(function (x) { return x.id === box.getAttribute("data-mis"); });
+      Array.prototype.forEach.call(box.querySelectorAll("[data-mf]"), function (el) {
+        el.addEventListener("input", function () { mc[el.getAttribute("data-mf")] = el.value; persist(); });
+      });
+    });
+    Array.prototype.forEach.call(view.querySelectorAll("[data-delmis]"), function (b) {
+      b.addEventListener("click", function () {
+        m.misconceptions = m.misconceptions.filter(function (x) { return x.id !== b.getAttribute("data-delmis"); });
+        persistNow(); renderSettings();
+      });
+    });
+    document.getElementById("addMis").addEventListener("click", function () {
+      m.misconceptions.push({ id: uid(), label: "새 오개념", feedback: "" }); persistNow(); renderSettings();
+    });
+
+    document.getElementById("loadSample").addEventListener("click", function () {
+      if (confirm("샘플(예시) 단원 내용으로 덮어씁니다. 계속할까요? (학생 답안·리뷰는 유지되지만 활동이 바뀌면 연결이 끊길 수 있습니다)")) {
+        store.module = sampleModule(); persistNow(); renderHeader(); renderSettings();
+      }
+    });
+    document.getElementById("clearModule").addEventListener("click", function () {
+      if (confirm("단원 활동·루브릭·오개념을 모두 비웁니다. 계속할까요?")) {
+        m.activities = []; m.rubric = []; m.misconceptions = [];
+        persistNow(); renderHeader(); renderSettings();
+      }
+    });
+  }
+
+  /* =========================================================
+     EXPORTS
+     ========================================================= */
+  function download(name, text, mime) {
+    var blob = new Blob([text], { type: mime });
+    var url = URL.createObjectURL(blob), a = document.createElement("a");
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    document.body.removeChild(a); setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+  }
+  function exportJson() {
+    var payload = {
+      exportedAt: nowIso(), module: M(), students: store.students,
+      artifacts: store.artifacts, reviews: store.reviews, metrics: metrics()
+    };
+    download("science-reading-portfolio.json", JSON.stringify(payload, null, 2), "application/json");
+  }
+  function csvCell(v) { var s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+  function exportCsv() {
+    var m = M();
+    var head = ["학생ID", "분류", "활동코드", "활동명", "수준", "제출여부", "답안"]
+      .concat(m.rubric.map(function (c) { return "점수:" + c.label; }))
+      .concat(["오개념", "피드백", "최근수정"]);
+    var rows = [head.map(csvCell).join(",")];
+    store.students.forEach(function (s) {
+      m.activities.forEach(function (a) {
+        var art = getArtifact(s.id, a.id), rev = getReview(s.id, a.id);
+        var scoreVals = m.rubric.map(function (c) { return rev && rev.scores[c.id] != null ? rev.scores[c.id] : ""; });
+        var mis = rev ? rev.misconceptionIds.map(function (id) { var x = m.misconceptions.find(function (q) { return q.id === id; }); return x ? x.label : id; }).join(" / ") : "";
+        var row = [s.id, s.segment, a.code, a.title, a.level, submitted(s.id, a.id) ? "Y" : "N", art ? art.content : ""]
+          .concat(scoreVals).concat([mis, rev ? rev.feedback : "", art ? art.updatedAt : (rev ? rev.updatedAt : "")]);
+        rows.push(row.map(csvCell).join(","));
+      });
+    });
+    download("science-reading-portfolio.csv", "﻿" + rows.join("\n"), "text/csv;charset=utf-8");
+  }
+
+  /* =========================================================
+     ROUTER
+     ========================================================= */
+  function setView(v) {
+    store.view = v; persist();
+    Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+      b.setAttribute("aria-selected", b.getAttribute("data-view") === v ? "true" : "false");
+    });
+    if (v === "student") renderStudent();
+    else if (v === "teacher") renderTeacher();
+    else renderSettings();
+    view.focus();
+  }
+  Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) {
+    b.addEventListener("click", function () { setView(b.getAttribute("data-view")); });
+  });
+
+  renderHeader();
+  setView(store.view || "student");
+})();
+</script>
+
+</body>
+</html>
