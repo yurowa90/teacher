@@ -1,0 +1,545 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>감염병 확산 예방 시뮬레이터 (SIR 모델)</title>
+    <!-- Tailwind CSS (디자인) -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Chart.js (실시간 그래프) -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #f3f4f6;
+            font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+        }
+        input[type=range] {
+            accent-color: #3b82f6;
+        }
+        canvas {
+            display: block;
+        }
+    </style>
+</head>
+<body class="p-4 md:p-8 flex flex-col items-center min-h-screen">
+
+    <div class="max-w-6xl w-full bg-white rounded-2xl shadow-xl overflow-hidden flex flex-col">
+        <!-- 상단 헤더 -->
+        <div class="bg-slate-800 text-white p-6">
+            <h1 class="text-2xl font-bold flex items-center gap-2">
+                <svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+                생명과학: 감염병 확산 및 예방 시뮬레이터 (SIR 모델)
+            </h1>
+            <p class="text-slate-300 mt-2 text-sm">
+                입자들의 무작위 충돌을 통해 감염병이 확산되는 과정을 시뮬레이션합니다. 마스크 착용과 사회적 거리두기가 확산 억제에 미치는 영향을 직접 확인해 보세요.
+            </p>
+        </div>
+
+        <div class="flex flex-col lg:flex-row flex-1">
+            <!-- 왼쪽: 시뮬레이션 캔버스 (단계 1, 2, 3 구현부) -->
+            <div class="lg:w-1/2 p-6 border-b lg:border-b-0 lg:border-r border-slate-200 flex flex-col items-center justify-center bg-white">
+                <div class="w-full aspect-square bg-slate-50 rounded-xl border-2 border-slate-200 overflow-hidden relative shadow-inner">
+                    <!-- 실제 입자들이 움직일 공간 -->
+                    <canvas id="simCanvas" class="absolute top-0 left-0 w-full h-full"></canvas>
+                </div>
+
+                <!-- 범례(Legend) -->
+                <div class="flex flex-wrap justify-center gap-x-6 gap-y-2 mt-5 text-sm font-semibold text-slate-700">
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-blue-500 shadow-sm"></span> 정상 (Susceptible)</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-red-500 shadow-sm"></span> 감염 (Infected)</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-gray-400 shadow-sm"></span> 회복/면역 (Recovered)</div>
+                    <div class="flex items-center gap-2"><span class="w-3 h-3 rounded-full bg-slate-800 shadow-sm"></span> 사망 (Deceased)</div>
+                </div>
+            </div>
+
+            <!-- 오른쪽: 컨트롤 패널 및 차트 (단계 4 구현부) -->
+            <div class="lg:w-1/2 p-6 flex flex-col gap-6 bg-slate-50">
+
+                <!-- 조작 패널 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200">
+                    <h2 class="text-lg font-bold text-slate-800 mb-4 flex items-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20a8 8 0 1 0 0-16 8 8 0 0 0 0 16Z"/><path d="M12 14a2 2 0 1 0 0-4 2 2 0 0 0 0 4Z"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg>
+                        시뮬레이션 설정
+                    </h2>
+
+                    <div class="space-y-5">
+                        <!-- 마스크 착용률 (감염 확률을 낮춤) -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <label class="font-bold text-slate-700">마스크 착용률 (감염 방어력 증가)</label>
+                                <span id="valMask" class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">0%</span>
+                            </div>
+                            <input type="range" id="sliderMask" min="0" max="100" value="0" class="w-full cursor-pointer">
+                            <p class="text-xs text-slate-400 mt-1">접촉 시 감염될 확률을 직접적으로 낮춥니다.</p>
+                        </div>
+
+                        <!-- 사회적 거리두기 (움직이지 않는 인구 비율) -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <label class="font-bold text-slate-700">사회적 거리두기 (이동 인구 감소)</label>
+                                <span id="valDistancing" class="text-blue-600 font-bold bg-blue-50 px-2 py-0.5 rounded">0%</span>
+                            </div>
+                            <input type="range" id="sliderDistancing" min="0" max="100" value="0" class="w-full cursor-pointer">
+                            <p class="text-xs text-slate-400 mt-1">이동을 멈추고 제자리에 머무르는 인구의 비율입니다.</p>
+                        </div>
+
+                        <!-- 질병의 완치율 (감염 기간 후 회복 vs 사망) -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <label class="font-bold text-slate-700">질병의 완치율 (회복 vs 사망)</label>
+                                <span id="valCure" class="text-green-600 font-bold bg-green-50 px-2 py-0.5 rounded">90%</span>
+                            </div>
+                            <input type="range" id="sliderCure" min="0" max="100" value="90" class="w-full cursor-pointer">
+                            <p class="text-xs text-slate-400 mt-1">감염 기간이 끝났을 때 완치(회복·면역)될 확률입니다. 나머지는 사망(D)합니다.</p>
+                        </div>
+
+                        <hr class="border-slate-100">
+
+                        <!-- 기본 감염 확률 -->
+                        <div>
+                            <div class="flex justify-between text-sm mb-2">
+                                <label class="font-medium text-slate-500">기본 감염 확률 (마스크 미착용시)</label>
+                                <span id="valInfection" class="text-slate-500">50%</span>
+                            </div>
+                            <input type="range" id="sliderInfection" min="10" max="100" step="10" value="50" class="w-full opacity-70 cursor-pointer">
+                        </div>
+                    </div>
+
+                    <!-- 액션 버튼 (단계 5 구현부) -->
+                    <div class="flex gap-3 mt-6">
+                        <button id="btnPlayPause" class="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-lg font-bold transition-colors shadow-sm">
+                            일시정지
+                        </button>
+                        <button id="btnReset" class="flex-1 bg-slate-200 hover:bg-slate-300 text-slate-800 py-2.5 rounded-lg font-bold transition-colors shadow-sm">
+                            초기화 및 다시 시작
+                        </button>
+                    </div>
+                </div>
+
+                <!-- 실시간 그래프 구역 -->
+                <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 flex-1 min-h-[250px] relative flex flex-col">
+                    <div class="flex justify-between items-center mb-2">
+                        <h2 class="text-lg font-bold text-slate-800">실시간 감염 현황</h2>
+                        <button id="btnDownloadChart" class="bg-slate-100 hover:bg-slate-200 text-slate-600 text-sm px-3 py-1.5 rounded-md font-medium transition-colors flex items-center gap-1 shadow-sm">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg>
+                            그래프 다운로드
+                        </button>
+                    </div>
+                    <div class="flex-1 relative w-full h-full">
+                        <canvas id="sirChart" class="absolute top-0 left-0 w-full h-full"></canvas>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+    <!-- 이미지 다운로드 모달 (보안/샌드박스 환경 다운로드 차단 대비) -->
+    <div id="downloadModal" class="fixed inset-0 bg-black/60 hidden items-center justify-center z-50 p-4">
+        <div class="bg-white rounded-xl shadow-2xl p-6 max-w-2xl w-full flex flex-col gap-4">
+            <div class="flex justify-between items-center">
+                <h3 class="text-lg font-bold text-slate-800">그래프 이미지 저장</h3>
+                <button id="btnCloseModal" class="text-slate-400 hover:text-slate-600 transition-colors">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <p class="text-sm text-slate-600">
+                현재 환경에서 자동 다운로드가 되지 않을 경우, 아래 이미지를 <b>마우스 오른쪽 버튼으로 클릭(모바일은 길게 누르기)하여 '이미지 저장'</b>을 선택해 주세요.
+            </p>
+            <div class="border border-slate-200 rounded-lg overflow-hidden bg-slate-50 flex justify-center p-2">
+                <img id="modalChartImage" src="" alt="Chart Image" class="max-w-full h-auto shadow-sm">
+            </div>
+            <div class="flex justify-end mt-2">
+                <button id="btnModalClose" class="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold transition-colors">확인 및 닫기</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- 1. 기본 환경 및 캔버스 설정 ---
+        const canvas = document.getElementById('simCanvas');
+        const ctx = canvas.getContext('2d');
+
+        // 캔버스 내부 해상도를 고정하여 물리 연산 일관성 유지
+        const width = 600;
+        const height = 600;
+        canvas.width = width;
+        canvas.height = height;
+
+        // 시뮬레이션 기본 설정값
+        const CONFIG = {
+            totalPopulation: 250,    // 총 인구(입자) 수
+            initialInfected: 2,      // 초기 감염자 수
+            radius: 4.5,             // 입자 반지름 크기
+            baseSpeed: 1.8,          // 기본 이동 속도
+            recoveryTime: 400,       // 감염 후 회복(면역 획득)까지 걸리는 프레임(시간)
+        };
+
+        // UI 컨트롤로 변경되는 변수들
+        let params = {
+            maskRate: 0,         // 마스크 착용률 (0 ~ 1)
+            distancingRate: 0,   // 거리두기 비율 (0 ~ 1)
+            infectionProb: 0.5,  // 기본 감염 확률 (0 ~ 1)
+            cureRate: 0.9        // 질병의 완치율 (0 ~ 1) — 감염 기간 후 회복될 확률, 나머지는 사망
+        };
+
+        let particles = [];
+        let isPaused = false;
+        let animationId;
+        let frameCount = 0;
+
+        // 차트에 그릴 통계 데이터 기록 객체
+        let statsData = {
+            labels: [],
+            susceptible: [],
+            infected: [],
+            recovered: [],
+            deceased: []
+        };
+
+        // --- 2. 입자(Particle) 클래스 정의 ---
+        class Particle {
+            constructor(x, y, state) {
+                this.x = x;
+                this.y = y;
+                this.state = state; // 'S'(정상), 'I'(감염), 'R'(회복), 'D'(사망)
+
+                // 무작위 360도 방향으로 출발
+                const angle = Math.random() * Math.PI * 2;
+                this.vx = Math.cos(angle) * CONFIG.baseSpeed;
+                this.vy = Math.sin(angle) * CONFIG.baseSpeed;
+
+                this.infectedFrames = 0; // 감염된 이후 경과한 시간
+
+                // 생성 시점에 거리두기 확률에 따라 멈춰있을지 결정
+                this.isStationary = Math.random() < params.distancingRate;
+            }
+
+            // 입자 화면에 그리기
+            draw() {
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, CONFIG.radius, 0, Math.PI * 2);
+
+                // 상태에 따른 색상 변경 (단계 3 에셋 적용)
+                if (this.state === 'S') ctx.fillStyle = '#3b82f6';      // 파란색 (정상)
+                else if (this.state === 'I') ctx.fillStyle = '#ef4444'; // 빨간색 (감염)
+                else if (this.state === 'R') ctx.fillStyle = '#9ca3af'; // 회색 (회복/면역)
+                else if (this.state === 'D') ctx.fillStyle = '#1e293b'; // 짙은 색 (사망)
+
+                ctx.fill();
+                ctx.closePath();
+
+                // 감염자 주변 위험 반경 시각화 효과
+                if (this.state === 'I') {
+                    ctx.beginPath();
+                    ctx.arc(this.x, this.y, CONFIG.radius * 3, 0, Math.PI * 2);
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.15)';
+                    ctx.fill();
+                    ctx.closePath();
+                }
+            }
+
+            // 입자 위치 및 상태 업데이트
+            update() {
+                // 회복/사망 로직 (일정 시간이 지나면 완치율에 따라 'I' -> 'R' 또는 'D'로 변경)
+                if (this.state === 'I') {
+                    this.infectedFrames++;
+                    if (this.infectedFrames > CONFIG.recoveryTime) {
+                        if (Math.random() < params.cureRate) {
+                            // 완치: 회복하여 면역 획득
+                            this.state = 'R';
+                        } else {
+                            // 완치 실패: 사망 (이후 움직이지 않고 감염도 시키지 않음)
+                            this.state = 'D';
+                            this.isStationary = true;
+                        }
+                    }
+                }
+
+                // 이동 (거리두기 중이 아니고 사망하지 않은 사람만 이동)
+                if (!this.isStationary && this.state !== 'D') {
+                    this.x += this.vx;
+                    this.y += this.vy;
+
+                    // 캔버스 벽에 부딪히면 튕기기
+                    if (this.x - CONFIG.radius < 0 || this.x + CONFIG.radius > width) {
+                        this.vx *= -1;
+                        this.x = Math.max(CONFIG.radius, Math.min(this.x, width - CONFIG.radius));
+                    }
+                    if (this.y - CONFIG.radius < 0 || this.y + CONFIG.radius > height) {
+                        this.vy *= -1;
+                        this.y = Math.max(CONFIG.radius, Math.min(this.y, height - CONFIG.radius));
+                    }
+                }
+            }
+        }
+
+        // --- 3. 핵심 규칙: 충돌 및 감염 전파 로직 ---
+        function handleCollisions() {
+            for (let i = 0; i < particles.length; i++) {
+                for (let j = i + 1; j < particles.length; j++) {
+                    const p1 = particles[i];
+                    const p2 = particles[j];
+
+                    const dx = p1.x - p2.x;
+                    const dy = p1.y - p2.y;
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+
+                    // 두 입자가 부딪혔을 때 (거리가 반지름의 합보다 작을 때)
+                    if (distance < CONFIG.radius * 2) {
+
+                        // 물리적 튕기기 (간단한 방향 반전) — 사망자는 고정된 벽처럼 취급
+                        const p1Movable = !p1.isStationary && p1.state !== 'D';
+                        const p2Movable = !p2.isStationary && p2.state !== 'D';
+                        if (p1Movable && p2Movable) {
+                            const tempVx = p1.vx, tempVy = p1.vy;
+                            p1.vx = p2.vx; p1.vy = p2.vy;
+                            p2.vx = tempVx; p2.vy = tempVy;
+                        } else if (p1Movable) {
+                            p1.vx *= -1; p1.vy *= -1;
+                        } else if (p2Movable) {
+                            p2.vx *= -1; p2.vy *= -1;
+                        }
+
+                        // 서로 겹쳐서 붙어버리는 버그 방지 (밀어내기)
+                        const overlap = (CONFIG.radius * 2 - distance) / 2;
+                        const nx = dx / distance;
+                        const ny = dy / distance;
+                        if (p1Movable) { p1.x += nx * overlap; p1.y += ny * overlap; }
+                        if (p2Movable) { p2.x -= nx * overlap; p2.y -= ny * overlap; }
+
+                        // ★ 감염 전파 로직 (SIR) ★
+                        // 한 명은 감염(I), 다른 한 명은 정상(S)일 때만 발생
+                        if ((p1.state === 'I' && p2.state === 'S') || (p1.state === 'S' && p2.state === 'I')) {
+
+                            // 마스크 착용률에 따라 최종 감염 확률 감소 적용
+                            const actualInfectionProb = params.infectionProb * (1 - params.maskRate);
+
+                            // 확률에 당첨되면 정상 입자를 감염 상태로 변경
+                            if (Math.random() < actualInfectionProb) {
+                                p1.state = 'I';
+                                p2.state = 'I';
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        // --- 4. 시뮬레이션 제어 및 그래프 연동 ---
+
+        // 다운로드 시 이미지 배경이 투명해지는 것을 방지하는 플러그인
+        const customCanvasBackgroundColor = {
+            id: 'customCanvasBackgroundColor',
+            beforeDraw: (chart) => {
+                const ctx = chart.canvas.getContext('2d');
+                ctx.save();
+                ctx.globalCompositeOperation = 'destination-over';
+                ctx.fillStyle = 'white';
+                ctx.fillRect(0, 0, chart.width, chart.height);
+                ctx.restore();
+            }
+        };
+
+        // 차트 초기화 함수 (Chart.js)
+        const ctxChart = document.getElementById('sirChart').getContext('2d');
+        const sirChart = new Chart(ctxChart, {
+            type: 'line',
+            plugins: [customCanvasBackgroundColor],
+            data: {
+                labels: statsData.labels,
+                datasets: [
+                    { label: '정상 (S)', borderColor: '#3b82f6', backgroundColor: 'rgba(59, 130, 246, 0.1)', data: statsData.susceptible, fill: true, pointRadius: 0, tension: 0.3, borderWidth: 2 },
+                    { label: '감염 (I)', borderColor: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', data: statsData.infected, fill: true, pointRadius: 0, tension: 0.3, borderWidth: 2 },
+                    { label: '회복/면역 (R)', borderColor: '#9ca3af', backgroundColor: 'rgba(156, 163, 175, 0.1)', data: statsData.recovered, fill: true, pointRadius: 0, tension: 0.3, borderWidth: 2 },
+                    { label: '사망 (D)', borderColor: '#1e293b', backgroundColor: 'rgba(30, 41, 59, 0.1)', data: statsData.deceased, fill: true, pointRadius: 0, tension: 0.3, borderWidth: 2 }
+                ]
+            },
+            options: {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: false,
+                interaction: { mode: 'index', intersect: false },
+                scales: {
+                    x: {
+                        display: true,
+                        title: { display: true, text: '시간 흐름', color: '#64748b', font: { weight: 'bold' } },
+                        ticks: { maxTicksLimit: 8, color: '#94a3b8' }
+                    },
+                    y: {
+                        min: 0,
+                        max: CONFIG.totalPopulation,
+                        title: { display: true, text: '사람 수(명)', color: '#64748b', font: { weight: 'bold' } },
+                        ticks: { color: '#94a3b8' }
+                    }
+                },
+                plugins: { legend: { position: 'bottom', labels: { usePointStyle: true, boxWidth: 6 } } }
+            }
+        });
+
+        // 실시간 차트 업데이트 함수
+        function updateChartData() {
+            if (frameCount % 10 !== 0) return; // 최적화를 위해 10프레임마다 기록
+
+            let s = 0, i = 0, r = 0, d = 0;
+            particles.forEach(p => {
+                if (p.state === 'S') s++;
+                else if (p.state === 'I') i++;
+                else if (p.state === 'R') r++;
+                else if (p.state === 'D') d++;
+            });
+
+            statsData.labels.push(frameCount);
+            statsData.susceptible.push(s);
+            statsData.infected.push(i);
+            statsData.recovered.push(r);
+            statsData.deceased.push(d);
+
+            // X축이 처음(0)부터 전체 누적되도록 기존의 옛날 데이터 삭제 로직 제거
+            /*
+            if (statsData.labels.length > 80) {
+                statsData.labels.shift();
+                statsData.susceptible.shift();
+                statsData.infected.shift();
+                statsData.recovered.shift();
+                statsData.deceased.shift();
+            }
+            */
+
+            sirChart.update();
+
+            // 시뮬레이션 자동 종료 (감염자가 0명이면)
+            if (i === 0 && frameCount > 100 && !isPaused) {
+                togglePause();
+                document.getElementById('btnPlayPause').textContent = '종료 (다시 시작하세요)';
+            }
+        }
+
+        // 애니메이션 메인 루프 (초당 60프레임)
+        function animate() {
+            if (isPaused) return;
+
+            // 이전 프레임 지우기
+            ctx.clearRect(0, 0, width, height);
+
+            handleCollisions();
+
+            particles.forEach(p => {
+                p.update();
+                p.draw();
+            });
+
+            updateChartData();
+            frameCount++;
+            animationId = requestAnimationFrame(animate);
+        }
+
+        // 시뮬레이션 초기화 (처음부터 다시 시작)
+        function initSimulation() {
+            if(animationId) cancelAnimationFrame(animationId);
+            particles = [];
+            frameCount = 0;
+
+            // 그래프 데이터 리셋
+            statsData.labels.length = 0;
+            statsData.susceptible.length = 0;
+            statsData.infected.length = 0;
+            statsData.recovered.length = 0;
+            statsData.deceased.length = 0;
+            sirChart.update();
+
+            // 설정된 인구 수만큼 입자 객체 생성
+            for (let i = 0; i < CONFIG.totalPopulation; i++) {
+                const x = Math.random() * (width - CONFIG.radius * 2) + CONFIG.radius;
+                const y = Math.random() * (height - CONFIG.radius * 2) + CONFIG.radius;
+                const state = i < CONFIG.initialInfected ? 'I' : 'S'; // 처음에 몇 명만 감염 상태로 시작
+                particles.push(new Particle(x, y, state));
+            }
+
+            // 일시정지 상태라면 풀고 시작
+            if (isPaused) {
+                isPaused = false;
+                updatePlayPauseButtonUI();
+            }
+            animate();
+        }
+
+        // --- 5. UI 이벤트 리스너 (사용자 상호작용) ---
+
+        // 일시정지/재생 토글
+        function togglePause() {
+            isPaused = !isPaused;
+            updatePlayPauseButtonUI();
+            if (!isPaused) animate();
+        }
+
+        function updatePlayPauseButtonUI() {
+            const btn = document.getElementById('btnPlayPause');
+            if (isPaused) {
+                btn.textContent = '재생';
+                btn.classList.replace('bg-blue-600', 'bg-green-600');
+                btn.classList.replace('hover:bg-blue-700', 'hover:bg-green-700');
+            } else {
+                btn.textContent = '일시정지';
+                btn.classList.replace('bg-green-600', 'bg-blue-600');
+                btn.classList.replace('hover:bg-green-700', 'hover:bg-blue-700');
+            }
+        }
+
+        document.getElementById('btnPlayPause').addEventListener('click', togglePause);
+        document.getElementById('btnReset').addEventListener('click', initSimulation);
+
+        // 슬라이더 조작 시 변수 즉각 업데이트
+        document.getElementById('sliderMask').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('valMask').innerText = val + '%';
+            params.maskRate = val / 100;
+        });
+
+        document.getElementById('sliderDistancing').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('valDistancing').innerText = val + '%';
+            params.distancingRate = val / 100;
+
+            // 거리두기는 조작하는 즉시 움직임 여부를 재평가함 (단, 사망자는 계속 고정)
+            particles.forEach(p => {
+                p.isStationary = (p.state === 'D') ? true : (Math.random() < params.distancingRate);
+            });
+        });
+
+        document.getElementById('sliderCure').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('valCure').innerText = val + '%';
+            params.cureRate = val / 100;
+        });
+
+        document.getElementById('sliderInfection').addEventListener('input', (e) => {
+            const val = e.target.value;
+            document.getElementById('valInfection').innerText = val + '%';
+            params.infectionProb = val / 100;
+        });
+
+        // 차트 이미지 다운로드 이벤트 연결 및 모달 제어
+        document.getElementById('btnDownloadChart').addEventListener('click', () => {
+            const base64Img = sirChart.toBase64Image();
+
+            // 환경 충돌(화면 깜빡임/새로고침)을 방지하기 위해 강제 다운로드 코드를 제거하고 모달만 띄웁니다.
+            document.getElementById('modalChartImage').src = base64Img;
+            document.getElementById('downloadModal').classList.remove('hidden');
+            document.getElementById('downloadModal').classList.add('flex');
+        });
+
+        // 모달 닫기 이벤트
+        const closeModal = () => {
+            document.getElementById('downloadModal').classList.add('hidden');
+            document.getElementById('downloadModal').classList.remove('flex');
+        };
+        document.getElementById('btnCloseModal').addEventListener('click', closeModal);
+        document.getElementById('btnModalClose').addEventListener('click', closeModal);
+
+        // 페이지 로드 시 시뮬레이션 최초 시작
+        window.onload = initSimulation;
+
+    </script>
+</body>
+</html>
