@@ -1,0 +1,426 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>과학 독서·논술 포트폴리오</title>
+  <style>
+    :root {
+      --ground:#eef2f3; --surface:#fff; --surface-2:#f3f7f8; --ink:#16242b; --muted:#5a6b72;
+      --line:#d4dee1; --line-strong:#b9c8cc; --primary:#1f6f83; --primary-ink:#fff; --primary-weak:#e0edf0;
+      --done:#2f7d57; --warn:#a5641f; --warn-weak:#f6ecdd; --danger:#b0433a;
+      --radius:13px; --radius-sm:9px; --shadow:0 1px 2px rgba(16,32,39,.05),0 6px 20px -12px rgba(16,32,39,.18);
+      --mono:ui-monospace,"SF Mono",Menlo,Consolas,monospace;
+      --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,sans-serif;
+    }
+    @media (prefers-color-scheme:dark){:root{
+      --ground:#0e1619;--surface:#16242b;--surface-2:#1b2c34;--ink:#e5edef;--muted:#9bb0b8;--line:#294049;
+      --line-strong:#35505a;--primary:#57a9be;--primary-ink:#06171d;--primary-weak:#1c3640;--done:#6fc79a;
+      --warn:#d8a15c;--warn-weak:#33291a;--danger:#e08078;--shadow:0 1px 2px rgba(0,0,0,.3),0 10px 28px -14px rgba(0,0,0,.55);
+    }}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:var(--sans);font-size:16px;line-height:1.6;color:var(--ink);background:var(--ground);-webkit-font-smoothing:antialiased}
+    h1,h2,h3{margin:0;font-weight:700;letter-spacing:-.01em}
+    p{margin:0}
+    .num{font-variant-numeric:tabular-nums}
+    .wrap{max-width:1100px;margin:0 auto;padding:0 20px 60px}
+    .hd{position:sticky;top:0;z-index:10;background:color-mix(in srgb,var(--ground) 88%,transparent);backdrop-filter:saturate(1.4) blur(8px);margin:0 -20px;padding:14px 20px 0;border-bottom:1px solid var(--line)}
+    .hd__top{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap}
+    .brand{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;min-width:0}
+    .brand__code{font-family:var(--mono);font-size:12px;font-weight:600;color:var(--primary);background:var(--primary-weak);padding:3px 8px;border-radius:6px;white-space:nowrap}
+    .brand__title{font-size:16px;font-weight:700}
+    .seg{display:inline-flex;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;padding:3px;gap:2px}
+    .seg button{border:0;background:transparent;color:var(--muted);font-size:13.5px;font-weight:600;padding:7px 15px;border-radius:999px;cursor:pointer}
+    .seg button[aria-selected="true"]{background:var(--primary);color:var(--primary-ink)}
+    .hd__sub{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:10px 0 12px;font-size:13px;color:var(--muted)}
+    main{padding-top:22px}
+    .section-label{font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:26px 0 12px}
+    .card{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);padding:18px}
+    .muted{color:var(--muted)}
+    .row{display:flex;gap:10px;flex-wrap:wrap;align-items:center}
+    label.fld{display:block;font-size:12px;font-weight:600;color:var(--muted);margin-bottom:5px}
+    input[type=text],textarea,select{width:100%;font:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line-strong);border-radius:var(--radius-sm);padding:9px 11px}
+    input:focus,textarea:focus,select:focus{outline:2px solid var(--primary);outline-offset:1px;border-color:var(--primary)}
+    textarea{min-height:108px;resize:vertical;line-height:1.55}
+    .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:600;padding:9px 16px;border-radius:var(--radius-sm);border:1px solid transparent;cursor:pointer;background:var(--primary);color:var(--primary-ink)}
+    .btn:hover{filter:brightness(1.06)}
+    .btn--ghost{background:var(--surface);color:var(--primary);border-color:var(--line-strong)}
+    .btn--ghost:hover{background:var(--surface-2)}
+    .btn--sm{padding:6px 11px;font-size:13px}
+    .pill{display:inline-block;padding:4px 11px;border-radius:999px;background:var(--surface-2);border:1px solid var(--line);font-size:12.5px;font-weight:600}
+    .pill--primary{background:var(--primary-weak);border-color:transparent;color:var(--primary)}
+    .notice{background:var(--warn-weak);border:1px solid color-mix(in srgb,var(--warn) 30%,transparent);color:var(--warn);padding:10px 14px;border-radius:var(--radius-sm);font-size:13.5px}
+    .cards{display:grid;grid-template-columns:1fr;gap:16px}
+    @media(min-width:800px){.cards{grid-template-columns:1fr 1fr}}
+    .act{display:flex;flex-direction:column;gap:11px}
+    .act__head{display:flex;align-items:center;gap:8px}
+    .act__code{font-family:var(--mono);font-size:12px;font-weight:700;color:var(--primary-ink);background:var(--primary);border-radius:6px;padding:2px 8px}
+    .act__level{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted)}
+    .act__title{font-size:16.5px;font-weight:700}
+    .act__prompt{font-size:14px;color:var(--muted)}
+    .act__foot{font-size:12.5px;color:var(--muted)}
+    .saved-dot{display:inline-flex;align-items:center;gap:6px;font-weight:600}
+    .saved-dot::before{content:"";width:7px;height:7px;border-radius:50%;background:var(--line-strong)}
+    .saved-dot.on{color:var(--done)}.saved-dot.on::before{background:var(--done)}
+    .saved-dot.err{color:var(--danger)}.saved-dot.err::before{background:var(--danger)}
+    .resbox{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:12px;overflow-x:auto}
+    .resbox caption{text-align:left;font-size:12px;color:var(--muted);margin-bottom:7px;caption-side:top}
+    .resbox .note{white-space:pre-wrap;font-size:13.5px}
+    table.data{border-collapse:collapse;width:100%;font-size:12.5px}
+    table.data th,table.data td{border:1px solid var(--line);padding:6px 9px;text-align:center;white-space:nowrap}
+    table.data th{background:var(--primary-weak);color:var(--primary);font-weight:700}
+    .stats{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+    @media(min-width:760px){.stats{grid-template-columns:repeat(4,1fr)}}
+    .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:15px 16px;box-shadow:var(--shadow)}
+    .stat__k{font-size:12px;font-weight:600;color:var(--muted)}
+    .stat__v{font-size:29px;font-weight:750;margin-top:3px;line-height:1.1;letter-spacing:-.02em}
+    .stat__s{font-size:12px;color:var(--muted);margin-top:2px}
+    .stat__bar{height:5px;border-radius:999px;background:var(--surface-2);margin-top:10px;overflow:hidden}
+    .stat__bar>i{display:block;height:100%;background:var(--primary);border-radius:999px}
+    .tablewrap{overflow-x:auto;border:1px solid var(--line);border-radius:var(--radius);background:var(--surface);box-shadow:var(--shadow)}
+    table.grid{border-collapse:collapse;width:100%;font-size:13.5px}
+    table.grid th,table.grid td{border-bottom:1px solid var(--line);padding:9px 8px;text-align:center}
+    table.grid thead th{background:var(--surface-2);font-size:12px;color:var(--muted);font-weight:700}
+    table.grid tbody tr:last-child td{border-bottom:0}
+    table.grid td.name{text-align:left;font-weight:600;white-space:nowrap;padding-left:14px}
+    table.grid td.name small{display:block;font-weight:500;color:var(--muted);font-size:11.5px}
+    .rate-bar{height:11px;min-width:80px;background:var(--surface-2);border-radius:999px;overflow:hidden}
+    .rate-bar>span{display:block;height:100%;background:var(--primary);border-radius:999px}
+    .cellbtn{border:0;background:transparent;cursor:pointer;font-size:15px;line-height:1;padding:5px 8px;border-radius:6px;color:var(--line-strong)}
+    .cellbtn.on{color:var(--done)}.cellbtn:hover{background:var(--surface-2)}
+    .bars{display:flex;flex-direction:column;gap:9px}
+    .bar{display:grid;grid-template-columns:minmax(120px,220px) 1fr 34px;align-items:center;gap:12px}
+    .bar__l{font-size:13px}.bar__t{height:16px;background:var(--surface-2);border:1px solid var(--line);border-radius:999px;overflow:hidden}
+    .bar__f{height:100%;background:var(--warn);border-radius:999px}.bar__n{text-align:right;font-weight:700;font-size:13px}
+    .answer{background:var(--surface-2);border:1px solid var(--line);border-radius:var(--radius-sm);padding:14px;white-space:pre-wrap;font-size:14.5px;min-height:52px}
+    .answer.empty{color:var(--muted);font-style:italic}
+    .rubric{display:flex;flex-direction:column;gap:12px}
+    .rubric__row{display:grid;grid-template-columns:1fr auto;gap:10px 16px;align-items:center;padding-bottom:11px;border-bottom:1px dashed var(--line)}
+    .rubric__row:last-child{border-bottom:0;padding-bottom:0}
+    .rubric__row strong{font-size:14.5px}.rubric__row span{display:block;font-size:12.5px;color:var(--muted)}
+    .score{display:inline-flex;gap:5px}
+    .score button{width:38px;height:38px;border:1px solid var(--line-strong);background:var(--surface);border-radius:var(--radius-sm);font-size:15px;font-weight:700;color:var(--muted);cursor:pointer}
+    .score button[aria-pressed="true"]{background:var(--primary);color:var(--primary-ink);border-color:var(--primary)}
+    .tags{display:flex;flex-wrap:wrap;gap:8px}
+    .tag{display:inline-flex;align-items:center;gap:7px;font-size:13px;padding:7px 11px;border:1px solid var(--line-strong);border-radius:999px;background:var(--surface);cursor:pointer}
+    .tag.on{background:var(--warn-weak);border-color:color-mix(in srgb,var(--warn) 40%,transparent);color:var(--warn);font-weight:600}
+    .hint{font-size:12.5px;color:var(--muted);background:var(--warn-weak);border:1px dashed color-mix(in srgb,var(--warn) 30%,transparent);border-radius:var(--radius-sm);padding:10px 12px}
+    .hint ul{margin:6px 0 0;padding-left:18px}
+    .stack{display:flex;flex-direction:column;gap:16px}
+    .flash{font-size:12.5px;color:var(--done);font-weight:600}
+    .center{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;padding:60px 20px;text-align:center;color:var(--muted)}
+    .spinner{width:30px;height:30px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--primary);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+    footer{margin-top:40px;padding-top:18px;border-top:1px solid var(--line);color:var(--muted);font-size:12.5px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hd">
+      <div class="hd__top">
+        <div class="brand">
+          <span class="brand__code" id="brandCode">불러오는 중…</span>
+          <span class="brand__title" id="brandTitle"></span>
+        </div>
+        <nav class="seg" role="tablist" aria-label="화면 전환">
+          <button role="tab" data-view="student" aria-selected="true">학생</button>
+          <button role="tab" data-view="teacher" aria-selected="false">교사 대시보드</button>
+        </nav>
+      </div>
+      <div class="hd__sub" id="brandMeta"></div>
+    </header>
+    <main id="view" tabindex="-1">
+      <div class="center"><div class="spinner"></div><div>구글 시트에서 자료를 불러오는 중…</div></div>
+    </main>
+    <footer>구글 시트 기반 · 자료·질문은 시트에서 관리 · 답안/리뷰는 시트에 저장 · 실명·학번 미수집 · 교사가 최종 평가자입니다.</footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+
+    /* ---------- 백엔드 어댑터 (google.script.run) ---------- */
+    function call(fn, args, onOk, onErr) {
+      if (window.__MOCK_BACKEND__) { window.__MOCK_BACKEND__(fn, args || [], onOk, onErr); return; }
+      var r = google.script.run.withSuccessHandler(onOk).withFailureHandler(onErr || function (e) { console.error(e); });
+      r[fn].apply(r, args || []);
+    }
+
+    /* ---------- 상태 ---------- */
+    var DATA = null;          // {module, activities, rubric, misconceptions, students}
+    var responses = {};       // key `${sid}::${code}` -> {content, updatedAt}
+    var reviews = {};         // key `${sid}::${code}` -> {scores, misconceptions, feedback, updatedAt}
+    var currentStudentId = null;
+    var currentView = "student";
+
+    var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+    var pct = function (r) { return Math.round(r * 100) + "%"; };
+    var timeNow = function () { try { return new Date().toLocaleTimeString("ko-KR"); } catch (e) { return ""; } };
+    var key = function (sid, code) { return sid + "::" + code; };
+    var view = document.getElementById("view");
+
+    /* ---------- 로드 ---------- */
+    function boot() {
+      call("getBootstrap", [], function (res) {
+        DATA = res.data;
+        responses = {};
+        (res.responses || []).forEach(function (r) { responses[key(r.studentId, r.code)] = { content: r.content, updatedAt: r.updatedAt }; });
+        reviews = {};
+        (res.reviews || []).forEach(function (r) { reviews[key(r.studentId, r.code)] = { scores: r.scores || {}, misconceptions: r.misconceptions || [], feedback: r.feedback || "", updatedAt: r.updatedAt }; });
+        if (!currentStudentId) currentStudentId = DATA.students[0] ? DATA.students[0].studentId : "S-001";
+        renderHeader();
+        setView(currentView);
+      }, function (err) {
+        view.innerHTML = "<div class='center'><div>⚠️ 자료를 불러오지 못했습니다.</div><div class='muted'>" + esc(err && err.message ? err.message : err) + "</div><button class='btn' onclick='location.reload()'>다시 시도</button></div>";
+      });
+    }
+
+    function renderHeader() {
+      var m = DATA.module;
+      document.getElementById("brandCode").textContent = m.standard || "성취기준";
+      document.getElementById("brandTitle").textContent = m.title || "(단원 제목 없음)";
+      var bits = [];
+      if (m.subject) bits.push("<span class='pill'>" + esc(m.subject) + "</span>");
+      if (m.book) bits.push("<span>📖 " + esc(m.book) + "</span>");
+      bits.push("<span>활동 " + DATA.activities.length + "개 · 학생 " + DATA.students.length + "명</span>");
+      document.getElementById("brandMeta").innerHTML = bits.join("");
+    }
+
+    /* ---------- 지표 ---------- */
+    function submitted(sid, code) { var a = responses[key(sid, code)]; return !!(a && a.content && a.content.trim()); }
+    function studentProgress(sid) {
+      var acts = DATA.activities, done = 0;
+      acts.forEach(function (a) { if (submitted(sid, a.code)) done++; });
+      return { done: done, total: acts.length, ratio: acts.length ? done / acts.length : 0 };
+    }
+    function activityRate(code) {
+      var done = 0; DATA.students.forEach(function (s) { if (submitted(s.studentId, code)) done++; });
+      return { done: done, total: DATA.students.length, ratio: DATA.students.length ? done / DATA.students.length : 0 };
+    }
+
+    /* ---------- 학생 화면 ---------- */
+    function renderResource(a) {
+      var res = a.resource;
+      if (res && res.type === "table") {
+        var thead = "<tr>" + res.headers.map(function (x) { return "<th>" + esc(x) + "</th>"; }).join("") + "</tr>";
+        var tbody = res.rows.map(function (r) { return "<tr>" + r.map(function (c) { return "<td>" + esc(c) + "</td>"; }).join("") + "</tr>"; }).join("");
+        return "<div class='resbox'><table class='data'><caption>" + esc(res.caption || "") + "</caption><thead>" + thead + "</thead><tbody>" + tbody + "</tbody></table></div>";
+      }
+      if (res && res.type === "text" && res.body) return "<div class='resbox'><div class='note'>" + esc(res.body) + "</div></div>";
+      return "";
+    }
+
+    function renderStudent() {
+      var sid = currentStudentId;
+      if (!DATA.students.some(function (s) { return s.studentId === sid; })) sid = currentStudentId = DATA.students[0].studentId;
+      var p = studentProgress(sid);
+      var opts = DATA.students.map(function (s) { return "<option value='" + esc(s.studentId) + "'" + (s.studentId === sid ? " selected" : "") + ">" + esc(s.studentId) + " · " + esc(s.segment) + "</option>"; }).join("");
+      var cards = DATA.activities.map(function (a) {
+        var art = responses[key(sid, a.code)], content = art ? art.content : "", on = content && content.trim();
+        return "<article class='card act'>" +
+          "<div class='act__head'><span class='act__code'>" + esc(a.code) + "</span><span class='act__level'>" + esc(a.level) + "</span></div>" +
+          "<div class='act__title'>" + esc(a.title) + "</div>" +
+          (a.prompt ? "<p class='act__prompt'>" + esc(a.prompt) + "</p>" : "") +
+          renderResource(a) +
+          "<textarea data-code='" + esc(a.code) + "' placeholder='여기에 작성하세요…'>" + esc(content) + "</textarea>" +
+          "<div class='act__foot'><span class='saved-dot" + (on ? " on" : "") + "' data-dot='" + esc(a.code) + "'>" + (on ? "저장됨" : "작성 대기") + "</span></div>" +
+          "</article>";
+      }).join("");
+
+      view.innerHTML =
+        "<div class='row' style='justify-content:space-between'>" +
+          "<label class='fld' style='margin:0'>학생(익명 ID)<select id='ssel' style='min-width:200px;margin-top:5px'>" + opts + "</select></label>" +
+          "<span class='pill pill--primary num' id='sprog'>진행률 " + p.done + "/" + p.total + " (" + pct(p.ratio) + ")</span>" +
+        "</div>" +
+        (DATA.module.intro ? "<div class='notice' style='margin-top:14px'>" + esc(DATA.module.intro) + "</div>" : "") +
+        "<div class='cards' style='margin-top:18px'>" + cards + "</div>";
+
+      document.getElementById("ssel").addEventListener("change", function () { currentStudentId = this.value; renderStudent(); });
+      Array.prototype.forEach.call(view.querySelectorAll("textarea[data-code]"), function (ta) {
+        var code = ta.getAttribute("data-code"), timer = null;
+        ta.addEventListener("input", function () {
+          var dot = view.querySelector("[data-dot='" + code + "']");
+          responses[key(currentStudentId, code)] = { content: ta.value, updatedAt: new Date().toISOString() };
+          if (dot) { dot.textContent = "저장 중…"; dot.className = "saved-dot"; }
+          var pp = studentProgress(currentStudentId);
+          document.getElementById("sprog").textContent = "진행률 " + pp.done + "/" + pp.total + " (" + pct(pp.ratio) + ")";
+          if (timer) clearTimeout(timer);
+          timer = setTimeout(function () {
+            call("saveResponse", [currentStudentId, code, ta.value], function () {
+              if (dot) { dot.textContent = "저장됨 · " + timeNow(); dot.className = "saved-dot " + (ta.value.trim() ? "on" : ""); }
+            }, function () {
+              if (dot) { dot.textContent = "저장 실패 · 다시 시도"; dot.className = "saved-dot err"; }
+            });
+          }, 800);
+        });
+      });
+    }
+
+    /* ---------- 교사 대시보드 ---------- */
+    function metrics() {
+      var acts = DATA.activities, studs = DATA.students;
+      var totalCells = studs.length * acts.length, filled = 0;
+      studs.forEach(function (s) { acts.forEach(function (a) { if (submitted(s.studentId, a.code)) filled++; }); });
+      var essay = activityRate("B2"), revision = activityRate("B3");
+      var miscFreq = {}; DATA.misconceptions.forEach(function (m) { miscFreq[m.label] = 0; });
+      var rl = Object.keys(reviews).map(function (k) { return reviews[k]; });
+      rl.forEach(function (r) { (r.misconceptions || []).forEach(function (l) { if (miscFreq[l] != null) miscFreq[l]++; }); });
+      var withFb = rl.filter(function (r) { return r.feedback && r.feedback.trim(); }).length;
+      return { totalCells: totalCells, filled: filled, emptyRatio: totalCells ? (totalCells - filled) / totalCells : 0,
+        essay: essay, revision: revision, miscFreq: miscFreq, reviewCount: rl.length, feedbackRate: rl.length ? withFb / rl.length : 0 };
+    }
+    function statsHtml(mt) {
+      var s = [
+        { k: "전체 응답 채움", v: pct(mt.totalCells ? mt.filled / mt.totalCells : 0), s: mt.filled + "/" + mt.totalCells + " 칸", r: mt.totalCells ? mt.filled / mt.totalCells : 0 },
+        { k: "빈칸률", v: pct(mt.emptyRatio), s: (mt.totalCells - mt.filled) + " 칸 비어 있음", r: mt.emptyRatio },
+        { k: "논술 제출률 (B2)", v: pct(mt.essay.ratio), s: mt.essay.done + "/" + mt.essay.total + " 명", r: mt.essay.ratio },
+        { k: "수정본 제출률 (B3)", v: pct(mt.revision.ratio), s: mt.revision.done + "/" + mt.revision.total + " 명", r: mt.revision.ratio },
+        { k: "저장된 리뷰", v: String(mt.reviewCount), s: "교사 리뷰 수", r: null },
+        { k: "피드백 입력률", v: pct(mt.feedbackRate), s: "피드백 있는 리뷰 비율", r: mt.feedbackRate }
+      ];
+      return s.map(function (c) { return "<div class='stat'><div class='stat__k'>" + esc(c.k) + "</div><div class='stat__v num'>" + esc(c.v) + "</div><div class='stat__s'>" + esc(c.s) + "</div>" + (c.r == null ? "" : "<div class='stat__bar'><i style='width:" + Math.round(c.r * 100) + "%'></i></div>") + "</div>"; }).join("");
+    }
+    function barsHtml(mt) {
+      var maxF = 1; DATA.misconceptions.forEach(function (m) { maxF = Math.max(maxF, mt.miscFreq[m.label] || 0); });
+      return DATA.misconceptions.map(function (m) {
+        var n = mt.miscFreq[m.label] || 0;
+        return "<div class='bar'><div class='bar__l'>" + esc(m.label) + "</div><div class='bar__t'><div class='bar__f' style='width:" + Math.round((n / maxF) * 100) + "%'></div></div><div class='bar__n num'>" + n + "</div></div>";
+      }).join("");
+    }
+    function refreshAgg() {
+      var mt = metrics();
+      var sm = document.getElementById("statsMount"); if (sm) sm.innerHTML = statsHtml(mt);
+      var bm = document.getElementById("barsMount"); if (bm) bm.innerHTML = barsHtml(mt);
+    }
+
+    var reviewTarget = null;
+    function renderTeacher() {
+      var mt = metrics(), acts = DATA.activities, studs = DATA.students;
+      var head = "<tr><th>학생</th>" + acts.map(function (a) { return "<th>" + esc(a.code) + "</th>"; }).join("") + "<th>진행률</th></tr>";
+      var body = studs.map(function (s) {
+        var cells = acts.map(function (a) { var on = submitted(s.studentId, a.code); return "<td><button class='cellbtn" + (on ? " on" : "") + "' data-r='" + esc(s.studentId) + "|" + esc(a.code) + "'>" + (on ? "●" : "·") + "</button></td>"; }).join("");
+        var p = studentProgress(s.studentId);
+        return "<tr><td class='name'>" + esc(s.studentId) + "<small>" + esc(s.segment) + "</small></td>" + cells + "<td class='num'>" + p.done + "/" + p.total + "</td></tr>";
+      }).join("");
+      var rateHead = "<tr><th>활동</th><th>제목</th><th>제출</th><th>제출률</th><th></th></tr>";
+      var rateBody = acts.map(function (a) { var r = activityRate(a.code); return "<tr><td class='name'>" + esc(a.code) + "</td><td class='name' style='font-weight:500'>" + esc(a.title) + "</td><td class='num'>" + r.done + "/" + r.total + "</td><td class='num'>" + pct(r.ratio) + "</td><td><div class='rate-bar'><span style='width:" + Math.round(r.ratio * 100) + "%'></span></div></td></tr>"; }).join("");
+
+      view.innerHTML =
+        "<div class='row' style='justify-content:space-between'><h1 style='font-size:21px'>교사 대시보드</h1>" +
+          "<div class='row'><button class='btn btn--ghost btn--sm' id='reload'>시트에서 새로고침</button><button class='btn btn--ghost btn--sm' id='csv'>CSV 내보내기</button></div></div>" +
+        "<div class='stats' id='statsMount' style='margin-top:16px'>" + statsHtml(mt) + "</div>" +
+        "<div class='section-label'>학생별 진행 현황</div><div class='tablewrap'><table class='grid'><thead>" + head + "</thead><tbody>" + body + "</tbody></table></div>" +
+        "<div class='section-label'>활동별 제출률</div><div class='tablewrap'><table class='grid'><thead>" + rateHead + "</thead><tbody>" + rateBody + "</tbody></table></div>" +
+        "<div class='section-label'>오개념 빈도</div>" + (DATA.misconceptions.length ? "<div class='card'><div class='bars' id='barsMount'>" + barsHtml(mt) + "</div></div>" : "<p class='muted'>시트 Misconceptions 탭에 오개념을 추가하세요.</p>") +
+        "<div class='section-label'>답안 검토 · 채점</div><div id='reviewMount'></div>";
+
+      document.getElementById("reload").addEventListener("click", boot);
+      document.getElementById("csv").addEventListener("click", exportCsv);
+      Array.prototype.forEach.call(view.querySelectorAll("[data-r]"), function (b) {
+        b.addEventListener("click", function () { var p = b.getAttribute("data-r").split("|"); reviewTarget = { sid: p[0], code: p[1] }; renderReview(); var mnt = document.getElementById("reviewMount"); if (mnt) mnt.scrollIntoView({ behavior: "smooth", block: "start" }); });
+      });
+      renderReview();
+    }
+
+    function renderReview() {
+      var mnt = document.getElementById("reviewMount"); if (!mnt) return;
+      if (!reviewTarget) { mnt.innerHTML = "<p class='muted'>진행 표에서 셀(●/·)을 눌러 학생·활동을 선택하세요.</p>"; return; }
+      var sid = reviewTarget.sid, code = reviewTarget.code;
+      var act = DATA.activities.find(function (a) { return a.code === code; });
+      if (!act) { mnt.innerHTML = "<p class='muted'>활동을 찾을 수 없습니다.</p>"; return; }
+      var art = responses[key(sid, code)], rev = reviews[key(sid, code)];
+      var draft = { scores: rev ? Object.assign({}, rev.scores) : {}, mis: rev ? rev.misconceptions.slice() : [] };
+
+      function hintHtml() {
+        var items = DATA.misconceptions.filter(function (m) { return draft.mis.indexOf(m.label) >= 0; }).map(function (m) { return "<li>" + esc(m.feedback) + "</li>"; }).join("");
+        return "선택한 오개념 참고 문구 (교사 판단 보조):<ul>" + (items || "<li>선택된 오개념이 없습니다.</li>") + "</ul>";
+      }
+      var rubricHtml = DATA.rubric.map(function (c) {
+        var cur = draft.scores[c.label];
+        var btns = [1, 2, 3, 4].map(function (n) { return "<button type='button' data-crit='" + esc(c.label) + "' data-score='" + n + "' aria-pressed='" + (cur === n ? "true" : "false") + "'>" + n + "</button>"; }).join("");
+        return "<div class='rubric__row'><div><strong>" + esc(c.label) + "</strong><span>" + esc(c.description) + "</span></div><div class='score'>" + btns + "</div></div>";
+      }).join("");
+      var tagsHtml = DATA.misconceptions.map(function (m) {
+        var on = draft.mis.indexOf(m.label) >= 0;
+        return "<label class='tag" + (on ? " on" : "") + "'><input type='checkbox' data-mis='" + esc(m.label) + "'" + (on ? " checked" : "") + "> " + esc(m.label) + "</label>";
+      }).join("");
+
+      mnt.innerHTML = "<div class='card stack'>" +
+        "<div class='muted'><strong style='color:var(--ink)'>" + esc(sid) + "</strong> · " + esc(act.code) + " " + esc(act.title) + (rev ? " · 최근 리뷰 " + esc((rev.updatedAt || "").replace("T", " ").slice(0, 16)) : " · 신규 리뷰") + "</div>" +
+        "<div><label class='fld'>학생 답안</label><div class='answer" + (art && art.content && art.content.trim() ? "" : " empty") + "'>" + (art && art.content && art.content.trim() ? esc(art.content) : "아직 제출된 답안이 없습니다.") + "</div></div>" +
+        "<div><label class='fld'>루브릭 채점 (기준별 1~4점)</label>" + (DATA.rubric.length ? "<div class='rubric'>" + rubricHtml + "</div>" : "<p class='muted'>시트 Rubric 탭에 기준을 추가하세요.</p>") + "</div>" +
+        "<div><label class='fld'>오개념 태그</label>" + (DATA.misconceptions.length ? "<div class='tags'>" + tagsHtml + "</div>" : "<p class='muted'>-</p>") + "</div>" +
+        "<div class='hint' data-hint>" + hintHtml() + "</div>" +
+        "<div><label class='fld'>교사 피드백</label><textarea id='fb'>" + esc(rev ? rev.feedback : "") + "</textarea>" +
+          "<div style='margin-top:8px'><button class='btn btn--ghost btn--sm' id='insertFb'>선택한 오개념 피드백 문구 삽입</button></div></div>" +
+        "<div class='row'><button class='btn' id='saveRev'>리뷰 저장</button><span class='flash' id='revFlash'></span></div></div>";
+
+      Array.prototype.forEach.call(mnt.querySelectorAll(".score button"), function (b) {
+        b.addEventListener("click", function () {
+          var cid = b.getAttribute("data-crit"), sc = Number(b.getAttribute("data-score"));
+          draft.scores[cid] = sc;
+          Array.prototype.forEach.call(mnt.querySelectorAll(".score button"), function (x) {
+            if (x.getAttribute("data-crit") === cid) x.setAttribute("aria-pressed", Number(x.getAttribute("data-score")) === sc ? "true" : "false");
+          });
+        });
+      });
+      Array.prototype.forEach.call(mnt.querySelectorAll("[data-mis]"), function (inp) {
+        inp.addEventListener("change", function () {
+          var l = inp.getAttribute("data-mis");
+          if (inp.checked) { if (draft.mis.indexOf(l) < 0) draft.mis.push(l); } else { draft.mis = draft.mis.filter(function (x) { return x !== l; }); }
+          inp.closest(".tag").classList.toggle("on", inp.checked);
+          mnt.querySelector("[data-hint]").innerHTML = hintHtml();
+        });
+      });
+      document.getElementById("insertFb").addEventListener("click", function () {
+        var chosen = DATA.misconceptions.filter(function (m) { return draft.mis.indexOf(m.label) >= 0; });
+        if (!chosen.length) { document.getElementById("revFlash").textContent = "먼저 오개념 태그를 선택하세요."; return; }
+        var ta = document.getElementById("fb"), lines = chosen.map(function (m) { return "· " + m.feedback; }).join("\n");
+        ta.value = ta.value.trim() ? ta.value.replace(/\s*$/, "") + "\n" + lines : lines; ta.focus();
+      });
+      document.getElementById("saveRev").addEventListener("click", function () {
+        var fb = document.getElementById("fb").value;
+        var flash = document.getElementById("revFlash"); flash.textContent = "저장 중…"; flash.style.color = "var(--muted)";
+        call("saveReview", [sid, code, draft.scores, draft.mis, fb], function (r) {
+          reviews[key(sid, code)] = { scores: Object.assign({}, draft.scores), misconceptions: draft.mis.slice(), feedback: fb, updatedAt: (r && r.updatedAt) || new Date().toISOString() };
+          flash.style.color = "var(--done)"; flash.textContent = "저장됨 · " + timeNow();
+          refreshAgg();
+        }, function (e) { flash.style.color = "var(--danger)"; flash.textContent = "저장 실패: " + (e && e.message ? e.message : e); });
+      });
+    }
+
+    /* ---------- CSV 내보내기(로드된 데이터 기준) ---------- */
+    function csvCell(v) { var s = v == null ? "" : String(v); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
+    function exportCsv() {
+      var head = ["학생ID", "분류", "활동코드", "활동명", "수준", "제출여부", "답안"].concat(DATA.rubric.map(function (c) { return "점수:" + c.label; })).concat(["오개념", "피드백", "최근수정"]);
+      var rows = [head.map(csvCell).join(",")];
+      DATA.students.forEach(function (s) {
+        DATA.activities.forEach(function (a) {
+          var art = responses[key(s.studentId, a.code)], rev = reviews[key(s.studentId, a.code)];
+          var scoreVals = DATA.rubric.map(function (c) { return rev && rev.scores[c.label] != null ? rev.scores[c.label] : ""; });
+          var mis = rev ? rev.misconceptions.join(" / ") : "";
+          rows.push([s.studentId, s.segment, a.code, a.title, a.level, submitted(s.studentId, a.code) ? "Y" : "N", art ? art.content : ""].concat(scoreVals).concat([mis, rev ? rev.feedback : "", art ? art.updatedAt : ""]).map(csvCell).join(","));
+        });
+      });
+      var blob = new Blob(["﻿" + rows.join("\n")], { type: "text/csv;charset=utf-8" });
+      var url = URL.createObjectURL(blob), a = document.createElement("a");
+      a.href = url; a.download = "science-reading-portfolio.csv"; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+      setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
+    /* ---------- 라우터 ---------- */
+    function setView(v) {
+      currentView = v;
+      Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) { b.setAttribute("aria-selected", b.getAttribute("data-view") === v ? "true" : "false"); });
+      if (v === "student") renderStudent(); else renderTeacher();
+      view.focus();
+    }
+    Array.prototype.forEach.call(document.querySelectorAll(".seg button"), function (b) { b.addEventListener("click", function () { setView(b.getAttribute("data-view")); }); });
+
+    boot();
+  })();
+  </script>
+</body>
+</html>

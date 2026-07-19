@@ -318,7 +318,15 @@ function Pill({on, onClick, children, cls}) {
 
 function App() {
   const [apiKey, setApiKey]   = useState(()=>localStorage.getItem("gemini_key")||"");
-  const [model, setModel]     = useState(()=>localStorage.getItem("gemini_model")||"gemini-2.5-flash");
+  const [model, setModel]     = useState(()=>{
+    const saved = localStorage.getItem("gemini_model");
+    // 더 이상 신규 사용자에게 제공되지 않는 모델은 최신 별칭으로 이관
+    if (!saved || saved === "gemini-2.5-flash" || saved === "gemini-1.5-flash" || saved === "gemini-pro") return "gemini-flash-latest";
+    return saved;
+  });
+  const [models, setModels]   = useState([]);      // 키로 조회한 사용 가능 모델
+  const [modelsLoading, setModelsLoading] = useState(false);
+  const [modelsMsg, setModelsMsg] = useState("");
   const [subject, setSubject] = useState("자동");
   const [targets, setTargets] = useState([]);          // 타겟 수준 다중선택
   const [mode, setMode]       = useState("standard");
@@ -341,6 +349,47 @@ function App() {
 
   useEffect(()=>{ if(apiKey) localStorage.setItem("gemini_key", apiKey); }, [apiKey]);
   useEffect(()=>{ localStorage.setItem("gemini_model", model); }, [model]);
+
+  // 이 키로 실제 사용 가능한(generateContent 지원) 모델 목록을 불러온다.
+  async function loadModels() {
+    if (!apiKey) { setModelsMsg("먼저 Gemini API 키를 입력하세요."); return; }
+    setModelsLoading(true); setModelsMsg("");
+    try {
+      const res = await fetch("https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key=" + encodeURIComponent(apiKey));
+      if (!res.ok) {
+        let m = "모델 목록 오류 ("+res.status+")";
+        try { const e = await res.json(); if (e.error && e.error.message) m += ": "+e.error.message; } catch(_){}
+        throw new Error(m);
+      }
+      const data = await res.json();
+      const list = (data.models || [])
+        .filter(m => (m.supportedGenerationMethods||[]).indexOf("generateContent") >= 0)
+        .map(m => (m.name||"").replace(/^models\//, ""))
+        .filter(n => n && !/embedding|aqa|imagen|image-generation|-tts|-vision|learnlm/i.test(n));
+      // flash 계열 우선, 같은 계열이면 최신 버전(숫자 큰 순) 우선
+      list.sort((a,b) => {
+        const fa = /flash/.test(a), fb = /flash/.test(b);
+        if (fa !== fb) return fa ? -1 : 1;
+        const la = /latest/.test(a), lb = /latest/.test(b);
+        if (la !== lb) return la ? -1 : 1;
+        return b.localeCompare(a, undefined, {numeric:true});
+      });
+      setModels(list);
+      if (list.length) {
+        if (list.indexOf(model) < 0) {
+          const pick = list.find(n => /flash/.test(n) && !/lite/.test(n)) || list[0];
+          setModel(pick);
+        }
+        setModelsMsg(list.length + "개 모델 사용 가능 · 목록에서 선택하세요.");
+      } else {
+        setModelsMsg("이 키로 생성 가능한 모델이 없습니다. 키 권한을 확인하세요.");
+      }
+    } catch (e) {
+      setModelsMsg(String(e && e.message ? e.message : e));
+    } finally {
+      setModelsLoading(false);
+    }
+  }
 
   function toggleTarget(l){ setTargets(t=> t.includes(l)? t.filter(x=>x!==l) : [...t, l]); }
 
@@ -486,15 +535,29 @@ function App() {
                 <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
                   placeholder="AIza..." />
               </div>
-              <div>
+              <div style={{flex:2}}>
                 <label className="fld">모델</label>
-                <input type="text" value={model} onChange={e=>setModel(e.target.value)} />
+                <div className="row" style={{gap:6,alignItems:"stretch"}}>
+                  <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                    placeholder="gemini-flash-latest" style={{flex:1}} />
+                  <button type="button" onClick={loadModels} disabled={modelsLoading}
+                    style={{whiteSpace:"nowrap",padding:"0 12px",border:"1px solid var(--line)",borderRadius:8,background:"#fff",cursor:modelsLoading?"default":"pointer",fontWeight:600}}>
+                    {modelsLoading ? "불러오는 중…" : "모델 불러오기"}
+                  </button>
+                </div>
+                {models.length>0 &&
+                  <select value={models.indexOf(model)>=0?model:""} onChange={e=>{ if(e.target.value) setModel(e.target.value); }} style={{marginTop:6}}>
+                    <option value="">— 사용 가능한 모델 선택 —</option>
+                    {models.map(m=><option key={m} value={m}>{m}</option>)}
+                  </select>}
+                {modelsMsg && <div className="hint" style={{marginTop:4}}>{modelsMsg}</div>}
               </div>
             </div>
             <div className="hint">
               키는 이 브라우저(localStorage)에만 저장되며 코드·서버에 전송되지 않습니다.
-              키 발급: aistudio.google.com → Get API key(카드 등록 불필요). 모델 예시: <code>gemini-2.5-flash</code>(기본),
-              더 정교하게: <code>gemini-2.5-pro</code>.
+              키 발급: aistudio.google.com → Get API key(카드 등록 불필요).
+              기본 모델은 <code>gemini-flash-latest</code>(항상 최신 flash를 가리키는 별칭)입니다.
+              <b>404·모델 없음 오류</b>가 나면 <b>모델 불러오기</b>를 눌러 이 키로 실제 쓸 수 있는 모델을 골라 주세요.
               {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
             </div>
           </div>}

@@ -1,0 +1,228 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <base target="_top">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>칼럼을 통해 탐구활동 주제 찾기</title>
+  <style>
+    :root {
+      --bg:#fbf3e8; --panel:#fffaf3; --surface:#ffffff; --ink:#2a2118; --muted:#8a7b68;
+      --line:#eaddc9; --line-soft:#f0e6d6; --accent:#dd7b16; --accent-ink:#fff; --accent-weak:#fbe7cd;
+      --chip:#fbe7cd; --chip-ink:#a85f12; --ok:#2f7d57; --radius:12px; --radius-sm:8px;
+      --mono:ui-monospace,Menlo,Consolas,monospace;
+      --sans:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,sans-serif;
+      --shadow:0 1px 2px rgba(80,54,20,.05),0 8px 22px -14px rgba(80,54,20,.22);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;font-family:var(--sans);font-size:16px;line-height:1.62;color:var(--ink);background:var(--bg);-webkit-font-smoothing:antialiased}
+    h1,h2,h3{margin:0;font-weight:800;letter-spacing:-.01em}
+    p{margin:0}
+    .num{font-variant-numeric:tabular-nums}
+    .wrap{max-width:1000px;margin:0 auto;padding:16px 16px 60px}
+    /* 상단 브랜드 패널 */
+    .hero{background:var(--panel);border:1px solid var(--line);border-top:4px solid var(--accent);border-radius:var(--radius);padding:20px 22px;box-shadow:var(--shadow)}
+    .hero__top{display:flex;justify-content:space-between;align-items:flex-start;gap:12px}
+    .hero__brand{font-size:12.5px;font-weight:700;color:var(--accent);letter-spacing:.01em}
+    .badge{font-size:11px;font-weight:700;padding:3px 8px;border-radius:6px;background:var(--accent-weak);color:var(--chip-ink);white-space:nowrap}
+    .badge--ver{background:#efe7d8;color:#8a7b68;margin-right:6px}
+    .hero h1{font-size:23px;margin:8px 0 6px}
+    .hero__desc{font-size:14px;color:var(--muted)}
+    .linkbtn{display:inline-block;margin-top:12px;font-size:13px;font-weight:600;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:7px 13px;text-decoration:none;cursor:pointer}
+    .guide{margin-top:14px;background:var(--surface);border:1px solid var(--line);border-left:4px solid var(--accent);border-radius:var(--radius-sm);padding:12px 14px}
+    .guide__h{font-size:13.5px;font-weight:800;color:var(--accent);margin-bottom:5px}
+    .guide__b{font-size:13px;color:#6f6252}
+    /* 필터 */
+    .filters{margin-top:16px;background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;box-shadow:var(--shadow)}
+    .filters__grid{display:grid;grid-template-columns:1fr;gap:10px}
+    @media(min-width:720px){.filters__grid{grid-template-columns:1.6fr 1fr 1fr 1fr}}
+    label.fld{display:block;font-size:12px;font-weight:700;color:var(--muted);margin-bottom:5px}
+    input[type=text],select{width:100%;font:inherit;font-size:14.5px;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:var(--radius-sm);padding:9px 11px}
+    input:focus,select:focus{outline:2px solid var(--accent);outline-offset:1px;border-color:var(--accent)}
+    .filters__act{display:flex;gap:8px;margin-top:12px}
+    .btn{display:inline-flex;align-items:center;gap:6px;font-size:14px;font-weight:700;padding:9px 18px;border-radius:var(--radius-sm);border:1px solid transparent;cursor:pointer;background:var(--accent);color:var(--accent-ink)}
+    .btn:hover{filter:brightness(1.05)}
+    .btn--ghost{background:var(--surface);color:var(--ink);border-color:var(--line);font-weight:600}
+    .status{margin-top:12px;font-size:12.5px;font-weight:700;color:var(--accent)}
+    .status .muted{color:var(--muted);font-weight:500}
+    /* 통계 카드 */
+    .stats{margin-top:12px;display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+    @media(min-width:720px){.stats{grid-template-columns:repeat(4,1fr)}}
+    .stat{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px 16px;box-shadow:var(--shadow)}
+    .stat__v{font-size:26px;font-weight:800;letter-spacing:-.02em}
+    .stat__k{font-size:12px;color:var(--muted);margin-top:2px}
+    /* 결과 헤딩 */
+    .rhead{margin-top:26px}
+    .rhead h2{font-size:19px}
+    .rhead p{font-size:13.5px;color:var(--muted);margin-top:2px}
+    .rule{height:3px;background:var(--accent);border-radius:2px;margin:10px 0 0;opacity:.85}
+    /* 기사 카드 */
+    .list{margin-top:16px;display:flex;flex-direction:column;gap:16px}
+    .art{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;box-shadow:var(--shadow)}
+    .art__meta{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap}
+    .art__src{font-size:12.5px;color:var(--muted);font-weight:600}
+    .art__title{font-size:17.5px;font-weight:800;margin:8px 0 12px;line-height:1.4;text-wrap:balance}
+    .box{background:var(--panel);border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:12px 14px}
+    .box__k{font-size:12.5px;font-weight:800;color:var(--accent);margin-bottom:5px}
+    .box__b{font-size:14px;color:#5a4e3f}
+    .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+    .chip{font-size:12px;font-weight:700;color:var(--chip-ink);background:var(--chip);border-radius:999px;padding:4px 10px}
+    .field{margin-top:12px;border:1px solid var(--line-soft);border-radius:var(--radius-sm);padding:12px 14px}
+    .field__h{display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:13.5px;color:var(--muted)}
+    .field__badge{font-size:12px;font-weight:800;color:var(--chip-ink);background:var(--chip);border-radius:6px;padding:3px 9px}
+    .q{display:grid;grid-template-columns:auto 1fr auto;gap:10px;align-items:start;padding:10px 0;border-top:1px dashed var(--line-soft)}
+    .q:first-of-type{border-top:0}
+    .q__n{width:22px;height:22px;border-radius:50%;background:var(--accent-weak);color:var(--chip-ink);font-size:12px;font-weight:800;display:flex;align-items:center;justify-content:center;margin-top:2px}
+    .q__t{font-size:14px;line-height:1.55}
+    .copy{font-size:12px;font-weight:700;color:var(--ink);background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:5px 10px;cursor:pointer;white-space:nowrap}
+    .copy.done{background:var(--ok);color:#fff;border-color:var(--ok)}
+    .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius);padding:40px 20px;text-align:center;color:var(--muted)}
+    .center{display:flex;flex-direction:column;align-items:center;gap:12px;padding:56px 20px;color:var(--muted)}
+    .spinner{width:28px;height:28px;border-radius:50%;border:3px solid var(--line);border-top-color:var(--accent);animation:spin 1s linear infinite}
+    @keyframes spin{to{transform:rotate(360deg)}}
+    @media(prefers-reduced-motion:reduce){.spinner{animation:none}}
+    footer{margin-top:36px;padding-top:16px;border-top:1px solid var(--line);color:var(--muted);font-size:12px;text-align:center}
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="hero">
+      <div class="hero__top">
+        <div class="hero__brand">과학 독서·논술 · 탐구활동 주제 실록</div>
+        <div><span class="badge badge--ver">v1.0</span><span class="badge">외부공개용</span></div>
+      </div>
+      <h1>칼럼을 통해 탐구활동 주제 찾기</h1>
+      <p class="hero__desc">칼럼이 분야별 키워드로 정리되어 있습니다. 칼럼을 통해 과학 독서·논술 탐구활동 주제에 대한 아이디어를 얻어보세요.</p>
+      <div class="guide">
+        <div class="guide__h">이용 안내</div>
+        <div class="guide__b">선별된 칼럼으로 최신 이슈 흐름을 따라갈 수 있어요. 관심 분야·키워드로 검색하고, 기사마다 제시된 탐구 질문을 복사해 독서·논술 활동이나 세특 탐구 주제로 활용하세요. 기사 인용을 통해 정제된 글을 쓸 수 있습니다.</div>
+      </div>
+    </section>
+
+    <section class="filters">
+      <div class="filters__grid">
+        <div><label class="fld" for="q">검색어</label><input type="text" id="q" placeholder="예: 유전자, 기후, 데이터, 진화"></div>
+        <div><label class="fld" for="dept">분야(학과) 선택</label><select id="dept"></select></div>
+        <div><label class="fld" for="week">업데이트 기간</label><select id="week"></select></div>
+        <div><label class="fld" for="limit">보기 방식</label><select id="limit">
+          <option value="20">20건 보기</option><option value="50">50건 보기</option>
+          <option value="80" selected>80건 보기</option><option value="0">전체 보기</option>
+        </select></div>
+      </div>
+      <div class="filters__act">
+        <button class="btn" id="apply">탐구 주제 보기</button>
+        <button class="btn btn--ghost" id="reset">초기화</button>
+      </div>
+      <div class="status" id="status">불러오는 중…</div>
+    </section>
+
+    <div class="stats" id="stats"></div>
+
+    <div class="rhead"><h2>이번 주 탐구 기록</h2><p>관심 분야나 키워드로 좁혀서 나의 탐구 단서를 찾아보세요.</p><div class="rule"></div></div>
+
+    <div id="list" class="list"><div class="center"><div class="spinner"></div><div>구글 시트에서 칼럼을 불러오는 중…</div></div></div>
+
+    <footer>구글 시트 기반 · 칼럼은 시트에서 관리 · 탐구 질문은 기사별로 제시 · 교사·학생용 아이디어 도구</footer>
+  </div>
+
+  <script>
+  (function () {
+    "use strict";
+    function call(fn, args, ok, er) {
+      if (window.__MOCK_BACKEND__) { window.__MOCK_BACKEND__(fn, args || [], ok, er); return; }
+      var r = google.script.run.withSuccessHandler(ok).withFailureHandler(er || function (e) { console.error(e); });
+      r[fn].apply(r, args || []);
+    }
+    var esc = function (s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); };
+
+    var DATA = null;
+    var elQ = document.getElementById("q"), elDept = document.getElementById("dept"),
+        elWeek = document.getElementById("week"), elLimit = document.getElementById("limit"),
+        elStatus = document.getElementById("status"), elStats = document.getElementById("stats"), elList = document.getElementById("list");
+
+    function boot() {
+      call("getArticles", [], function (res) {
+        DATA = res;
+        elDept.innerHTML = "<option value=''>전체 분야</option>" + res.departments.map(function (d) { return "<option value='" + esc(d) + "'>" + esc(d) + "</option>"; }).join("");
+        elWeek.innerHTML = "<option value=''>전체 기간</option>" + res.dates.map(function (d) { return "<option value='" + esc(d) + "'>" + esc(d) + "</option>"; }).join("");
+        render();
+      }, function (err) {
+        elList.innerHTML = "<div class='empty'>⚠️ 칼럼을 불러오지 못했습니다.<br><span class='num'>" + esc(err && err.message ? err.message : err) + "</span><br><br><button class='btn' onclick='location.reload()'>다시 시도</button></div>";
+        elStatus.textContent = "연결 실패";
+      });
+    }
+
+    function filtered() {
+      var q = elQ.value.trim().toLowerCase(), dept = elDept.value, week = elWeek.value;
+      return DATA.items.filter(function (a) {
+        if (dept && a.department !== dept) return false;
+        if (week && a.date !== week) return false;
+        if (q) {
+          var hay = (a.title + " " + a.coreTheme + " " + a.keywords.join(" ") + " " + a.department + " " + a.questions.join(" ")).toLowerCase();
+          if (hay.indexOf(q) < 0) return false;
+        }
+        return true;
+      });
+    }
+
+    function render() {
+      var all = filtered();
+      var limit = Number(elLimit.value) || 0;
+      var shown = limit > 0 ? all.slice(0, limit) : all;
+
+      elStatus.innerHTML = "연결됨 · 주간_과학칼럼_탐구아이디어 · <span class='muted'>전체 " + DATA.totalRows + "건 중 " + shown.length + "건 표시</span>";
+
+      var stats = [
+        { v: shown.length, k: "검색 결과" },
+        { v: DATA.totalRows, k: "관련 기사" },
+        { v: DATA.distinctDepartments, k: "연결 분야" },
+        { v: DATA.latestDate || "-", k: "최근 업데이트" }
+      ];
+      elStats.innerHTML = stats.map(function (s) { return "<div class='stat'><div class='stat__v num'>" + esc(s.v) + "</div><div class='stat__k'>" + esc(s.k) + "</div></div>"; }).join("");
+
+      if (!shown.length) { elList.innerHTML = "<div class='empty'>조건에 맞는 칼럼이 없습니다. 검색어나 필터를 바꿔 보세요.</div>"; return; }
+
+      elList.innerHTML = shown.map(function (a) {
+        var src = [a.source, a.via, a.date].filter(Boolean).map(esc).join(" | ");
+        var chips = a.keywords.map(function (k) { return "<span class='chip'>" + esc(k) + "</span>"; }).join("");
+        var qs = a.questions.map(function (qt, i) {
+          return "<div class='q'><div class='q__n'>" + (i + 1) + "</div><div class='q__t'>" + esc(qt) + "</div>" +
+            "<button class='copy' data-copy=\"" + esc(qt) + "\">복사</button></div>";
+        }).join("");
+        return "<article class='art'>" +
+          "<div class='art__meta'><span class='art__src'>" + src + "</span>" + (a.department ? "<span class='badge'>" + esc(a.department) + "</span>" : "") + "</div>" +
+          "<div class='art__title'>" + esc(a.title) + "</div>" +
+          (a.coreTheme ? "<div class='box'><div class='box__k'>핵심주제</div><div class='box__b'>" + esc(a.coreTheme) + "</div></div>" : "") +
+          (chips ? "<div class='chips'>" + chips + "</div>" : "") +
+          "<div class='field'><div class='field__h'>" + (a.department ? "<span class='field__badge'>" + esc(a.department) + "</span>" : "") + "<span>" + esc(a.fieldKeywords || a.keywords.slice(0, 4).join(", ")) + "</span></div>" + qs + "</div>" +
+          "</article>";
+      }).join("");
+
+      Array.prototype.forEach.call(elList.querySelectorAll(".copy"), function (btn) {
+        btn.addEventListener("click", function () { copyText(btn.getAttribute("data-copy"), btn); });
+      });
+    }
+
+    function copyText(text, btn) {
+      function done() { var o = btn.textContent; btn.textContent = "복사됨"; btn.classList.add("done"); setTimeout(function () { btn.textContent = o; btn.classList.remove("done"); }, 1200); }
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        navigator.clipboard.writeText(text).then(done, function () { fallback(text, done); });
+      } else { fallback(text, done); }
+    }
+    function fallback(text, done) {
+      var ta = document.createElement("textarea"); ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+      document.body.appendChild(ta); ta.focus(); ta.select();
+      try { document.execCommand("copy"); done(); } catch (e) {}
+      document.body.removeChild(ta);
+    }
+
+    document.getElementById("apply").addEventListener("click", render);
+    document.getElementById("reset").addEventListener("click", function () { elQ.value = ""; elDept.value = ""; elWeek.value = ""; elLimit.value = "80"; render(); });
+    elQ.addEventListener("keydown", function (e) { if (e.key === "Enter") render(); });
+    elDept.addEventListener("change", render); elWeek.addEventListener("change", render); elLimit.addEventListener("change", render);
+
+    boot();
+  })();
+  </script>
+</body>
+</html>
