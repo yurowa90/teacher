@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>켄텍 6대 트랙 탐구 나침반 · KENTECH Track Explorer</title>
+<meta name="description" content="한국에너지공과대학교(켄텍) 6대 트랙에 맞춰 탐구 주제·자료·질문·방법을 추천하는 학생용 웹앱" />
+<style>
+  /* =========================================================
+     Part 2-a · 디자인 시스템 (CSS 변수/토큰)
+     ========================================================= */
+  :root{
+    --bg:#0f1420; --bg-soft:#161d2e; --surface:#1c2436; --surface-2:#232d43;
+    --line:#2c374f; --line-soft:#243049;
+    --txt:#eaf0fb; --txt-dim:#a7b3ca; --txt-mute:#6f7d99;
+    --brand:#31d0aa; --brand-2:#4ea8ff; --brand-3:#8b7bff;
+    --accent:#ffd166; --danger:#ff6b7d;
+    --radius:16px; --radius-sm:10px;
+    --shadow:0 10px 30px rgba(0,0,0,.35);
+    --maxw:1040px;
+    /* 면접평가 4역량 색상 */
+    --c-problem:#4ea8ff; --c-thinking:#31d0aa; --c-creative:#ffb454; --c-comm:#c98bff;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:radial-gradient(1200px 600px at 80% -10%, #1b2740 0, transparent 60%),
+               radial-gradient(1000px 500px at -10% 10%, #17233a 0, transparent 55%),
+               var(--bg);
+    color:var(--txt);
+    font-family:"Pretendard","Apple SD Gothic Neo","Malgun Gothic",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+    line-height:1.65; -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  a{color:var(--brand-2);text-decoration:none}
+  a:hover{text-decoration:underline}
+  button{font-family:inherit}
+  .wrap{max-width:var(--maxw);margin:0 auto;padding:0 18px}
+
+  /* ---- 헤더 ---- */
+  header.site{
+    position:sticky;top:0;z-index:50;backdrop-filter:blur(10px);
+    background:linear-gradient(180deg, rgba(15,20,32,.92), rgba(15,20,32,.72));
+    border-bottom:1px solid var(--line-soft);
+  }
+  .site .wrap{display:flex;align-items:center;gap:14px;height:62px}
+  .logo{display:flex;align-items:center;gap:10px;font-weight:800;letter-spacing:-.02em}
+  .logo .mark{
+    width:34px;height:34px;border-radius:10px;display:grid;place-items:center;font-size:18px;
+    background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#04201a;box-shadow:var(--shadow)
+  }
+  .logo b{font-size:16px}
+  .logo span{font-size:11.5px;color:var(--txt-mute);font-weight:600;display:block;margin-top:-3px}
+  .site nav{margin-left:auto;display:flex;gap:6px}
+  .navbtn{
+    background:transparent;border:1px solid transparent;color:var(--txt-dim);
+    padding:7px 12px;border-radius:10px;cursor:pointer;font-size:13.5px;font-weight:600;transition:.15s;white-space:nowrap
+  }
+  .navbtn:hover{color:var(--txt);background:var(--surface)}
+  .navbtn.active{color:var(--txt);background:var(--surface-2);border-color:var(--line)}
+  .navbtn .cnt{
+    display:inline-grid;place-items:center;min-width:18px;height:18px;padding:0 5px;margin-left:6px;
+    border-radius:9px;background:var(--brand);color:#04201a;font-size:11px;font-weight:800;vertical-align:1px
+  }
+
+  /* ---- 공통 컴포넌트 ---- */
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;border:1px solid var(--line);
+    background:var(--surface-2);color:var(--txt);padding:10px 16px;border-radius:12px;
+    cursor:pointer;font-weight:700;font-size:14px;transition:.15s
+  }
+  .btn:hover{border-color:var(--brand);transform:translateY(-1px)}
+  .btn.primary{background:linear-gradient(135deg,var(--brand),var(--brand-2));color:#04201a;border:none}
+  .btn.ghost{background:transparent}
+  .btn.sm{padding:6px 11px;font-size:12.5px;border-radius:9px}
+  .pill{
+    display:inline-flex;align-items:center;gap:6px;padding:3px 10px;border-radius:999px;
+    font-size:11.5px;font-weight:700;border:1px solid var(--line);color:var(--txt-dim);background:var(--bg-soft)
+  }
+  .sec-title{font-size:14px;font-weight:800;letter-spacing:.02em;color:var(--txt);display:flex;align-items:center;gap:8px;margin:0 0 12px}
+  .sec-title .ic{font-size:16px}
+  .muted{color:var(--txt-dim)}
+  .fade{animation:fade .35s ease}
+  @keyframes fade{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+
+  /* =========================================================
+     화면1 · 홈(트랙 선택)
+     ========================================================= */
+  .hero{padding:40px 0 8px;text-align:center}
+  .hero h1{font-size:clamp(26px,4.4vw,40px);line-height:1.2;margin:0 0 10px;letter-spacing:-.03em}
+  .hero h1 .g{background:linear-gradient(120deg,var(--brand),var(--brand-2) 55%,var(--brand-3));-webkit-background-clip:text;background-clip:text;color:transparent}
+  .hero p{color:var(--txt-dim);max-width:640px;margin:0 auto;font-size:15.5px}
+  .hero .steps{display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-top:18px}
+  .hero .steps .s{font-size:12.5px;color:var(--txt-mute);background:var(--bg-soft);border:1px solid var(--line-soft);padding:6px 12px;border-radius:999px}
+  .hero .steps .s b{color:var(--brand)}
+
+  .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin:26px 0 10px}
+  @media(max-width:820px){.grid{grid-template-columns:repeat(2,1fr)}}
+  @media(max-width:540px){.grid{grid-template-columns:1fr}}
+  .track-card{
+    position:relative;text-align:left;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,var(--surface),var(--bg-soft));padding:20px 18px 18px;cursor:pointer;
+    transition:.18s;overflow:hidden
+  }
+  .track-card:hover{transform:translateY(-4px);border-color:var(--tc,var(--brand))}
+  .track-card:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+  .track-card::before{content:"";position:absolute;inset:0 0 auto 0;height:3px;background:var(--tc,var(--brand))}
+  .track-card .ic{font-size:30px;line-height:1;margin-bottom:10px;display:block}
+  .track-card h3{margin:0 0 4px;font-size:18px;letter-spacing:-.02em}
+  .track-card .en{font-size:11px;color:var(--txt-mute);font-weight:700;text-transform:uppercase;letter-spacing:.06em}
+  .track-card .tag{margin-top:10px;font-size:13px;color:var(--txt-dim);min-height:38px}
+  .track-card .kw{margin-top:12px;display:flex;flex-wrap:wrap;gap:6px}
+  .track-card .kw span{font-size:11px;color:var(--txt-mute);background:var(--surface-2);border:1px solid var(--line-soft);padding:2px 8px;border-radius:7px}
+  .track-card .go{margin-top:14px;font-size:13px;font-weight:800;color:var(--tc,var(--brand));display:flex;align-items:center;gap:6px}
+
+  /* ---- 홈 하단: 역량 안내 ---- */
+  .insight{
+    margin:34px 0 50px;border:1px solid var(--line);border-radius:var(--radius);
+    background:linear-gradient(180deg,var(--bg-soft),var(--surface));padding:22px
+  }
+  .insight h2{font-size:16px;margin:0 0 6px}
+  .insight .cgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-top:16px}
+  @media(max-width:720px){.insight .cgrid{grid-template-columns:repeat(2,1fr)}}
+  .cbox{border:1px solid var(--line-soft);border-radius:12px;padding:12px 13px;background:var(--surface)}
+  .cbox .h{display:flex;align-items:center;gap:7px;font-weight:800;font-size:13.5px}
+  .cbox .dot{width:9px;height:9px;border-radius:50%}
+  .cbox p{margin:6px 0 0;font-size:12px;color:var(--txt-dim);line-height:1.5}
+
+  /* =========================================================
+     화면2 · 트랙 상세
+     ========================================================= */
+  .backbar{display:flex;align-items:center;gap:12px;padding:20px 0 6px}
+  .detail-head{
+    border:1px solid var(--line);border-radius:var(--radius);padding:24px;margin-bottom:16px;
+    background:linear-gradient(135deg,var(--surface),var(--bg-soft));position:relative;overflow:hidden
+  }
+  .detail-head::after{content:"";position:absolute;right:-40px;top:-40px;width:180px;height:180px;border-radius:50%;background:var(--tc);opacity:.12;filter:blur(10px)}
+  .detail-head .ic{font-size:40px}
+  .detail-head h2{margin:8px 0 2px;font-size:26px;letter-spacing:-.03em}
+  .detail-head .en{font-size:12px;color:var(--txt-mute);font-weight:700;letter-spacing:.08em;text-transform:uppercase}
+  .detail-head .desc{margin:12px 0 0;color:var(--txt-dim);font-size:15px;max-width:760px}
+  .detail-head .meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:16px}
+  .detail-head .meta .pill.k{border-color:var(--tc);color:var(--txt)}
+
+  .tabs{display:flex;gap:4px;border:1px solid var(--line);background:var(--bg-soft);padding:5px;border-radius:14px;margin-bottom:18px;position:sticky;top:70px;z-index:20}
+  .tab{flex:1;text-align:center;padding:9px 8px;border-radius:10px;cursor:pointer;font-weight:700;font-size:13.5px;color:var(--txt-dim);border:none;background:transparent;transition:.15s}
+  .tab:hover{color:var(--txt)}
+  .tab.active{background:var(--surface-2);color:var(--txt);box-shadow:var(--shadow)}
+  @media(max-width:560px){.tab{font-size:12px;padding:8px 4px}.tab .t-full{display:none}}
+
+  .panel{display:none}
+  .panel.active{display:block;animation:fade .3s ease}
+
+  /* 자료 카드 */
+  .res{border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:11px;background:var(--surface);transition:.15s}
+  .res:hover{border-color:var(--brand-2)}
+  .res .top{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:6px}
+  .res h4{margin:0;font-size:15px}
+  .res h4 a{color:var(--txt)}
+  .res .sum{font-size:13px;color:var(--txt-dim);margin:4px 0 8px}
+  .res .src{font-size:12px;color:var(--txt-mute)}
+  .badge{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:7px;letter-spacing:.02em}
+  .b-국내{background:rgba(78,168,255,.15);color:#8cc6ff;border:1px solid rgba(78,168,255,.3)}
+  .b-해외{background:rgba(49,208,170,.15);color:#6ee7c8;border:1px solid rgba(49,208,170,.3)}
+  .b-논문{background:rgba(199,139,255,.15);color:#d6b3ff;border:1px solid rgba(199,139,255,.3)}
+  .b-기관{background:rgba(255,209,102,.15);color:#ffdf94;border:1px solid rgba(255,209,102,.3)}
+
+  /* 질문/방법 카드 */
+  .qcard,.mcard{border:1px solid var(--line);border-radius:12px;padding:15px 16px;margin-bottom:11px;background:var(--surface)}
+  .qcard .qtop{display:flex;align-items:flex-start;gap:10px}
+  .qcard .qnum{flex:0 0 auto;width:26px;height:26px;border-radius:8px;display:grid;place-items:center;font-weight:800;font-size:13px;background:var(--surface-2);border:1px solid var(--line);color:var(--txt-dim)}
+  .qcard .qtext{font-size:15px;font-weight:600;flex:1}
+  .lvl{font-size:10.5px;font-weight:800;padding:2px 8px;border-radius:7px}
+  .lvl-기초{background:rgba(49,208,170,.15);color:#6ee7c8;border:1px solid rgba(49,208,170,.3)}
+  .lvl-심화{background:rgba(78,168,255,.15);color:#8cc6ff;border:1px solid rgba(78,168,255,.3)}
+  .lvl-융합{background:rgba(199,139,255,.15);color:#d6b3ff;border:1px solid rgba(199,139,255,.3)}
+  .comps{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
+  .comp{font-size:11px;font-weight:700;padding:2px 9px;border-radius:999px;display:inline-flex;align-items:center;gap:5px}
+  .comp .dot{width:7px;height:7px;border-radius:50%}
+  .qcard .qact,.mcard .mact{margin-top:12px;display:flex;gap:8px;align-items:center}
+  .mcard h4{margin:0 0 4px;font-size:15px;display:flex;align-items:center;gap:8px}
+  .mcard .mdesc{font-size:13.5px;color:var(--txt-dim);margin:0 0 8px}
+  .mcard .tools{display:flex;flex-wrap:wrap;gap:6px}
+  .mcard .tools span{font-size:11px;color:var(--txt-mute);background:var(--surface-2);border:1px solid var(--line-soft);padding:2px 8px;border-radius:7px}
+  .added{color:var(--brand);font-size:12.5px;font-weight:800;display:none;align-items:center;gap:5px}
+  .added.on{display:inline-flex}
+
+  /* filter bar */
+  .filterbar{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px;align-items:center}
+  .filterbar .lab{font-size:12px;color:var(--txt-mute);font-weight:700;margin-right:2px}
+  .fbtn{font-size:12px;font-weight:700;padding:5px 11px;border-radius:999px;border:1px solid var(--line);background:var(--bg-soft);color:var(--txt-dim);cursor:pointer;transition:.15s}
+  .fbtn:hover{color:var(--txt)}
+  .fbtn.on{background:var(--surface-2);color:var(--txt);border-color:var(--brand)}
+
+  /* =========================================================
+     화면3 · 나의 탐구 설계서
+     ========================================================= */
+  .plan-head{padding:22px 0 6px}
+  .plan-head h2{font-size:24px;margin:0 0 4px;letter-spacing:-.02em}
+  .plan-empty{border:1px dashed var(--line);border-radius:var(--radius);padding:48px 20px;text-align:center;color:var(--txt-dim)}
+  .plan-empty .ic{font-size:44px;display:block;margin-bottom:12px;opacity:.7}
+  .plan-group{border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;background:var(--surface)}
+  .plan-group > h3{margin:0 0 12px;font-size:16px;display:flex;align-items:center;gap:9px}
+  .plan-item{display:flex;gap:10px;align-items:flex-start;padding:11px 0;border-top:1px solid var(--line-soft)}
+  .plan-item:first-of-type{border-top:none}
+  .plan-item .body{flex:1}
+  .plan-item .body .t{font-weight:600;font-size:14.5px}
+  .plan-item .body .s{font-size:12.5px;color:var(--txt-mute);margin-top:3px}
+  .xbtn{background:transparent;border:1px solid var(--line);color:var(--txt-mute);width:28px;height:28px;border-radius:8px;cursor:pointer;flex:0 0 auto}
+  .xbtn:hover{border-color:var(--danger);color:var(--danger)}
+  .comp-summary{border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px;background:linear-gradient(180deg,var(--bg-soft),var(--surface))}
+  .meter{margin:10px 0}
+  .meter .ml{display:flex;justify-content:space-between;font-size:12.5px;font-weight:700;margin-bottom:5px}
+  .meter .bar{height:9px;border-radius:6px;background:var(--surface-2);overflow:hidden}
+  .meter .bar i{display:block;height:100%;border-radius:6px;transition:width .5s ease}
+  .plan-actions{display:flex;gap:9px;flex-wrap:wrap;margin:6px 0 40px}
+
+  footer.site{border-top:1px solid var(--line-soft);padding:26px 0;margin-top:20px;color:var(--txt-mute);font-size:12.5px}
+  footer.site .wrap{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between}
+
+  .toast{position:fixed;left:50%;bottom:26px;transform:translateX(-50%) translateY(20px);opacity:0;
+    background:var(--surface-2);border:1px solid var(--brand);color:var(--txt);padding:11px 18px;border-radius:12px;
+    font-weight:700;font-size:13.5px;box-shadow:var(--shadow);transition:.25s;z-index:100;pointer-events:none}
+  .toast.on{opacity:1;transform:translateX(-50%) translateY(0)}
+  @media(max-width:560px){
+    .site .wrap{height:auto;min-height:56px;padding-top:8px;padding-bottom:8px;gap:8px}
+    .logo b{font-size:13.5px;line-height:1.2}
+    .logo span{display:none}
+    .logo .mark{width:30px;height:30px;font-size:16px}
+    .site nav{gap:4px}
+    .navbtn{padding:6px 9px;font-size:12.5px}
+    .hero{padding-top:26px}
+    .tabs{top:64px}
+  }
+  @media print{
+    header.site,footer.site,.tabs,.plan-actions,.navbtn,.backbar{display:none!important}
+    body{background:#fff;color:#000}
+  }
+</style>
+</head>
+<body>
+<header class="site">
+  <div class="wrap">
+    <div class="logo">
+      <div class="mark">⚡</div>
+      <div>
+        <b>켄텍 6대 트랙 탐구 나침반</b>
+        <span>KENTECH Track Explorer · 탐구주제 추천</span>
+      </div>
+    </div>
+    <nav id="nav">
+      <button class="navbtn active" data-nav="home">트랙 탐색</button>
+      <button class="navbtn" data-nav="plan">나의 탐구 설계서<span class="cnt" id="planCnt" style="display:none">0</span></button>
+    </nav>
+  </div>
+</header>
+
+<main id="app" class="wrap" role="main"></main>
+
+<footer class="site">
+  <div class="wrap">
+    <span>켄텍 6대 트랙 탐구 나침반 · 학생 탐구활동/세특 설계 도우미</span>
+    <span>자료 출처는 각 항목의 링크를 확인하세요 · 제시 자료는 예시이며 방문 시점에 따라 달라질 수 있습니다.</span>
+  </div>
+</footer>
+
+<div class="toast" id="toast"></div>
+
+<script>
+"use strict";
+/* =========================================================================
+   Part 1 · 데이터 레이어
+   -------------------------------------------------------------------------
+   COMP : 면접평가 4역량 (사진2 인사이트)  →  탐구활동 태깅용
+   ATC  : ATC21s 21세기 필수역량 (사진1)   →  홈 안내/설계서 프레이밍
+   TRACKS : 켄텍 학부 6대 트랙 (편집 용이하게 배열로 관리)
+   ========================================================================= */
+
+  // 면접평가 4대 평가역량 (이미지: 면접의 설계 및 방향)
+  const COMP = {
+    problem : { label:"문제해결능력", color:"var(--c-problem)",  desc:"원인 분석과 다양한 접근·통찰적 사고로 문제를 처리" },
+    thinking: { label:"사고력",       color:"var(--c-thinking)", desc:"문제를 접근·해결하는 데 필요한 기본 사고력" },
+    creative: { label:"창의성",       color:"var(--c-creative)", desc:"고정관념·편견을 벗어난 유연한 사고" },
+    comm    : { label:"의사소통능력", color:"var(--c-comm)",     desc:"공동체 안에서 생각과 의견을 교환하는 능력" }
+  };
+
+  // ATC21s 21세기 필수역량 (이미지: 사고방식/작업도구/작업방식/삶의방식)
+  const ATC = [
+    { key:"think", label:"사고 방식", color:"#4ea8ff", desc:"창의·비판적 사고, 문제해결, 메타인지" },
+    { key:"tool",  label:"작업 도구", color:"#ffb454", desc:"정보 리터러시, 디지털·데이터 도구 활용" },
+    { key:"work",  label:"작업 방식", color:"#c98bff", desc:"의사소통, 협업(팀워크)" },
+    { key:"live",  label:"삶의 방식", color:"#31d0aa", desc:"지역·글로벌 시민의식, 삶과 진로 연계" }
+  ];
+
+  // 켄텍 학부 6대 트랙
+  const TRACKS = [
+    {
+      id:"battery", name:"차세대전지", en:"Next-Generation Battery", icon:"🔋", color:"#4ea8ff",
+      tagline:"전고체·리튬황·나트륨 등 더 안전하고 오래가는 배터리를 설계한다.",
+      keywords:["전고체 배터리","리튬황","나트륨전지","에너지밀도","ESS"],
+      careers:["이차전지 소재·셀 연구","전기차/ESS 산업","배터리 안전·진단"],
+      desc:"차세대전지 트랙은 리튬이온을 넘어서는 전지 시스템을 다룹니다. 원가 절감·에너지밀도 향상·안전성이라는 세 축을 놓고, 전고체 전해질·리튬황·나트륨전지 같은 새로운 화학을 탐구합니다. 전극–전해질 계면, 열 안정성, 수명(충·방전 사이클)이 핵심 연구 주제입니다.",
+      resources:[
+        {title:"차세대 배터리 동향 및 전망", src:"KDI 경제교육·정보센터", type:"국내", url:"https://eiec.kdi.re.kr/policy/domesticView.do?ac=0000177662", sum:"원가절감·에너지밀도·안전성 세 방향으로 정리한 차세대 배터리 개괄."},
+        {title:"2025 이차전지 제조장비, 혁신과 불확실성의 교차점", src:"INDUSTRY TODAY", type:"국내", url:"https://www.industrytoday.co.kr/news/articleView.html?idxno=11620", sum:"전고체·건식전극 공정이 바꾸는 제조 패러다임을 짚은 기획 기사."},
+        {title:"차세대배터리 준비 현황·상용화 이슈 및 전망", src:"국회도서관 국가전략포털", type:"기관", url:"https://nsp.nanet.go.kr/plan/subject/detail.do?nationalPlanControlNo=PLAN0000052246", sum:"정책·산업 관점에서 본 차세대전지 상용화 과제."},
+        {title:"Nature Energy — Batteries", src:"Nature Energy (해외 저널)", type:"해외", url:"https://www.nature.com/nenergy/", sum:"세계 최고 수준 에너지 연구 저널. 배터리 최신 논문·리뷰 탐색."},
+        {title:"Batteries (topic hub)", src:"MIT Technology Review", type:"해외", url:"https://www.technologyreview.com/topic/climate-change/batteries/", sum:"기술·산업 관점의 해외 배터리 칼럼 모음."}
+      ],
+      questions:[
+        {text:"전고체 배터리는 왜 '더 안전하다'고 말할까? 액체 전해질과 비교해 발화 위험이 줄어드는 원리를 설명해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"같은 무게라면 리튬황 전지가 리튬이온보다 이론상 에너지밀도가 훨씬 높은 이유는 무엇일까?", level:"기초", comps:["thinking"]},
+        {text:"나트륨전지는 리튬전지보다 값싸지만 무겁다. '어떤 용도(전기차 vs ESS)에 나트륨전지가 더 적합한가'를 기준을 세워 논증해 보자.", level:"심화", comps:["problem","creative"]},
+        {text:"전극–전해질 계면 저항이 배터리 수명에 미치는 영향을, 충·방전 사이클 데이터로 어떻게 확인할 수 있을까?", level:"심화", comps:["problem","thinking"]},
+        {text:"우리 학교/지역에 ESS를 도입한다면, 안전성·비용·수명 중 무엇을 우선해 어떤 배터리를 고를지 의사결정 모델을 만들어 보자.", level:"융합", comps:["problem","creative","comm"]}
+      ],
+      methods:[
+        {title:"문헌 메타분석", desc:"전고체·리튬황·나트륨 3종을 에너지밀도·수명·비용·안전성 표로 비교 정리한다.", tools:["비교표","DBpia/ScienceON","인용 정리"]},
+        {title:"간이 전기화학 실험", desc:"과일전지·레몬전지 등으로 전극 재료에 따른 전압 변화를 측정해 화학 원리를 체감한다.", tools:["멀티미터","전극 재료","측정 로그"]},
+        {title:"데이터 분석", desc:"공개된 배터리 사이클 데이터셋으로 용량 감소(SOH) 곡선을 그리고 수명 저하를 분석한다.", tools:["스프레드시트","Python(선택)","그래프"]},
+        {title:"의사결정 모델링", desc:"용도별 가중치를 정해 배터리 화학을 점수화하는 평가 루브릭을 설계한다.", tools:["가중치 표","루브릭","발표자료"]}
+      ]
+    },
+    {
+      id:"hydrogen", name:"수소에너지", en:"Hydrogen Energy", icon:"💧", color:"#31d0aa",
+      tagline:"물을 쪼개 만든 그린수소로 탄소 없는 에너지 순환을 만든다.",
+      keywords:["그린수소","수전해","연료전지","PEM","암모니아"],
+      careers:["수전해·연료전지 연구","청정수소 생산·저장","수소 모빌리티"],
+      desc:"수소에너지 트랙은 재생에너지 전기로 물을 분해(수전해)해 얻는 '그린수소'와, 수소를 전기로 되돌리는 연료전지를 다룹니다. PEM·음이온교환막 수전해 소재, 촉매의 고가 금속 대체, 액화·암모니아 형태의 저장·운송이 핵심 주제입니다.",
+      resources:[
+        {title:"신규 수소 R&D 과제로 보는 기술개발 동향", src:"월간수소경제", type:"국내", url:"https://www.h2news.kr/mobile/article.html?no=9905", sum:"PEM 수전해 금속 대체, 해수 직접활용 수전해 등 9대 로드맵 소개."},
+        {title:"그린수소 생산용 수전해 전력변환 핵심 기술개발", src:"KISTI ScienceON", type:"논문", url:"https://scienceon.kisti.re.kr/srch/selectPORSrchReport.do?cn=TRKO202200008302", sum:"수전해 전력변환 기술을 다룬 국내 연구보고서 원문."},
+        {title:"제주도 MW급 저온 수전해 그린수소 생산·경제성 분석", src:"한국수소및신에너지학회 (DBpia)", type:"논문", url:"https://www.dbpia.co.kr/journal/articleDetail?nodeId=NODE11443183", sum:"실제 실증 규모의 그린수소 생산능력·경제성을 분석한 논문."},
+        {title:"Hydrogen (Energy System)", src:"IEA (국제에너지기구)", type:"해외", url:"https://www.iea.org/energy-system/low-emission-fuels/hydrogen", sum:"세계 수소 생산·수요·정책 데이터를 제공하는 국제기구 허브."},
+        {title:"청정수소 대량 생산기지 구축", src:"국회도서관 국가전략포털", type:"기관", url:"https://nsp.nanet.go.kr/plan/subject/detail.do?nationalPlanControlNo=PLAN0000051632", sum:"국내 청정수소 공급 인프라 전략 자료."}
+      ],
+      questions:[
+        {text:"'그레이·블루·그린 수소'는 무엇이 다를까? 색깔로 구분하는 기준(생산방식·탄소배출)을 정리해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"물을 전기로 분해하는 수전해에서, 전기가 재생에너지일 때만 '그린'이라 부르는 이유는?", level:"기초", comps:["thinking"]},
+        {text:"수전해 촉매의 값비싼 백금·이리듐을 대체하려는 연구가 활발하다. 대체 소재가 갖춰야 할 조건을 성능·비용·내구성으로 나눠 논증해 보자.", level:"심화", comps:["problem","creative"]},
+        {text:"수소는 부피가 커서 저장이 어렵다. 고압기체·액화·암모니아 저장을 안전성과 에너지효율 관점에서 비교하면?", level:"심화", comps:["problem","thinking"]},
+        {text:"우리 지역의 잉여 재생에너지로 그린수소를 만든다면 경제성이 있을까? 제주 사례 데이터를 우리 지역에 적용해 보자.", level:"융합", comps:["problem","creative","comm"]}
+      ],
+      methods:[
+        {title:"간이 수전해 실험", desc:"전기분해 장치로 전압·전극 재료에 따른 수소 발생량을 관찰·측정한다.", tools:["전기분해 장치","전원","가스 포집"]},
+        {title:"에너지 흐름도 작성", desc:"재생에너지→수전해→저장→연료전지 전 과정의 에너지 손실을 단계별로 추적한다.", tools:["Sankey 다이어그램","효율 계산"]},
+        {title:"경제성 분석", desc:"전기요금·설비비·수소 생산량으로 kg당 생산단가를 추정해 시나리오별로 비교한다.", tools:["스프레드시트","시나리오 표"]},
+        {title:"정책 비교 조사", desc:"한국·EU·일본의 수소 로드맵을 표로 비교하고 시사점을 도출한다.", tools:["비교표","정책 문헌"]}
+      ]
+    },
+    {
+      id:"materials", name:"에너지신소재", en:"Energy Materials", icon:"🔬", color:"#c98bff",
+      tagline:"페로브스카이트 등 새로운 소재로 빛·열·전기를 더 잘 다룬다.",
+      keywords:["페로브스카이트","탠덤 태양전지","촉매","나노소재","열전소재"],
+      careers:["태양전지 소재 연구","촉매·나노소재 개발","소재 분석·평가"],
+      desc:"에너지신소재 트랙은 에너지를 변환·저장하는 '재료' 자체를 설계합니다. 대표 주제인 페로브스카이트 태양전지는 실리콘과 결합한 탠덤 구조로 효율을 27% 이상으로 끌어올렸습니다. 소재의 구조–물성 관계, 안정성, 친환경성이 탐구의 초점입니다.",
+      resources:[
+        {title:"글로벌 페로브스카이트-실리콘 탠덤 태양전지 기술 동향", src:"서울대 공대 웹진", type:"국내", url:"https://webzine-eng.snu.ac.kr/web/vol137/SW137_12_tech2.php", sum:"탠덤 구조로 효율을 높이는 최신 기술 흐름을 정리한 신기술 동향."},
+        {title:"아주대 국제연구팀, 효율성 극대화 차세대 태양전지 소재 개발", src:"서울신문", type:"국내", url:"https://www.seoul.co.kr/news/society/education-news/2025/07/30/20250730500120", sum:"실내·실외 효율을 동시에 끌어올린 국내 연구 성과 소개."},
+        {title:"각광받는 태양전지 신소재 '페로브스카이트'", src:"한화큐셀 블로그", type:"국내", url:"https://qcells.com/kr/blog/blog-detail?blogId=BLG231221163239016", sum:"페로브스카이트 개념을 학생 눈높이로 설명한 기업 칼럼."},
+        {title:"친환경 페로브스카이트 전하전달층 개발·소자 최적화", src:"KISTI ScienceON", type:"논문", url:"https://scienceon.kisti.re.kr/srch/selectPORSrchReport.do?cn=TRKO201800002674", sum:"납 저감·전하전달층을 다룬 국내 연구보고서 원문."},
+        {title:"Nature Energy — Solar cells", src:"Nature Energy (해외 저널)", type:"해외", url:"https://www.nature.com/subjects/solar-cells", sum:"태양전지 소재 최신 논문을 주제별로 모아 볼 수 있는 허브."}
+      ],
+      questions:[
+        {text:"페로브스카이트는 왜 실리콘보다 얇고 가볍게 만들 수 있을까? 결정 구조와 빛 흡수의 관계를 설명해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"'탠덤(tandem) 태양전지'는 두 소재를 겹쳐 효율을 높인다. 서로 다른 밴드갭을 겹치면 효율이 오르는 이유는?", level:"기초", comps:["thinking"]},
+        {text:"페로브스카이트의 최대 약점은 수분·열에 대한 불안정성이다. 안정성을 높이는 전략을 소재·구조·봉지 관점에서 제안해 보자.", level:"심화", comps:["problem","creative"]},
+        {text:"납(Pb)이 들어간 페로브스카이트의 친환경 논란을 어떻게 볼까? 효율과 환경성의 트레이드오프를 논증해 보자.", level:"심화", comps:["problem","comm"]},
+        {text:"실내조명용 태양전지가 필요한 IoT 기기를 상상하고, 어떤 소재 특성이 실내 환경에 최적일지 설계해 보자.", level:"융합", comps:["creative","problem","comm"]}
+      ],
+      methods:[
+        {title:"구조–물성 조사", desc:"소재의 결정 구조·밴드갭과 광전변환효율의 관계를 문헌으로 정리한다.", tools:["문헌조사","밴드갭 표","도식화"]},
+        {title:"태양전지 특성 측정", desc:"상용 소형 태양전지로 조도(lux)에 따른 전류·전압(I–V) 곡선을 측정한다.", tools:["조도계","멀티미터","가변광원"]},
+        {title:"안정성 실험 설계", desc:"습도·온도·자외선 노출 조건을 바꿔 성능 저하를 관찰하는 실험을 설계한다.", tools:["변인 통제표","노출 챔버(간이)"]},
+        {title:"수명주기 관점 평가", desc:"소재의 효율뿐 아니라 독성·재활용성을 함께 평가하는 지표를 만든다.", tools:["평가 루브릭","LCA 개념"]}
+      ]
+    },
+    {
+      id:"ai", name:"에너지AI", en:"Energy AI", icon:"🤖", color:"#ffb454",
+      tagline:"데이터와 AI로 전력 수요를 예측하고 에너지 시스템을 최적화한다.",
+      keywords:["수요예측","디지털트윈","최적화","데이터센터","머신러닝"],
+      careers:["전력 데이터 분석","에너지 최적화 AI","디지털트윈 엔지니어"],
+      desc:"에너지AI 트랙은 인공지능·데이터로 에너지 시스템을 더 똑똑하게 만듭니다. 전력 수요 예측, 발전·소비 최적화, 설비의 디지털트윈이 대표 주제입니다. 한편 AI 자체가 막대한 전력을 쓰기에, 'AI를 위한 에너지'와 'AI를 통한 에너지 절감'이 동시에 중요한 화두입니다.",
+      resources:[
+        {title:"인공지능(AI)의 에너지 분야 도전과 기회", src:"에너지경제연구원(KEEI)", type:"기관", url:"https://www.keei.re.kr/keei/download/WEMI2505.pdf", sum:"AI 확산이 에너지 수요·시스템에 주는 도전과 기회를 정리한 인사이트."},
+        {title:"AI발 전력수요 증가에 따른 에너지 및 소재 시장 동향", src:"KDI 경제교육·정보센터", type:"국내", url:"https://eiec.kdi.re.kr/policy/domesticView.do?ac=0000188081", sum:"데이터센터發 전력수요 급증이 산업에 미치는 파급효과 분석."},
+        {title:"AI 확산과 전력수요의 미래", src:"서울대 국가미래전략원(IFS)", type:"국내", url:"https://ifs.snu.ac.kr/", sum:"AI 시대 전력 수급 안정화를 위한 전략 제안(국가미래전략 리포트)."},
+        {title:"Energy and AI", src:"IEA (국제에너지기구)", type:"해외", url:"https://www.iea.org/reports/energy-and-ai", sum:"AI가 에너지 수요·효율에 미치는 영향을 다룬 국제기구 특별 보고서."},
+        {title:"Digital Twin in Energy & Power Market", src:"GMInsights", type:"해외", url:"https://www.gminsights.com/industry-analysis/digital-twin-in-energy-and-power-market", sum:"에너지 분야 디지털트윈 시장 규모·성장 전망 리포트."}
+      ],
+      questions:[
+        {text:"생성형 AI 검색이 일반 검색보다 전력을 훨씬 많이 쓴다고 한다. 그 차이가 어디서 생기는지 설명해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"전력 수요는 시간·날씨·요일에 따라 변한다. 수요 예측이 왜 발전소 운영과 정전 예방에 중요한지 정리해 보자.", level:"기초", comps:["thinking"]},
+        {text:"우리 학교 전력 사용량 데이터가 있다면, 어떤 변수(기온·시간표·계절)로 사용량을 예측하는 모델을 세울 수 있을까?", level:"심화", comps:["problem","creative"]},
+        {text:"'디지털트윈'으로 발전설비를 가상 복제하면 무엇이 좋아질까? 고장 예측·에너지 절감 측면에서 논증해 보자.", level:"심화", comps:["problem","thinking"]},
+        {text:"AI 데이터센터의 전력 소비를 줄이면서 성능은 지키는 방법을, 냉각·재생에너지·알고리즘 세 관점에서 제안해 보자.", level:"융합", comps:["problem","creative","comm"]}
+      ],
+      methods:[
+        {title:"공개 데이터 분석", desc:"전력거래소·기상청 공개 데이터로 수요와 기온의 상관관계를 그래프로 확인한다.", tools:["스프레드시트","공공데이터포털","상관분석"]},
+        {title:"간단 예측 모델", desc:"이동평균·선형회귀로 다음 시점 전력 수요를 예측하고 오차를 평가한다.", tools:["Excel/Sheets","Python(선택)","RMSE"]},
+        {title:"시뮬레이션(디지털트윈 축소판)", desc:"교실/건물의 에너지 사용을 모델로 만들어 변수 조절에 따른 절감량을 실험한다.", tools:["시뮬레이션 표","시나리오"]},
+        {title:"AI 전력비용 추정", desc:"모델 크기·질의 수를 가정해 AI 서비스의 전력·탄소 발자국을 산정한다.", tools:["단위환산","추정 모델"]}
+      ]
+    },
+    {
+      id:"climate", name:"환경·기후기술", en:"Environment & Climate Tech", icon:"🌍", color:"#5fd08a",
+      tagline:"이산화탄소를 붙잡고(CCUS) 기후위기에 맞서는 기술을 탐구한다.",
+      keywords:["탄소중립","CCUS","탄소포집","기후변화","LCA"],
+      careers:["탄소포집·활용 연구","기후·환경 정책","탄소회계·ESG"],
+      desc:"환경·기후기술 트랙은 탄소중립을 실현하는 기술과 정책을 다룹니다. 핵심은 배출된 이산화탄소를 포집·활용·저장하는 CCUS입니다. 화학흡수·흡착·막분리 같은 포집 기술과, 포집한 CO₂를 시멘트·연료·화학원료로 되돌리는 활용 기술이 함께 연구됩니다.",
+      resources:[
+        {title:"탄소포집·활용 및 저장(CCUS)이란?", src:"한국에너지기술연구원(KIER)", type:"기관", url:"https://www.kier.re.kr/tpp/energy/B/view/242", sum:"CCUS 개념과 원리를 기관이 정리한 입문용 해설."},
+        {title:"이산화탄소 포집 및 활용(CCU) 현황과 법제도적 과제", src:"KCI 학술지", type:"논문", url:"https://www.kci.go.kr/kciportal/ci/sereArticleSearch/ciSereArtiView.kci?sereArticleSearchBean.artiId=ART003182027", sum:"CCU 기술 현황과 2024년 제정 법률 등 제도적 쟁점을 다룬 논문."},
+        {title:"CCUS 기술 (STI Brief)", src:"TOP-Tier 연구단", type:"국내", url:"https://top-tier.re.kr/", sum:"CCUS 기술을 브리프 형식으로 압축 정리한 자료."},
+        {title:"Carbon Capture, Utilisation and Storage", src:"IEA (국제에너지기구)", type:"해외", url:"https://www.iea.org/energy-system/carbon-capture-utilisation-and-storage", sum:"세계 CCUS 프로젝트·정책·데이터를 제공하는 국제기구 허브."},
+        {title:"IPCC — Climate Change Reports", src:"IPCC (기후변화 정부간협의체)", type:"해외", url:"https://www.ipcc.ch/reports/", sum:"기후변화 과학의 국제 표준 평가보고서."}
+      ],
+      questions:[
+        {text:"CCUS의 C·C·U·S는 각각 무엇을 뜻할까? 포집→활용/저장의 전체 흐름을 그림으로 설명해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"발전소 배기가스에서 CO₂만 골라 붙잡으려면 어떤 원리(흡수·흡착·막분리)를 쓸 수 있을까?", level:"기초", comps:["thinking"]},
+        {text:"포집한 CO₂를 '그냥 저장'하는 것과 '연료·시멘트로 활용'하는 것 중 무엇이 더 나은지, 비용·감축효과로 논증해 보자.", level:"심화", comps:["problem","creative"]},
+        {text:"CCUS는 '탄소중립의 필수 도구'라는 주장과 '화석연료 연장 핑계'라는 비판이 있다. 두 입장을 정리하고 자신의 근거를 세워 보자.", level:"심화", comps:["problem","comm"]},
+        {text:"우리 학교/지역의 연간 탄소배출을 추정하고, 감축·상쇄를 조합한 탄소중립 로드맵을 설계해 보자.", level:"융합", comps:["problem","creative","comm"]}
+      ],
+      methods:[
+        {title:"탄소발자국 산정", desc:"활동 데이터(전기·교통·급식)에 배출계수를 곱해 탄소배출을 계산한다.", tools:["배출계수표","스프레드시트"]},
+        {title:"간이 CO₂ 포집 실험", desc:"석회수·수산화나트륨 용액으로 CO₂ 흡수를 관찰하고 조건별 효율을 비교한다.", tools:["석회수","pH 측정","변인통제"]},
+        {title:"정책·법 비교 분석", desc:"국내 CCUS 법률과 해외 제도를 비교해 쟁점과 시사점을 도출한다.", tools:["비교표","정책 문헌"]},
+        {title:"시나리오 로드맵 설계", desc:"감축·전환·상쇄를 조합해 목표연도별 탄소중립 경로를 시뮬레이션한다.", tools:["시나리오 표","LCA 개념"]}
+      ]
+    },
+    {
+      id:"grid", name:"전력·그리드", en:"Power & Grid", icon:"🔌", color:"#ff8fa3",
+      tagline:"흩어진 재생에너지를 하나로 묶어 안정적인 전력망을 만든다.",
+      keywords:["스마트그리드","가상발전소(VPP)","계통 안정","분산자원","수요반응"],
+      careers:["전력계통 연구","VPP·에너지플랫폼","전력시장 설계"],
+      desc:"전력·그리드 트랙은 전기를 '언제·어디서·얼마나' 안정적으로 흐르게 할지 다룹니다. 태양광·풍력은 간헐적이라 계통을 흔들 수 있는데, 흩어진 분산자원을 ICT로 묶어 하나의 발전소처럼 운영하는 가상발전소(VPP)와 스마트그리드가 해법으로 떠오릅니다.",
+      resources:[
+        {title:"분산 재생에너지의 효율적 활용을 위한 VPP 플랫폼 개발", src:"정보시스템연구 (KoreaScience)", type:"논문", url:"https://koreascience.kr/article/JAKO201821142174827.page?lang=ko", sum:"가상발전소 플랫폼 구조와 분산자원 통합 운영을 다룬 논문."},
+        {title:"설비 없는 '가상발전소'가 온다", src:"오마이뉴스", type:"국내", url:"https://www.ohmynews.com/NWS_Web/Series/series_premium_pg.aspx?CNTN_CD=A0002972818", sum:"VPP 개념과 필요성을 쉽게 풀어낸 기획 기사."},
+        {title:"발전기 없는 발전소, 가상발전소(VPP)", src:"국회도서관 국가전략포털", type:"기관", url:"https://nsp.nanet.go.kr/plan/subject/detail.do?nationalPlanControlNo=PLAN0000037674", sum:"VPP 제도·정책 관점의 국내 현황 정리."},
+        {title:"Smart Grids (Energy System)", src:"IEA (국제에너지기구)", type:"해외", url:"https://www.iea.org/energy-system/electricity/smart-grids", sum:"세계 스마트그리드 동향·투자·정책 데이터 허브."},
+        {title:"가상발전소 — 개념·현황 정리", src:"나무위키", type:"국내", url:"https://namu.wiki/w/가상발전소", sum:"VPP의 개념·사례를 폭넓게 정리한 참고용 문서(1차 자료로 교차확인 권장)."}
+      ],
+      questions:[
+        {text:"태양광·풍력이 '간헐적'이라는 말은 무슨 뜻일까? 이 특성이 전력망 안정에 왜 문제가 되는지 설명해 보자.", level:"기초", comps:["thinking","comm"]},
+        {text:"'가상발전소(VPP)'는 발전기 없이 어떻게 발전소 역할을 할까? 분산자원을 묶는다는 개념을 풀어 보자.", level:"기초", comps:["thinking"]},
+        {text:"전력 수요가 몰리는 시간대에 '수요반응(DR)'으로 소비를 조절하면 어떤 이득이 있을까? 소비자·계통 관점에서 논증해 보자.", level:"심화", comps:["problem","creative"]},
+        {text:"재생에너지 비중이 높은 제주에서 계통 불안정이 자주 언급된다. 원인과 해결책(ESS·VPP·수요반응)을 연결해 분석해 보자.", level:"심화", comps:["problem","thinking"]},
+        {text:"우리 동네 건물들의 태양광·배터리를 하나로 묶는 미니 VPP를 설계한다면, 어떤 규칙으로 전기를 사고팔게 할까?", level:"융합", comps:["problem","creative","comm"]}
+      ],
+      methods:[
+        {title:"전력 흐름 개념 모델링", desc:"발전–송전–배전–소비 단계와 분산자원의 위치를 다이어그램으로 설계한다.", tools:["계통 다이어그램","도식화"]},
+        {title:"발전 데이터 분석", desc:"시간대별 태양광 발전량과 수요 데이터를 겹쳐 '불일치(미스매치)'를 시각화한다.", tools:["공공데이터","그래프","스프레드시트"]},
+        {title:"수요반응 시뮬레이션", desc:"요금이 시간대별로 바뀔 때 소비 패턴이 어떻게 이동하는지 모형으로 실험한다.", tools:["가격표","시나리오 모델"]},
+        {title:"미니 VPP 규칙 설계", desc:"분산자원을 묶는 거래·제어 규칙(우선순위·정산)을 설계하고 발표한다.", tools:["규칙 설계표","역할극/발표"]}
+      ]
+    }
+  ];
+
+/* =========================================================================
+   Part 2 · 상태 & 라우팅
+   ========================================================================= */
+  const state = {
+    screen : "home",     // 'home' | 'track' | 'plan'
+    trackId: null,
+    tab    : "desc",     // 'desc' | 'res' | 'q' | 'method'
+    levelFilter: "all",  // 'all' | '기초' | '심화' | '융합'
+    plan   : { questions:[], methods:[] }  // {trackId, ...}
+  };
+
+  const app = document.getElementById("app");
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const trackById = id => TRACKS.find(t => t.id === id);
+  const trackName = id => (trackById(id) || {}).name || "기타";
+  const esc = s => String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+  // ---- 설계서 자동 저장/복원 (localStorage) ----
+  const LS_KEY = "kentech-plan-v1";
+  function persist(){ try{ localStorage.setItem(LS_KEY, JSON.stringify(state.plan)); }catch(e){} }
+  function restore(){
+    try{
+      const raw = localStorage.getItem(LS_KEY); if(!raw) return;
+      const p = JSON.parse(raw);
+      if(!p || !Array.isArray(p.questions) || !Array.isArray(p.methods)) return;
+      // 데이터가 바뀌어 사라진 트랙 항목은 걸러서 복원 (오류 방지)
+      state.plan.questions = p.questions.filter(q => q && trackById(q.trackId) && Array.isArray(q.comps));
+      state.plan.methods   = p.methods.filter(m => m && trackById(m.trackId));
+    }catch(e){}
+  }
+
+  function go(screen, opts={}){
+    state.screen = screen;
+    if(opts.trackId !== undefined) state.trackId = opts.trackId;
+    if(screen === "track") state.tab = "desc";
+    window.scrollTo({top:0, behavior:"instant"});
+    render();
+  }
+
+/* =========================================================================
+   Part 3 · 뷰 렌더링
+   ========================================================================= */
+  function render(){
+    // 내비 활성화 + 카운트
+    document.querySelectorAll("[data-nav]").forEach(b=>{
+      b.classList.toggle("active",
+        (b.dataset.nav==="home" && state.screen!=="plan") ||
+        (b.dataset.nav==="plan" && state.screen==="plan"));
+    });
+    const cnt = state.plan.questions.length + state.plan.methods.length;
+    const cntEl = document.getElementById("planCnt");
+    cntEl.textContent = cnt; cntEl.style.display = cnt ? "inline-grid" : "none";
+    persist();
+
+    if(state.screen==="home")  app.innerHTML = viewHome();
+    else if(state.screen==="track") app.innerHTML = viewTrack(trackById(state.trackId));
+    else app.innerHTML = viewPlan();
+  }
+
+  /* ---- 화면1: 홈 ---- */
+  function viewHome(){
+    const cards = TRACKS.map(t=>`
+      <button class="track-card" style="--tc:${t.color}" data-open="${t.id}" aria-label="${esc(t.name)} 트랙 열기">
+        <span class="ic">${t.icon}</span>
+        <h3>${esc(t.name)}</h3>
+        <div class="en">${esc(t.en)}</div>
+        <div class="tag">${esc(t.tagline)}</div>
+        <div class="kw">${t.keywords.slice(0,4).map(k=>`<span>#${esc(k)}</span>`).join("")}</div>
+        <div class="go">탐구 시작하기 →</div>
+      </button>`).join("");
+
+    const comp = ATC.map(c=>`
+      <div class="cbox">
+        <div class="h"><span class="dot" style="background:${c.color}"></span>${esc(c.label)}</div>
+        <p>${esc(c.desc)}</p>
+      </div>`).join("");
+
+    return `
+    <section class="hero fade">
+      <h1>나의 관심 <span class="g">에너지 트랙</span>에서<br/>탐구 주제를 찾아보세요</h1>
+      <p>한국에너지공과대학교(켄텍) 6대 트랙에 맞춰, 트랙 설명 · 국내외 자료 · 탐구 질문 · 탐구 방법을 단계별로 추천합니다.</p>
+      <div class="steps">
+        <span class="s"><b>1</b> 트랙 선택</span>
+        <span class="s"><b>2</b> 설명·자료 읽기</span>
+        <span class="s"><b>3</b> 탐구 질문 고르기</span>
+        <span class="s"><b>4</b> 탐구 방법 담기</span>
+        <span class="s"><b>5</b> 나의 설계서 완성</span>
+      </div>
+    </section>
+
+    <section class="grid fade">${cards}</section>
+
+    <section class="insight fade">
+      <h2>💡 이 탐구가 길러주는 21세기 역량 (ATC21s)</h2>
+      <p class="muted" style="font-size:13.5px;margin:0">멜버른대 ATC21s 프레임워크의 4가지 필수 역량입니다. 각 탐구 질문·방법에는 켄텍·이공계 면접의 4대 평가역량(문제해결·사고력·창의성·의사소통) 배지가 달려 있어, 무엇을 기르는 활동인지 바로 확인할 수 있습니다.</p>
+      <div class="cgrid">${comp}</div>
+    </section>`;
+  }
+
+  /* ---- 화면2: 트랙 상세 ---- */
+  function compBadges(keys){
+    return keys.map(k=>{
+      const c = COMP[k]; if(!c) return "";
+      return `<span class="comp" style="background:${hexA(c.color)};color:${c.color}">
+        <span class="dot" style="background:${c.color}"></span>${esc(c.label)}</span>`;
+    }).join("");
+  }
+  // 역량 배지의 옅은 배경색 (CSS 변수 → 실제 hex 매핑 후 알파 적용)
+  const COLORHEX = {"var(--c-problem)":"#4ea8ff","var(--c-thinking)":"#31d0aa","var(--c-creative)":"#ffb454","var(--c-comm)":"#c98bff"};
+  function hexA(v){ return rgbaFrom(COLORHEX[v] || v, 0.14); }
+  function rgbaFrom(hex,a){ const n=hex.replace("#",""); const r=parseInt(n.substr(0,2),16),g=parseInt(n.substr(2,2),16),b=parseInt(n.substr(4,2),16); return `rgba(${r},${g},${b},${a})`; }
+
+  function viewTrack(t){
+    if(!t) { go("home"); return ""; }
+
+    // 자료 탭
+    const resHtml = t.resources.map(r=>`
+      <div class="res">
+        <div class="top">
+          <span class="badge b-${r.type}">${r.type}</span>
+          <h4><a href="${esc(r.url)}" target="_blank" rel="noopener">${esc(r.title)} ↗</a></h4>
+        </div>
+        <div class="sum">${esc(r.sum)}</div>
+        <div class="src">📄 ${esc(r.src)}</div>
+      </div>`).join("");
+
+    // 질문 탭 (레벨 필터 적용)
+    const qs = t.questions.filter(q=> state.levelFilter==="all" || q.level===state.levelFilter);
+    const qHtml = qs.map(q=>{
+      const idx = t.questions.indexOf(q);
+      const key = t.id+"-"+idx;
+      const added = state.plan.questions.some(p=>p.key===key);
+      return `
+      <div class="qcard">
+        <div class="qtop">
+          <div class="qnum">${idx+1}</div>
+          <div class="qtext">${esc(q.text)}</div>
+          <span class="lvl lvl-${q.level}">${q.level}</span>
+        </div>
+        <div class="comps">${compBadges(q.comps)}</div>
+        <div class="qact">
+          <button class="btn sm ${added?'ghost':'primary'}" data-addq="${key}">${added?'✓ 담김':'＋ 설계서에 담기'}</button>
+        </div>
+      </div>`;
+    }).join("") || `<p class="muted">해당 난이도의 질문이 없습니다.</p>`;
+
+    // 방법 탭
+    const mHtml = t.methods.map((m,idx)=>{
+      const key = t.id+"-m"+idx;
+      const added = state.plan.methods.some(p=>p.key===key);
+      return `
+      <div class="mcard">
+        <h4>🧪 ${esc(m.title)}</h4>
+        <div class="mdesc">${esc(m.desc)}</div>
+        <div class="tools">${m.tools.map(x=>`<span>${esc(x)}</span>`).join("")}</div>
+        <div class="mact">
+          <button class="btn sm ${added?'ghost':'primary'}" data-addm="${key}">${added?'✓ 담김':'＋ 설계서에 담기'}</button>
+        </div>
+      </div>`;
+    }).join("");
+
+    const tab = (id,label,full)=>`<button class="tab ${state.tab===id?'active':''}" data-tab="${id}">${label}<span class="t-full">${full||''}</span></button>`;
+
+    return `
+    <div class="backbar fade">
+      <button class="btn ghost sm" data-nav="home">← 트랙 목록</button>
+      <span class="muted" style="font-size:13px">6대 트랙 중 <b style="color:${t.color}">${esc(t.name)}</b></span>
+    </div>
+
+    <section class="detail-head fade" style="--tc:${t.color}">
+      <span class="ic">${t.icon}</span>
+      <div class="en">${esc(t.en)}</div>
+      <h2>${esc(t.name)}</h2>
+      <div class="desc">${esc(t.desc)}</div>
+      <div class="meta">
+        ${t.keywords.map(k=>`<span class="pill k">#${esc(k)}</span>`).join("")}
+      </div>
+      <div class="meta">
+        <span class="muted" style="font-size:12.5px">🎓 진로: ${t.careers.map(esc).join(" · ")}</span>
+      </div>
+    </section>
+
+    <div class="tabs fade">
+      ${tab("desc","설명","")}
+      ${tab("res","자료 <span style='opacity:.6'>"+t.resources.length+"</span>","")}
+      ${tab("q","질문 <span style='opacity:.6'>"+t.questions.length+"</span>","")}
+      ${tab("method","방법 <span style='opacity:.6'>"+t.methods.length+"</span>","")}
+    </div>
+
+    <div class="panel ${state.tab==='desc'?'active':''}" id="p-desc">
+      <div class="sec-title"><span class="ic">📘</span> 트랙 한눈에 보기</div>
+      <div class="res"><div class="sum" style="font-size:14.5px;color:var(--txt)">${esc(t.desc)}</div></div>
+      <div class="sec-title" style="margin-top:20px"><span class="ic">🧭</span> 이렇게 탐구를 이어가세요</div>
+      <div class="res"><div class="sum" style="font-size:14px">
+        ① <b>자료</b> 탭에서 국내외 칼럼·연구자료로 배경지식을 쌓고 →
+        ② <b>질문</b> 탭에서 관심 가는 탐구 질문을 고른 뒤 →
+        ③ <b>방법</b> 탭에서 실제 탐구 방법을 담으면 →
+        <b>나의 탐구 설계서</b>가 자동으로 정리됩니다.
+      </div></div>
+    </div>
+
+    <div class="panel ${state.tab==='res'?'active':''}" id="p-res">
+      <div class="sec-title"><span class="ic">🔎</span> 국내외 칼럼 · 연구자료</div>
+      ${resHtml}
+    </div>
+
+    <div class="panel ${state.tab==='q'?'active':''}" id="p-q">
+      <div class="sec-title"><span class="ic">❓</span> 탐구 질문 <span class="muted" style="font-weight:600">— 난이도로 걸러보세요</span></div>
+      <div class="filterbar">
+        <span class="lab">난이도</span>
+        ${["all","기초","심화","융합"].map(l=>`<button class="fbtn ${state.levelFilter===l?'on':''}" data-lvl="${l}">${l==="all"?"전체":l}</button>`).join("")}
+      </div>
+      ${qHtml}
+    </div>
+
+    <div class="panel ${state.tab==='method'?'active':''}" id="p-method">
+      <div class="sec-title"><span class="ic">🧪</span> 탐구 방법 · 도구</div>
+      ${mHtml}
+    </div>`;
+  }
+
+  /* ---- 화면3: 나의 탐구 설계서 ---- */
+  function viewPlan(){
+    const { questions, methods } = state.plan;
+    if(questions.length===0 && methods.length===0){
+      return `
+      <div class="plan-head fade"><h2>🧭 나의 탐구 설계서</h2>
+        <p class="muted">고른 탐구 질문과 방법이 여기에 모입니다.</p></div>
+      <div class="plan-empty fade">
+        <span class="ic">📭</span>
+        아직 담은 항목이 없어요.<br/>트랙을 골라 마음에 드는 <b>질문</b>과 <b>방법</b>을 담아보세요.
+        <div style="margin-top:18px"><button class="btn primary" data-nav="home">트랙 탐색하러 가기</button></div>
+      </div>`;
+    }
+
+    // 역량 집계
+    const tally = {problem:0,thinking:0,creative:0,comm:0};
+    questions.forEach(q=> q.comps.forEach(c=> tally[c]!==undefined && tally[c]++));
+    const maxV = Math.max(1, ...Object.values(tally));
+    const meters = Object.keys(COMP).map(k=>{
+      const v = tally[k], c = COMP[k];
+      return `<div class="meter">
+        <div class="ml"><span style="color:${c.color}">${esc(c.label)}</span><span class="muted">${v}회</span></div>
+        <div class="bar"><i style="width:${(v/maxV)*100}%;background:${c.color}"></i></div>
+      </div>`;
+    }).join("");
+
+    const qItems = questions.map(q=>`
+      <div class="plan-item">
+        <div class="body">
+          <div class="t">${esc(q.text)}</div>
+          <div class="s">${esc(trackName(q.trackId))} · <span class="lvl lvl-${q.level}" style="padding:1px 6px">${q.level}</span></div>
+        </div>
+        <button class="xbtn" data-delq="${q.key}" aria-label="삭제">✕</button>
+      </div>`).join("");
+
+    const mItems = methods.map(m=>`
+      <div class="plan-item">
+        <div class="body">
+          <div class="t">${esc(m.title)}</div>
+          <div class="s">${esc(trackName(m.trackId))} · ${esc(m.desc)}</div>
+        </div>
+        <button class="xbtn" data-delm="${m.key}" aria-label="삭제">✕</button>
+      </div>`).join("");
+
+    return `
+    <div class="plan-head fade"><h2>🧭 나의 탐구 설계서</h2>
+      <p class="muted">고른 질문·방법과, 이 탐구가 길러줄 역량을 한눈에 정리했어요.</p></div>
+
+    <div class="comp-summary fade">
+      <div class="sec-title"><span class="ic">📊</span> 이 탐구가 길러주는 역량 (면접 4대 평가역량 기준)</div>
+      ${meters}
+      <p class="muted" style="font-size:12.5px;margin:10px 0 0">※ 켄텍·이공계 면접은 문제해결능력·사고력·창의성·의사소통능력을 봅니다. 위 분포가 고르게 채워지도록 질문·방법을 조합해 보세요.</p>
+    </div>
+
+    ${questions.length?`<div class="plan-group fade"><h3>❓ 담은 탐구 질문 <span class="muted">(${questions.length})</span></h3>${qItems}</div>`:''}
+    ${methods.length?`<div class="plan-group fade"><h3>🧪 담은 탐구 방법 <span class="muted">(${methods.length})</span></h3>${mItems}</div>`:''}
+
+    <div class="plan-actions fade">
+      <button class="btn primary" data-copy="1">📋 설계서 복사</button>
+      <button class="btn" data-print="1">🖨️ 인쇄 / PDF</button>
+      <button class="btn ghost" data-nav="home">＋ 트랙 더 탐색</button>
+      <button class="btn ghost" data-clear="1" style="margin-left:auto">전체 비우기</button>
+    </div>`;
+  }
+
+/* =========================================================================
+   Part 4 · 상호작용 (이벤트 위임)
+   ========================================================================= */
+  function addQuestion(key){
+    const [tid, idx] = key.split("-");
+    const t = trackById(tid); const q = t.questions[+idx];
+    if(state.plan.questions.some(p=>p.key===key)) return;
+    state.plan.questions.push({ key, trackId:tid, text:q.text, level:q.level, comps:q.comps });
+    toast("설계서에 담았어요 ✓"); render();
+  }
+  function addMethod(key){
+    const idx = +key.split("-m")[1];
+    const tid = key.split("-m")[0];
+    const t = trackById(tid); const m = t.methods[idx];
+    if(state.plan.methods.some(p=>p.key===key)) return;
+    state.plan.methods.push({ key, trackId:tid, title:m.title, desc:m.desc });
+    toast("설계서에 담았어요 ✓"); render();
+  }
+
+  function planToText(){
+    let out = "【 나의 탐구 설계서 · 켄텍 6대 트랙 】\n\n";
+    if(state.plan.questions.length){
+      out += "■ 탐구 질문\n";
+      state.plan.questions.forEach((q,i)=> out += `${i+1}. (${trackName(q.trackId)}/${q.level}) ${q.text}\n`);
+      out += "\n";
+    }
+    if(state.plan.methods.length){
+      out += "■ 탐구 방법\n";
+      state.plan.methods.forEach((m,i)=> out += `${i+1}. (${trackName(m.trackId)}) ${m.title} — ${m.desc}\n`);
+    }
+    return out;
+  }
+
+  document.addEventListener("click", e=>{
+    const el = e.target.closest("[data-nav],[data-open],[data-tab],[data-lvl],[data-addq],[data-addm],[data-delq],[data-delm],[data-copy],[data-print],[data-clear]");
+    if(!el) return;
+    const d = el.dataset;
+    if(d.nav)   go(d.nav==="home" ? "home" : "plan");
+    else if(d.open) go("track", {trackId:d.open});
+    else if(d.tab)  { state.tab = d.tab; render(); }
+    else if(d.lvl)  { state.levelFilter = d.lvl; render(); }
+    else if(d.addq) addQuestion(d.addq);
+    else if(d.addm) addMethod(d.addm);
+    else if(d.delq) { state.plan.questions = state.plan.questions.filter(p=>p.key!==d.delq); render(); }
+    else if(d.delm) { state.plan.methods   = state.plan.methods.filter(p=>p.key!==d.delm); render(); }
+    else if(d.copy) { navigator.clipboard?.writeText(planToText()).then(()=>toast("복사했어요 📋")).catch(()=>toast("복사 실패 — 길게 눌러 복사하세요")); }
+    else if(d.print) window.print();
+    else if(d.clear){ if(confirm("담은 항목을 모두 비울까요?")){ state.plan={questions:[],methods:[]}; render(); } }
+  });
+
+  let toastTimer;
+  function toast(msg){
+    const el = document.getElementById("toast");
+    el.textContent = msg; el.classList.add("on");
+    clearTimeout(toastTimer); toastTimer = setTimeout(()=>el.classList.remove("on"), 1800);
+  }
+
+/* =========================================================================
+   Part 2-b · 초기화
+   ========================================================================= */
+  restore();   // 저장된 설계서 복원 (있으면)
+  render();
+</script>
+</body>
+</html>
