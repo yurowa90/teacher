@@ -335,12 +335,17 @@ async function callGemini({ apiKey, model, system, userText, images, maxTokens }
     body: JSON.stringify(body),
   });
   if (!res.ok) {
-    let msg = "API 오류 ("+res.status+")";
-    try { const e = await res.json(); if (e.error && e.error.message) msg += ": "+e.error.message; } catch(_){}
-    if (res.status === 400) msg = "요청이 거부되었습니다. API 키 또는 모델명을 확인하세요. ("+msg+")";
-    if (res.status === 403) msg = "API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인하세요.";
-    if (res.status === 429) msg = "요청 한도를 초과했습니다. 잠시 후 다시 시도하세요.";
-    throw new Error(msg);
+    let detail = "";
+    try { const e = await res.json(); if (e.error && e.error.message) detail = e.error.message; } catch(_){}
+    let msg, kind = "";
+    if (res.status === 400)      { msg = "요청이 거부되었습니다. 모델명 또는 입력을 확인하세요."; kind = "bad_request"; }
+    else if (res.status === 403) { msg = "API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인하세요."; kind = "auth"; }
+    else if (res.status === 404) { msg = "이 키로는 '" + model + "' 모델을 사용할 수 없습니다."; kind = "model_unavailable"; }
+    else if (res.status === 429) { msg = "요청 한도를 초과했습니다(무료 등급 할당량 부족일 수 있음)."; kind = "quota"; }
+    else                         { msg = "API 오류 (" + res.status + ")."; }
+    if (detail) msg += " (구글 응답: " + detail + ")";
+    const err = new Error(msg); err.kind = kind; err.status = res.status;
+    throw err;
   }
   const data = await res.json();
   const cand = (data.candidates || [])[0];
@@ -486,7 +491,12 @@ function Pill({on, onClick, children, cls}) {
 
 function App() {
   const [apiKey, setApiKey]   = useState(()=>localStorage.getItem("gemini_key")||"");
-  const [model, setModel]     = useState(()=>localStorage.getItem("gemini_model")||"gemini-2.5-flash");
+  const [model, setModel]     = useState(()=>{
+    const saved = localStorage.getItem("gemini_model");
+    // 새 키에 막혀 있는 구 기본값은 안전한 모델로 자동 교체
+    if (!saved || saved === "gemini-2.5-flash") return "gemini-2.0-flash";
+    return saved;
+  });
   const [subject, setSubject] = useState("자동");
   const [targets, setTargets] = useState([]);          // 타겟 수준 다중선택
   const [mode, setMode]       = useState("standard");
@@ -554,7 +564,8 @@ function App() {
       if (!names.length) { setModelMsg("이 키로 쓸 수 있는 생성 모델을 찾지 못했습니다."); }
       else {
         setModelList(names);
-        if (!names.includes(model)) setModel(names[0]); // 현재 모델이 목록에 없으면 첫 모델로
+        // 현재 모델이 목록에 없으면, 무료 등급에서 안정적인 gemini-2.0-flash 우선 선택
+        if (!names.includes(model)) setModel(names.includes("gemini-2.0-flash") ? "gemini-2.0-flash" : names[0]);
         setModelMsg("사용 가능한 모델 " + names.length + "개를 불러왔습니다.");
       }
     } catch(e) {
@@ -639,7 +650,16 @@ function App() {
       catch(e){ throw new Error("결과(JSON) 해석에 실패했습니다. 문항 수를 줄여 다시 시도해 주세요."); }
       setResult(parsed);
     } catch(e) {
-      setError(e.message || String(e));
+      const kind = e.kind;
+      const paste = "\n\n▶ 무료 API 키의 할당량·정책 제한일 가능성이 큽니다. 위 [실행 방식]을 «claude.ai 붙여넣기»로 바꾸면 API 키·한도 없이 바로 생성됩니다(Claude Pro/Max). 또는 aistudio.google.com에서 결제(billing)를 연결하면 한도가 올라갑니다.";
+      if (kind === "model_unavailable" && model.trim() !== "gemini-2.0-flash") {
+        setModel("gemini-2.0-flash");
+        setError((e.message || "") + "\n\n→ 자동으로 'gemini-2.0-flash' 모델로 바꿨습니다. 「평가도구 문서 생성」을 한 번 더 눌러 주세요.");
+      } else if (kind === "quota" || kind === "model_unavailable") {
+        setError((e.message || String(e)) + paste);
+      } else {
+        setError(e.message || String(e));
+      }
     } finally {
       setLoading(false);
     }
@@ -866,7 +886,7 @@ function App() {
           <button className="btn sec" onClick={showPasted} style={{marginTop:10}}>③ 결과 표시</button>
         </div>}
 
-      {error && <div className="err">⚠ {error}</div>}
+      {error && <div className="err" style={{whiteSpace:"pre-wrap"}}>⚠ {error}</div>}
       </div>
 
       {result && <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher}
