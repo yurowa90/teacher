@@ -10,7 +10,8 @@
     --line:#e3ddcf; --accent:#3a5a40; --accent-soft:#dfe7df;
     --gold:#a07b22; --gold-soft:#fbf3dd; --blue:#274c77; --blue-soft:#e4ecf5;
     --warn:#b9560f; --warn-soft:#fbe7d6; --radius:12px;
-    --kred:#f4431c; --kred-dk:#d93a12; --kpink:#fdeeea; --kline:#eac9c0;
+    /* 결과 문서 색감 — 사이트 주 색감(초록·크림·골드)에 맞춤 */
+    --kred:#3a5a40; --kred-dk:#2b4531; --kpink:#e8efe6; --kline:#cdd9cc;
   }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--ink);
@@ -82,14 +83,14 @@
   .keyebrow .chip{background:var(--kred);color:#fff;border-radius:999px;padding:2px 12px;font-size:11px;}
   .khead{background:var(--kred);color:#fff;border-radius:10px;padding:14px 20px;
     font-size:20px;font-weight:800;letter-spacing:-.3px;line-height:1.35;
-    box-shadow:3px 3px 0 rgba(244,67,28,.18);}
+    box-shadow:3px 3px 0 rgba(58,90,64,.16);}
   .kban{background:var(--kred);color:#fff;font-weight:800;font-size:16px;border-radius:8px;
-    padding:8px 16px;margin:30px 0 14px;box-shadow:3px 3px 0 rgba(244,67,28,.18);}
+    padding:8px 16px;margin:30px 0 14px;box-shadow:3px 3px 0 rgba(58,90,64,.16);}
   .kpillrow{display:flex;align-items:center;gap:10px;margin:22px 0 10px;}
   .kpill{background:var(--kred);color:#fff;font-weight:700;font-size:14px;border-radius:999px;padding:6px 18px;white-space:nowrap;}
   .kline{flex:1;border-top:1px dashed var(--kred);opacity:.5;}
   .khd{display:table;color:var(--kred-dk);font-size:16px;font-weight:800;margin:30px 0 10px;
-    padding-bottom:3px;border-bottom:3px double #f8b09c;}
+    padding-bottom:3px;border-bottom:3px double #a9c4ab;}
   .ksq{font-size:14px;font-weight:800;margin:18px 0 8px;display:flex;align-items:center;gap:7px;}
   .ksq::before{content:"";width:11px;height:11px;background:var(--kred);display:inline-block;flex:0 0 auto;}
   table.ktbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 14px;border-top:2px solid var(--kred);}
@@ -116,7 +117,7 @@
   .kul li{margin:3px 0;}
   .kstu{border:1px solid #bbb;background:#fff;padding:12px 14px;font-size:13.5px;border-radius:4px;margin:8px 0;}
   .kfbbox{background:#f7f7f7;border-radius:8px;padding:12px 14px;font-size:13.5px;margin:8px 0;white-space:pre-wrap;}
-  .kex{margin-top:6px;padding:8px 10px;background:#fff6f3;border:1px dashed #f0b3a3;border-radius:6px;font-size:12.5px;}
+  .kex{margin-top:6px;padding:8px 10px;background:#eef3ec;border:1px dashed #bcccbc;border-radius:6px;font-size:12.5px;}
   .kex b{color:var(--kred-dk);}
   .kvis{text-align:center;margin:8px 0 2px;}
   .kvis svg{max-width:100%;height:auto;}
