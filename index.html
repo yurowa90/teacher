@@ -504,6 +504,9 @@ function App() {
   const [runMode, setRunMode] = useState(()=>localStorage.getItem("run_mode")||"paste"); // "paste"=claude.ai(Pro/Max) · "api"=Gemini
   const [promptCopied, setPromptCopied] = useState(false);
   const [pasteText, setPasteText] = useState("");
+  const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelMsg, setModelMsg]       = useState("");
 
   useEffect(()=>{ localStorage.setItem("run_mode", runMode); }, [runMode]);
 
@@ -511,6 +514,55 @@ function App() {
   useEffect(()=>{ localStorage.setItem("gemini_model", model); }, [model]);
 
   function toggleTarget(l){ setTargets(t=> t.includes(l)? t.filter(x=>x!==l) : [...t, l]); }
+
+  // API 키로 사용 가능한 모델 목록 조회 (generateContent 지원 모델만)
+  async function fetchModels() {
+    setModelMsg("");
+    const key = apiKey.trim();
+    if (!key) { setModelMsg("먼저 API 키를 입력하세요."); return; }
+    setModelLoading(true);
+    try {
+      let names = [], pageToken = "";
+      do {
+        const url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key="
+          + encodeURIComponent(key) + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          let m = "모델 목록을 불러오지 못했습니다 (" + res.status + ").";
+          if (res.status === 400 || res.status === 403) m = "API 키가 올바르지 않거나 권한이 없습니다. 키를 확인하세요.";
+          try { const e = await res.json(); if (e.error && e.error.message) m += " " + e.error.message; } catch(_){}
+          throw new Error(m);
+        }
+        const data = await res.json();
+        (data.models || []).forEach(mo => {
+          const methods = mo.supportedGenerationMethods || [];
+          if (methods.includes("generateContent")) {
+            names.push((mo.name || "").replace(/^models\//, ""));
+          }
+        });
+        pageToken = data.nextPageToken || "";
+      } while (pageToken);
+
+      // 최신·주력 모델을 위로 정렬
+      names = Array.from(new Set(names)).sort((a, b) => {
+        const rank = n => (/2\.5/.test(n)?0 : /2\.0/.test(n)?1 : /1\.5/.test(n)?2 : 3);
+        const pr = n => (/pro/.test(n)?0 : /flash/.test(n)?1 : 2);
+        return rank(a)-rank(b) || pr(a)-pr(b) || a.localeCompare(b);
+      });
+
+      if (!names.length) { setModelMsg("이 키로 쓸 수 있는 생성 모델을 찾지 못했습니다."); }
+      else {
+        setModelList(names);
+        if (!names.includes(model)) setModel(names[0]); // 현재 모델이 목록에 없으면 첫 모델로
+        setModelMsg("사용 가능한 모델 " + names.length + "개를 불러왔습니다.");
+      }
+    } catch(e) {
+      setModelList([]);
+      setModelMsg(e.message || String(e));
+    } finally {
+      setModelLoading(false);
+    }
+  }
 
   function onFiles(e){
     const files = Array.from(e.target.files||[]);
@@ -649,22 +701,42 @@ function App() {
 
         {runMode==="api" &&
           <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
-            <div className="row">
+            <div className="row" style={{alignItems:"flex-end"}}>
               <div style={{flex:2}}>
                 <label className="fld">Gemini API 키 (AIza…)</label>
                 <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
                   placeholder="AIza..." />
               </div>
-              <div>
-                <label className="fld">모델</label>
-                <input type="text" value={model} onChange={e=>setModel(e.target.value)} />
+              <div style={{flex:"0 0 auto"}}>
+                <button className="btn sec" onClick={fetchModels} disabled={modelLoading} style={{whiteSpace:"nowrap"}}>
+                  {modelLoading ? "불러오는 중…" : "🔄 이 키로 쓸 수 있는 모델 불러오기"}
+                </button>
               </div>
             </div>
+
+            <div style={{marginTop:12}}>
+              <label className="fld">모델</label>
+              {modelList.length > 0
+                ? <select value={modelList.includes(model)?model:"__custom__"}
+                    onChange={e=>{ if(e.target.value!=="__custom__") setModel(e.target.value); }}>
+                    {modelList.map(m=><option key={m} value={m}>{m}</option>)}
+                    <option value="__custom__">직접 입력…</option>
+                  </select>
+                : <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                    placeholder="gemini-2.5-flash" />}
+              {modelList.length > 0 && !modelList.includes(model) &&
+                <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                  placeholder="모델명 직접 입력 (예: gemini-2.5-flash)" style={{marginTop:8}} />}
+            </div>
+
+            {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--accent)":"var(--warn)", fontWeight:600}}>{modelMsg}</div>}
+
             <div className="hint">
               키는 이 브라우저(localStorage)에만 저장되며 코드·서버에 전송되지 않습니다.
-              키 발급: aistudio.google.com → Get API key(카드 등록 불필요). 모델 예시: <code>gemini-2.5-flash</code>(기본),
-              더 정교하게: <code>gemini-2.5-pro</code>.
-              {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
+              키 발급: aistudio.google.com → Get API key(카드 등록 불필요).
+              <b> 「모델 불러오기」</b>를 누르면 이 키로 실제 사용 가능한 모델만 목록에 나옵니다.
+              권장: <code>gemini-2.5-flash</code>(빠름·저렴), <code>gemini-2.5-pro</code>(정교함).
+              {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
             </div>
           </div>}
       </div>
