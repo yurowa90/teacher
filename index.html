@@ -527,7 +527,7 @@ function App() {
   function toggleTarget(l){ setTargets(t=> t.includes(l)? t.filter(x=>x!==l) : [...t, l]); }
 
   // API 키로 사용 가능한 모델 목록 조회 (generateContent 지원 모델만)
-  async function fetchModels() {
+  async function fetchModels(auto) {
     setModelMsg("");
     const key = apiKey.trim();
     if (!key) { setModelMsg("먼저 API 키를 입력하세요."); return; }
@@ -554,19 +554,17 @@ function App() {
         pageToken = data.nextPageToken || "";
       } while (pageToken);
 
-      // 최신·주력 모델을 위로 정렬
-      names = Array.from(new Set(names)).sort((a, b) => {
-        const rank = n => (/2\.5/.test(n)?0 : /2\.0/.test(n)?1 : /1\.5/.test(n)?2 : 3);
-        const pr = n => (/pro/.test(n)?0 : /flash/.test(n)?1 : 2);
-        return rank(a)-rank(b) || pr(a)-pr(b) || a.localeCompare(b);
-      });
+      // 최신 버전 → 무료 등급 친화(flash) 순으로 정렬 (3.5 > 2.5 > 2.0 …, flash 우선)
+      const ver = n => { const m = n.match(/(\d+)\.(\d+)/); return m ? (parseInt(m[1],10)*100 + parseInt(m[2],10)) : 0; };
+      const pr  = n => (/flash-lite/.test(n)?1 : /flash/.test(n)?0 : /pro/.test(n)?2 : 3); // 무료 한도 넉넉한 flash 우선
+      names = Array.from(new Set(names)).sort((a, b) => ver(b)-ver(a) || pr(a)-pr(b) || a.localeCompare(b));
 
       if (!names.length) { setModelMsg("이 키로 쓸 수 있는 생성 모델을 찾지 못했습니다."); }
       else {
         setModelList(names);
-        // 현재 모델이 목록에 없으면, 무료 등급에서 안정적인 gemini-2.0-flash 우선 선택
-        if (!names.includes(model)) setModel(names.includes("gemini-2.0-flash") ? "gemini-2.0-flash" : names[0]);
-        setModelMsg("사용 가능한 모델 " + names.length + "개를 불러왔습니다.");
+        // 자동 조회(키 입력 직후)면 최신 flash 선택, 수동 새로고침이면 유효할 때 현재 선택 유지
+        if (auto || !names.includes(model)) setModel(names[0]);
+        setModelMsg("사용 가능한 모델 " + names.length + "개를 불러왔습니다. 최신 모델을 자동 선택했습니다.");
       }
     } catch(e) {
       setModelList([]);
@@ -726,6 +724,7 @@ function App() {
               <div style={{flex:2}}>
                 <label className="fld">Gemini API 키 (AIza…)</label>
                 <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
+                  onBlur={()=>{ if(apiKey.trim().length>20 && !modelList.length && !modelLoading) fetchModels(true); }}
                   placeholder="AIza..." />
               </div>
               <div style={{flex:"0 0 auto"}}>
