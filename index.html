@@ -496,6 +496,7 @@ function App() {
   const [style, setStyle]     = useState("");
   const [visual, setVisual]   = useState("auto");
   const [count, setCount]     = useState(1);
+  const [countStr, setCountStr] = useState("1");   // 입력 중간 상태(키보드 입력 허용)
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const [result, setResult]   = useState(null);
@@ -818,9 +819,20 @@ function App() {
             </select>
           </div>
           <div>
-            <label className="fld">문항 수</label>
-            <input type="number" min="1" max="5" value={count}
-              onChange={e=>setCount(Math.max(1,Math.min(5,Number(e.target.value)||1)))} />
+            <label className="fld">문항 수 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>(최소 1개 ~ 최대 4개)</span></label>
+            <input type="number" min="1" max="4" step="1" inputMode="numeric" value={countStr}
+              onChange={e=>{
+                const v = e.target.value;
+                setCountStr(v);                       // 타이핑 그대로 반영(키보드 입력 허용)
+                const n = parseInt(v, 10);
+                if (n >= 1 && n <= 4) setCount(n);    // 유효할 때만 실제 값 갱신
+              }}
+              onBlur={()=>{
+                let n = parseInt(countStr, 10);
+                if (!Number.isFinite(n) || n < 1) n = 1;
+                if (n > 4) n = 4;                     // 4 초과는 4로 정리
+                setCount(n); setCountStr(String(n));
+              }} />
           </div>
         </div>
         <div style={{marginTop:12}}>
@@ -828,7 +840,7 @@ function App() {
           <input type="text" value={style} onChange={e=>setStyle(e.target.value)}
             placeholder='예: 실생활 맥락 강조, 그래프 해석 포함, 600자 분량' />
         </div>
-        <div className="hint">완결된 평가도구 문서(정보표~피드백 사례)가 생성되므로 문항 수는 1~2개를 권장합니다. 하위 문항 (1)·(2)는 자동 구성됩니다.</div>
+        <div className="hint"><b>문항 수는 최소 1개 ~ 최대 4개까지</b> 지정할 수 있습니다. 키보드로 숫자를 직접 입력하거나 화살표로 조절하세요. 완결된 평가도구 문서(정보표~피드백 사례)가 생성되므로 1~2개를 권장하며, 하위 문항 (1)·(2)는 자동 구성됩니다.</div>
       </div>
 
       {runMode==="api" &&
