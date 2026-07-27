@@ -347,12 +347,20 @@ async function callGemini({ apiKey, model, system, userText, images, maxTokens }
   };
   const url = "https://generativelanguage.googleapis.com/v1beta/models/"
     + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey);
-  const res = await fetch(url, {
-    method:"POST",
-    headers:{ "content-type":"application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) {
+  const MAX_TRY = 4;
+  let res;
+  for (let attempt = 1; attempt <= MAX_TRY; attempt++) {
+    res = await fetch(url, {
+      method:"POST",
+      headers:{ "content-type":"application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) break;
+    // 503(과부하)·500(일시 오류)은 잠시 뒤 자동 재시도
+    if ((res.status === 503 || res.status === 500) && attempt < MAX_TRY) {
+      await new Promise(r => setTimeout(r, attempt * 2500));
+      continue;
+    }
     let detail = "";
     try { const e = await res.json(); if (e.error && e.error.message) detail = e.error.message; } catch(_){}
     let msg, kind = "";
@@ -360,6 +368,7 @@ async function callGemini({ apiKey, model, system, userText, images, maxTokens }
     else if (res.status === 403) { msg = "API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인하세요."; kind = "auth"; }
     else if (res.status === 404) { msg = "이 키로는 '" + model + "' 모델을 사용할 수 없습니다."; kind = "model_unavailable"; }
     else if (res.status === 429) { msg = "요청 한도를 초과했습니다(무료 등급 할당량 부족일 수 있음)."; kind = "quota"; }
+    else if (res.status === 503 || res.status === 500) { msg = "모델이 일시적으로 혼잡합니다(구글 서버 과부하). 여러 번 자동 재시도했지만 실패했습니다. 잠시 후 다시 누르거나 다른 모델(예: gemini-2.5-flash)을 선택하세요."; kind = "overloaded"; }
     else                         { msg = "API 오류 (" + res.status + ")."; }
     if (detail) msg += " (구글 응답: " + detail + ")";
     const err = new Error(msg); err.kind = kind; err.status = res.status;
@@ -681,12 +690,16 @@ function App() {
   function onFiles(e){
     const files = Array.from(e.target.files||[]);
     files.forEach(f=>{
+      const isImg = (f.type||"").startsWith("image/");
+      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      if (!isImg && !isPdf) { setError("이미지 또는 PDF 파일만 올릴 수 있습니다: " + f.name); return; }
+      if (f.size > 18*1024*1024) { setError("파일이 너무 큽니다(18MB 초과): " + f.name + ". 필요한 페이지만 잘라 올리거나 용량을 줄여주세요."); return; }
       const reader = new FileReader();
       reader.onload = ()=>{
         const res = reader.result;       // data:<mime>;base64,xxxx
         const mime = res.substring(5, res.indexOf(";"));
         const data = res.substring(res.indexOf(",")+1);
-        setImages(prev=>[...prev, { mime, data, url:res, name:f.name }]);
+        setImages(prev=>[...prev, { mime, data, url:res, name:f.name, kind: isPdf ? "pdf" : "image" }]);
       };
       reader.readAsDataURL(f);
     });
@@ -748,7 +761,14 @@ function App() {
         : "그림자료: 자료가 필요한 경우에만 SVG 도식을 생성하라.");
 
     if (style.trim()) P.push(`추가 스타일/요청: ${style.trim()}`);
-    if (images.length) P.push(`첨부 이미지 ${images.length}장이 있다. 이미지 속 문항·자료·표·그림을 읽어 반영하라.`);
+    if (images.length) {
+      const nPdf = images.filter(x=>x.kind==="pdf").length;
+      const nImg = images.length - nPdf;
+      const parts = [];
+      if (nImg) parts.push(`사진 ${nImg}장`);
+      if (nPdf) parts.push(`PDF ${nPdf}개(보고서·활동자료 등)`);
+      P.push(`첨부 자료(${parts.join(", ")})가 있다. 첨부된 사진·PDF의 내용·자료·표·그림·데이터를 읽어 성취기준·과목 범위에 맞는 논술형 평가 문항의 근거로 반영하라. PDF에 담긴 실험 결과·보고서·활동 내용을 제시문·자료로 활용하고, 최소 한 문항 이상이 그 자료를 직접 분석·해석해야 풀리도록 설계하라.`);
+    }
 
     if (useNews && articles.length) {
       const A = articles.map((a,i)=>`(${i+1}) ${a.title}${a.source?` — ${a.source}`:""}${a.date?` · ${a.date}`:""}\n    ${a.desc}\n    출처: ${a.link}`).join("\n");
@@ -814,7 +834,7 @@ function App() {
       GUIDE +
       "\n\n========== 작업 지시 ==========\n" +
       buildPrompt() +
-      (images.length ? "\n\n※ 이미지 자료는 이 메시지에 직접 첨부합니다. 첨부 이미지를 근거로 작업하세요." : "") +
+      (images.length ? "\n\n※ 사진·PDF 자료는 이 메시지(claude.ai 대화)에 직접 첨부합니다. 첨부한 사진·PDF 내용을 근거로 작업하세요." : "") +
       "\n\n반드시 위 [출력 형식]의 JSON 객체 하나만 출력하세요. 코드블록이나 설명 문장은 넣지 마세요.";
     navigator.clipboard.writeText(full).then(()=>{
       setPromptCopied(true); setTimeout(()=>setPromptCopied(false), 2000);
@@ -980,20 +1000,30 @@ function App() {
           } />
         <div style={{marginTop:10}}>
           <label className="btn ghost" style={{display:"inline-block",cursor:"pointer"}}>
-            📷 사진 올리기
-            <input type="file" accept="image/*" multiple onChange={onFiles} style={{display:"none"}} />
+            📷 사진 · 📄 PDF 올리기
+            <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={onFiles} style={{display:"none"}} />
           </label>
           {images.length>0 &&
             <div className="thumbs">
               {images.map((im,i)=>(
-                <div className="thumb" key={i}>
-                  <img src={im.url} alt={im.name}/>
-                  <button onClick={()=>removeImage(i)} title="삭제">×</button>
-                </div>
+                im.kind === "pdf"
+                  ? <div className="thumb" key={i} style={{width:"auto"}}>
+                      <div style={{width:120,height:70,border:"1px solid var(--line)",borderRadius:8,
+                        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                        background:"#f6f3eb",padding:"4px 8px",fontSize:11,textAlign:"center",overflow:"hidden"}}>
+                        <span style={{fontSize:22}}>📄</span>
+                        <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{im.name}</span>
+                      </div>
+                      <button onClick={()=>removeImage(i)} title="삭제">×</button>
+                    </div>
+                  : <div className="thumb" key={i}>
+                      <img src={im.url} alt={im.name}/>
+                      <button onClick={()=>removeImage(i)} title="삭제">×</button>
+                    </div>
               ))}
             </div>}
         </div>
-        <div className="hint">글·사진을 함께 넣을 수 있습니다. 사진 속 문항·자료·표·그림을 읽어 반영합니다.</div>
+        <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)</div>
       </div>
 
       {/* 4-1. 실생활 자료 검색 (네이버 뉴스/블로그) — 선택형 */}
@@ -1112,7 +1142,7 @@ function App() {
           </button>
           <ol style={{fontSize:13,color:"var(--muted)",margin:"12px 0 0",paddingLeft:20,lineHeight:1.8}}>
             <li><b>claude.ai</b>에 로그인해 새 대화를 엽니다(Pro/Max 구독).</li>
-            <li>방금 복사한 프롬프트를 붙여넣습니다{`. `}{<span>사진을 넣었다면 그 대화에 이미지도 함께 첨부하세요.</span>}</li>
+            <li>방금 복사한 프롬프트를 붙여넣습니다{`. `}{<span>사진·PDF를 넣었다면 그 대화에 파일도 함께 첨부하세요(claude.ai는 PDF 첨부를 지원합니다).</span>}</li>
             <li>Claude가 출력한 <b>결과 전체(중괄호 {`{ }`} 포함)</b>를 복사합니다.</li>
             <li>아래 칸에 붙여넣고 <b>③ 결과 표시</b>를 누르면 KICE 평가도구 자료 형식의 문서로 정리됩니다.</li>
           </ol>
