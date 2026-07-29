@@ -33,13 +33,9 @@ export default async function SentencesPage({
   return (
     <div>
       <PageHeader
-        title={isOwnerTeacher ? "학생 문장 기록" : "내 문장 카드"}
+        title={isOwnerTeacher ? "학급 문장 기록" : "내 문장 카드"}
         description={klass.name}
-        action={
-          isOwnerTeacher ? null : (
-            <LinkButton href={`/classes/${classId}/sentences/new`}>문장 수집</LinkButton>
-          )
-        }
+        action={<LinkButton href={`/classes/${classId}/sentences/new`}>문장 수집</LinkButton>}
       />
 
       {books.length > 1 ? (
@@ -58,7 +54,7 @@ export default async function SentencesPage({
       ) : null}
 
       {isOwnerTeacher ? (
-        <TeacherList classId={classId} />
+        <TeacherList classId={classId} viewerId={userId} />
       ) : (
         <StudentList classId={classId} bookId={bookId} />
       )}
@@ -114,16 +110,21 @@ async function StudentList({ classId, bookId }: { classId: string; bookId?: stri
   );
 }
 
-async function TeacherList({ classId }: { classId: string }) {
+async function TeacherList({ classId, viewerId }: { classId: string; viewerId: string }) {
   const sentences = await getClassSentencesForTeacher(classId);
   if (sentences.length === 0) {
-    return <EmptyState title="아직 학생이 수집한 문장이 없습니다" />;
+    return <EmptyState title="아직 수집한 문장이 없습니다" />;
   }
   return (
     <ul className="space-y-3">
       {sentences.map((s) => (
         <li key={s.id}>
-          <SentenceCardView sentence={s} authorName={s.authorName} />
+          {/* 교사 본인이 수집한 문장은 수정·삭제할 수 있다. */}
+          <SentenceCardView
+            sentence={s}
+            authorName={s.authorName}
+            editable={s.user_id === viewerId}
+          />
         </li>
       ))}
     </ul>

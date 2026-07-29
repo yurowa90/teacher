@@ -2,20 +2,20 @@
  * 책갈피 — 독서교육 웹앱 (Google Apps Script 간소화 버전)
  *
  * 데이터: 구글 시트(자동 생성) / 로그인: 구글 계정
- * 포함: 학급 만들기·참여, 도서 등록·삭제, 문장 수집, 교사의 학생 문장 열람, 산파법 챗봇(Gemini)
+ * 포함: 학급 만들기·참여, 도서 등록·삭제, 문장 수집(교사·학생), 질문 게시판(질문+댓글 토론),
+ *       교사의 학생 기록 열람, 데이터 자동 저장(구글 시트)
  *
  * 배포 방법은 apps-script/README.md 참고.
- * AI 키는 프로젝트 설정 → 스크립트 속성에 AI_API_KEY 로 저장(코드에 넣지 말 것).
  */
 
 var SHEETS = {
   Classes: ['id', 'name', 'teacherEmail', 'joinCode', 'createdAt'],
   Members: ['classId', 'email', 'displayName', 'role', 'joinedAt'],
   Books: ['id', 'classId', 'title', 'author', 'createdAt'],
-  Sentences: ['id', 'classId', 'bookId', 'quote', 'page', 'reason', 'interpretation', 'question', 'tags', 'email', 'displayName', 'createdAt'],
+  Sentences: ['createdAt', 'className', 'bookTitle', 'displayName', 'quote', 'page', 'reason', 'interpretation', 'question', 'tags', 'email', 'id', 'classId', 'bookId'],
+  Questions: ['createdAt', 'className', 'bookTitle', 'displayName', 'question', 'email', 'id', 'classId', 'bookId'],
+  Comments: ['createdAt', 'displayName', 'body', 'email', 'id', 'questionId', 'classId'],
 };
-
-var STAGE_ORDER = ['OBSERVE', 'INTERPRET', 'EVIDENCE', 'COUNTERARGUMENT', 'CONNECT', 'ORGANIZE', 'COMPLETE'];
 
 // ─────────────────────────────────────────────────────────────
 // 웹앱 진입점
@@ -166,6 +166,18 @@ function emailName_(email) {
   return String(email || '').split('@')[0] || '학생';
 }
 
+function nowStr_() {
+  var tz = Session.getScriptTimeZone() || 'Asia/Seoul';
+  return Utilities.formatDate(new Date(), tz, 'yyyy-MM-dd HH:mm');
+}
+
+/** 교사용: 데이터 스프레드시트 URL(담당 교사만). */
+function getSheetUrl(classId) {
+  var email = requireEmail_();
+  if (!isTeacher_(classId, email)) throw new Error('담당 교사만 열 수 있습니다.');
+  return getDb_().getUrl();
+}
+
 function getMyClasses() {
   var email = requireEmail_();
   var mine = rows_('Members').filter(function (m) { return m.email === email; });
@@ -228,13 +240,16 @@ function addSentence(classId, data) {
   if (!String(data.reason || '').trim()) throw new Error('선택한 이유를 입력하세요.');
   if (!String(data.interpretation || '').trim()) throw new Error('자신의 해석을 입력하세요.');
   var member = rows_('Members').filter(function (m) { return String(m.classId) === String(classId) && m.email === email; })[0];
+  var cls = classById_(classId);
+  var book = rows_('Books').filter(function (b) { return String(b.id) === String(data.bookId); })[0];
   append_('Sentences', {
     id: Utilities.getUuid(), classId: classId, bookId: data.bookId || '',
+    className: cls ? cls.name : '', bookTitle: book ? book.title : '',
     quote: String(data.quote).trim(), page: String(data.page || '').trim(),
     reason: String(data.reason).trim(), interpretation: String(data.interpretation).trim(),
     question: String(data.question || '').trim(), tags: String(data.tags || '').trim(),
     email: email, displayName: member ? member.displayName : emailName_(email),
-    createdAt: new Date().toISOString(),
+    createdAt: nowStr_(),
   });
   return { ok: true };
 }
@@ -251,7 +266,8 @@ function getSentences(classId) {
       return {
         id: s.id, quote: s.quote, page: s.page, reason: s.reason,
         interpretation: s.interpretation, question: s.question, tags: s.tags,
-        bookTitle: books[s.bookId] || '', author: isT ? s.displayName : '',
+        bookTitle: s.bookTitle || books[s.bookId] || '',
+        author: s.displayName || '',
         mine: s.email === email,
       };
     })
@@ -268,94 +284,82 @@ function deleteSentence(classId, sentenceId) {
 }
 
 // ─────────────────────────────────────────────────────────────
-// 산파법 챗봇 (Gemini). 상태는 클라이언트가 관리하고, 서버는 질문 하나만 생성.
+// 질문 게시판 (학생·교사가 질문을 만들고, 서로 댓글로 토론)
 // ─────────────────────────────────────────────────────────────
-function nextStage_(stage) {
-  var i = STAGE_ORDER.indexOf(stage);
-  if (i < 0 || i >= STAGE_ORDER.length - 1) return 'COMPLETE';
-  return STAGE_ORDER[i + 1];
+function addQuestion(classId, data) {
+  var email = requireEmail_();
+  if (!isMember_(classId, email)) throw new Error('학급 구성원이 아닙니다.');
+  var q = String((data && data.question) || '').trim();
+  if (!q) throw new Error('질문 내용을 입력하세요.');
+  var cls = classById_(classId);
+  var book = rows_('Books').filter(function (b) { return String(b.id) === String(data.bookId); })[0];
+  var member = rows_('Members').filter(function (m) { return String(m.classId) === String(classId) && m.email === email; })[0];
+  append_('Questions', {
+    id: Utilities.getUuid(), classId: classId, bookId: (data && data.bookId) || '',
+    className: cls ? cls.name : '', bookTitle: book ? book.title : '',
+    question: q, email: email, displayName: member ? member.displayName : emailName_(email),
+    createdAt: nowStr_(),
+  });
+  return { ok: true };
 }
 
-var STAGE_GOAL_ = {
-  OBSERVE: '인상 깊은 문장·장면, 반복되는 단어, 처음 느낀 감정을 확인한다.',
-  INTERPRET: '학생의 해석과 근거를 확인하고 다른 해석 가능성을 탐색한다.',
-  EVIDENCE: '해석을 뒷받침하는 책 속 근거(인물의 말·행동)를 찾게 한다.',
-  COUNTERARGUMENT: '반대 관점, 저자의 한계, 다른 독자의 비판을 예상하게 한다.',
-  CONNECT: '자신의 경험·다른 책·사회 문제와 연결하게 한다.',
-  ORGANIZE: '중심 주장·핵심 근거·예상 반론·결론을 스스로 정리하게 한다.',
-  COMPLETE: '지금까지의 생각을 학생이 직접 요약하도록 돕는다. 서평을 대신 쓰지 않는다.',
-};
+function getQuestions(classId) {
+  var email = requireEmail_();
+  if (!isMember_(classId, email)) throw new Error('권한이 없습니다.');
+  var counts = {};
+  rows_('Comments').forEach(function (c) {
+    if (String(c.classId) === String(classId)) counts[c.questionId] = (counts[c.questionId] || 0) + 1;
+  });
+  return rows_('Questions')
+    .filter(function (q) { return String(q.classId) === String(classId); })
+    .map(function (q) {
+      return {
+        id: q.id, question: q.question, bookTitle: q.bookTitle || '',
+        author: q.displayName || '', mine: q.email === email,
+        commentCount: counts[q.id] || 0, createdAt: q.createdAt,
+      };
+    })
+    .reverse();
+}
 
-var CANNED_ = {
-  OBSERVE: { q: '이 책에서 가장 인상 깊었던 문장이나 장면은 무엇이었나요? 그때 어떤 느낌이 들었는지도 적어 보세요.', h: '반복되는 단어나 마음이 멈칫한 부분을 떠올려 보세요.' },
-  INTERPRET: { q: '방금 고른 부분을 당신은 어떻게 해석했나요? 그렇게 읽은 이유는 무엇인가요?', h: '정답보다, 왜 그렇게 느꼈는지 근거를 떠올려 보세요.' },
-  EVIDENCE: { q: '그 해석을 뒷받침하는 책 속 장면이나 문장은 무엇인가요?', h: '인물의 말이나 행동을 찾아보세요.' },
-  COUNTERARGUMENT: { q: '당신의 해석과 반대되는 관점, 또는 저자의 아쉬운 점은 무엇일까요?', h: '다른 독자라면 어떤 점을 비판할지 상상해 보세요.' },
-  CONNECT: { q: '이 책의 문제의식은 당신의 경험이나 다른 책, 사회 문제와 어떻게 연결되나요?', h: '과학·윤리·정책 같은 영역과 이어 보아도 좋아요.' },
-  ORGANIZE: { q: '서평으로 옮긴다면 중심 주장과 가장 중요한 근거는 무엇인가요?', h: '주장 → 근거 → 예상 반론 → 결론 순으로 정리해 보세요.' },
-  COMPLETE: { q: '오늘 나눈 생각을 당신의 말로 한두 문장으로 요약해 볼까요? 이 요약이 서평의 출발점이 됩니다.', h: '요약은 스스로 씁니다. 이 도구는 대신 써 주지 않아요.' },
-};
+function deleteQuestion(classId, questionId) {
+  var email = requireEmail_();
+  var q = rows_('Questions').filter(function (x) { return String(x.id) === String(questionId); })[0];
+  if (!q) throw new Error('질문을 찾을 수 없습니다.');
+  if (q.email !== email && !isTeacher_(classId, email)) throw new Error('본인 또는 담당 교사만 삭제할 수 있습니다.');
+  deleteRows_('Questions', function (x) { return String(x.id) === String(questionId); });
+  deleteRows_('Comments', function (x) { return String(x.questionId) === String(questionId); });
+  return { ok: true };
+}
 
-var SYSTEM_ = '당신은 한국 고등학생의 독서 사고를 돕는 독서 산파법 안내자입니다. 규칙: 1) 서평을 대신 써 주지 않는다(완성 글 금지). 2) 한 번에 질문 하나만. 3) 스스로 생각하게 하는 열린 질문. 4) 개인정보를 묻지 않는다. 5) 반드시 JSON {"question":"한 개의 질문","hint":"짧은 힌트"} 형식으로만, 한국어 존댓말 200자 이내로 응답한다.';
-
-/**
- * @param payload {stage, bookTitle, bookAuthor, quotes:[], history:[{role,content}]}
- * @return {stage, question, hint, nextStage, source}
- */
-function askSocratic(payload) {
-  var stage = (payload && payload.stage) || 'OBSERVE';
-  if (STAGE_ORDER.indexOf(stage) < 0) stage = 'OBSERVE';
-  var key = PropertiesService.getScriptProperties().getProperty('AI_API_KEY');
-  var next = nextStage_(stage);
-
-  if (!key) {
-    var c = CANNED_[stage];
-    return { stage: stage, question: c.q, hint: c.h, nextStage: next, source: 'mock' };
-  }
-
-  try {
-    var model = PropertiesService.getScriptProperties().getProperty('AI_MODEL') || 'gemini-flash-latest';
-    var lines = [];
-    lines.push('책 제목: ' + (payload.bookTitle || '책'));
-    if (payload.bookAuthor) lines.push('저자: ' + payload.bookAuthor);
-    lines.push('현재 단계: ' + stage + ' (' + STAGE_GOAL_[stage] + ')');
-    if (payload.quotes && payload.quotes.length) {
-      lines.push('학생이 수집한 문장:');
-      payload.quotes.slice(0, 5).forEach(function (q) { lines.push('- "' + q + '"'); });
-    }
-    if (payload.history && payload.history.length) {
-      lines.push('최근 대화:');
-      payload.history.slice(-6).forEach(function (m) {
-        lines.push((m.role === 'assistant' ? '안내자' : '학생') + ': ' + m.content);
-      });
-    }
-    lines.push('현재 단계에 맞는 질문 하나만 JSON으로 제시하세요. 서평을 대신 쓰지 마세요.');
-
-    var body = {
-      systemInstruction: { parts: [{ text: SYSTEM_ }] },
-      contents: [{ role: 'user', parts: [{ text: lines.join('\n') }] }],
-      generationConfig: { temperature: 0.7, maxOutputTokens: 1024, responseMimeType: 'application/json' },
-    };
-    var url = 'https://generativelanguage.googleapis.com/v1beta/models/' + model + ':generateContent?key=' + encodeURIComponent(key);
-    var res = UrlFetchApp.fetch(url, {
-      method: 'post', contentType: 'application/json',
-      payload: JSON.stringify(body), muteHttpExceptions: true,
+function getComments(classId, questionId) {
+  var email = requireEmail_();
+  if (!isMember_(classId, email)) throw new Error('권한이 없습니다.');
+  return rows_('Comments')
+    .filter(function (c) { return String(c.questionId) === String(questionId); })
+    .map(function (c) {
+      return { id: c.id, body: c.body, author: c.displayName || '', mine: c.email === email, createdAt: c.createdAt };
     });
-    if (res.getResponseCode() !== 200) throw new Error('AI ' + res.getResponseCode());
-    var data = JSON.parse(res.getContentText());
-    var text = data.candidates[0].content.parts[0].text;
-    var obj = JSON.parse(text);
-    var q = String(obj.question || '').trim();
-    if (!q) throw new Error('빈 응답');
-    return {
-      stage: stage,
-      question: q.slice(0, 500),
-      hint: obj.hint ? String(obj.hint).slice(0, 300) : '',
-      nextStage: next,
-      source: 'gemini',
-    };
-  } catch (e) {
-    var m = CANNED_[stage];
-    return { stage: stage, question: m.q, hint: m.h, nextStage: next, source: 'mock' };
-  }
+}
+
+function addComment(classId, questionId, body) {
+  var email = requireEmail_();
+  if (!isMember_(classId, email)) throw new Error('학급 구성원이 아닙니다.');
+  body = String(body || '').trim();
+  if (!body) throw new Error('댓글 내용을 입력하세요.');
+  var member = rows_('Members').filter(function (m) { return String(m.classId) === String(classId) && m.email === email; })[0];
+  append_('Comments', {
+    id: Utilities.getUuid(), questionId: questionId, classId: classId, body: body,
+    email: email, displayName: member ? member.displayName : emailName_(email), createdAt: nowStr_(),
+  });
+  return { ok: true };
+}
+
+function deleteComment(classId, commentId) {
+  var email = requireEmail_();
+  var c = rows_('Comments').filter(function (x) { return String(x.id) === String(commentId); })[0];
+  if (!c) throw new Error('댓글을 찾을 수 없습니다.');
+  if (c.email !== email && !isTeacher_(classId, email)) throw new Error('본인 또는 담당 교사만 삭제할 수 있습니다.');
+  deleteRows_('Comments', function (x) { return String(x.id) === String(commentId); });
+  return { ok: true };
 }

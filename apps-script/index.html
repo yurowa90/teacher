@@ -124,9 +124,10 @@ function renderClass() {
   var c = state.cls;
   var h = '<button onclick="home()">← 내 학급</button>' +
     '<h2 style="margin:10px 0 4px">' + esc(c.name) + '</h2>';
-  if (c.isTeacher) h += '<div class="muted">참여코드 <span class="code">' + esc(c.joinCode) + '</span> · 구성원 ' + c.members.length + '명</div>';
+  if (c.isTeacher) h += '<div class="muted">참여코드 <span class="code">' + esc(c.joinCode) + '</span> · 구성원 ' + c.members.length + '명 ' +
+    '<button style="padding:2px 8px;font-size:12px" onclick="openSheet()">📊 스프레드시트 열기</button></div>';
   h += '<div class="tabs" style="margin-top:12px">' +
-    tabBtn('books', '도서') + tabBtn('sentences', '문장 수집') + tabBtn('chat', '산파법 대화') + '</div>' +
+    tabBtn('books', '도서') + tabBtn('sentences', '문장 수집') + tabBtn('questions', '질문·토론') + '</div>' +
     '<div id="tab"></div>';
   app.innerHTML = h;
   renderTab();
@@ -135,11 +136,15 @@ function tabBtn(key, label) {
   return '<button class="' + (state.tab === key ? 'active' : '') + '" onclick="setTab(\'' + key + '\')">' + label + '</button>';
 }
 function setTab(t) { state.tab = t; renderClass(); }
+function openSheet() {
+  run('getSheetUrl', state.classId).then(function (url) { window.open(url, '_blank'); })
+    .catch(function (e) { alert(e.message || e); });
+}
 
 function renderTab() {
   if (state.tab === 'books') return renderBooks();
   if (state.tab === 'sentences') return renderSentences();
-  if (state.tab === 'chat') return renderChat();
+  if (state.tab === 'questions') return renderQuestions();
 }
 
 // ── 도서 ─────────────────────────────
@@ -179,22 +184,22 @@ function renderSentences() {
   Promise.all([run('getBooks', state.classId), run('getSentences', state.classId)]).then(function (r) {
     var books = r[0], sentences = r[1];
     var h = '';
-    if (!state.cls.isTeacher) {
-      if (!books.length) {
-        h += '<div class="card muted">도서가 없어 문장을 수집할 수 없습니다. 선생님께 도서 등록을 요청하세요.</div>';
-      } else {
-        h += '<div class="card"><label>도서</label><select id="sb">' +
-          books.map(function (b) { return '<option value="' + b.id + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' +
-          '<label>수집한 문장</label><textarea id="sq" rows="2"></textarea>' +
-          '<label>쪽수/위치 (선택)</label><input id="sp" />' +
-          '<label>이 문장을 고른 이유</label><textarea id="sr" rows="2"></textarea>' +
-          '<label>자신의 해석</label><textarea id="si" rows="2"></textarea>' +
-          '<label>떠오른 질문 (선택)</label><textarea id="sqq" rows="2"></textarea>' +
-          '<label>태그 (선택, 쉼표 구분)</label><input id="st" placeholder="책임, 선택, 공동체" />' +
-          '<div style="height:8px"></div><button class="primary" onclick="addSentence()">문장 저장</button> <span id="smsg" class="ok"></span></div>';
-      }
+    // 교사·학생 모두 문장을 수집할 수 있다.
+    if (!books.length) {
+      h += '<div class="card muted">도서가 없어 문장을 수집할 수 없습니다. ' +
+        (state.cls.isTeacher ? '먼저 “도서” 탭에서 도서를 등록하세요.' : '선생님께 도서 등록을 요청하세요.') + '</div>';
+    } else {
+      h += '<div class="card"><label>도서</label><select id="sb">' +
+        books.map(function (b) { return '<option value="' + b.id + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' +
+        '<label>수집한 문장</label><textarea id="sq" rows="2"></textarea>' +
+        '<label>쪽수/위치 (선택)</label><input id="sp" />' +
+        '<label>이 문장을 고른 이유</label><textarea id="sr" rows="2"></textarea>' +
+        '<label>자신의 해석</label><textarea id="si" rows="2"></textarea>' +
+        '<label>떠오른 질문 (선택)</label><textarea id="sqq" rows="2"></textarea>' +
+        '<label>태그 (선택, 쉼표 구분)</label><input id="st" placeholder="책임, 선택, 공동체" />' +
+        '<div style="height:8px"></div><button class="primary" onclick="addSentence()">문장 저장</button> <span id="smsg" class="ok"></span></div>';
     }
-    h += '<h3>' + (state.cls.isTeacher ? '학생 문장 기록' : '내 문장') + ' (' + sentences.length + ')</h3>';
+    h += '<h3>' + (state.cls.isTeacher ? '문장 기록 (전체)' : '내 문장') + ' (' + sentences.length + ')</h3>';
     if (!sentences.length) h += '<div class="card muted">아직 수집한 문장이 없습니다.</div>';
     else h += sentences.map(function (s) {
       return '<div class="card"><div class="quote">“' + esc(s.quote) + '”</div>' +
@@ -224,67 +229,80 @@ function delSentence(id) {
   run('deleteSentence', state.classId, id).then(function () { renderSentences(); }).catch(function (e) { alert(e.message || e); });
 }
 
-// ── 산파법 대화 ─────────────────────────────
-function renderChat() {
+// ── 질문·토론 (학생·교사가 질문을 올리고 서로 댓글로 토론) ─────────────
+function renderQuestions() {
   var box = document.getElementById('tab');
-  if (!state.chat) {
-    box.innerHTML = '<p class="spin">불러오는 중…</p>';
-    run('getBooks', state.classId).then(function (books) {
-      var opts = books.map(function (b) { return '<option value="' + b.id + '" data-t="' + esc(b.title) + '">' + esc(b.title) + '</option>'; }).join('');
-      box.innerHTML = '<div class="card"><p class="muted">AI가 서평을 대신 쓰지 않습니다. 한 번에 하나씩 질문하며 생각을 넓혀 줍니다. 개인정보(이름·연락처)는 입력하지 마세요.</p>' +
-        (books.length ? '<label>도서 선택</label><select id="cb">' + opts + '</select><div style="height:8px"></div><button class="primary" onclick="chatStart()">대화 시작</button>'
-          : '<span class="muted">도서가 없어 시작할 수 없습니다.</span>') + '</div>';
-    }).catch(showErr);
-    return;
-  }
-  renderChatView();
+  box.innerHTML = '<p class="spin">불러오는 중…</p>';
+  Promise.all([run('getBooks', state.classId), run('getQuestions', state.classId)]).then(function (r) {
+    var books = r[0], qs = r[1];
+    var h = '<div class="card"><label>질문 만들기</label>' +
+      '<select id="qb"><option value="">(도서 선택 안 함)</option>' +
+        books.map(function (b) { return '<option value="' + b.id + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' +
+      '<textarea id="qq" rows="2" placeholder="친구들과 나누고 싶은 질문을 적어 보세요."></textarea>' +
+      '<div style="height:8px"></div><button class="primary" onclick="addQuestion()">질문 올리기</button> <span id="qmsg" class="ok"></span></div>';
+    h += '<h3>질문 (' + qs.length + ')</h3>';
+    if (!qs.length) h += '<div class="card muted">아직 올라온 질문이 없습니다. 첫 질문을 올려 보세요.</div>';
+    else h += qs.map(function (q) {
+      return '<div class="card" id="q_' + q.id + '"><div>' + esc(q.question) + '</div>' +
+        '<div class="muted" style="margin-top:4px">' + esc([q.bookTitle, q.author, q.createdAt].filter(Boolean).join(' · ')) + '</div>' +
+        '<div class="row" style="margin-top:6px">' +
+          '<button onclick="toggleComments(\'' + q.id + '\')">💬 댓글 ' + q.commentCount + '</button>' +
+          (q.mine || state.cls.isTeacher ? '<button class="danger" onclick="delQuestion(\'' + q.id + '\')">삭제</button>' : '') +
+        '</div><div id="c_' + q.id + '" style="display:none;margin-top:8px"></div></div>';
+    }).join('');
+    box.innerHTML = h;
+  }).catch(showErr);
 }
-function chatStart() {
-  var sel = document.getElementById('cb');
-  var title = sel.options[sel.selectedIndex].getAttribute('data-t');
-  state.chat = { stage:'OBSERVE', title:title, history:[], done:false, busy:true };
-  renderChatView();
-  ask();
+function addQuestion() {
+  var sel = document.getElementById('qb');
+  var bookId = sel ? sel.value : '';
+  var q = document.getElementById('qq').value;
+  var msg = document.getElementById('qmsg'); msg.textContent = ' 올리는 중…';
+  run('addQuestion', state.classId, { bookId: bookId, question: q })
+    .then(function () { renderQuestions(); })
+    .catch(function (e) { msg.textContent = ''; alert(e.message || e); });
 }
-function ask(answer) {
-  var ch = state.chat; ch.busy = true; renderChatView();
-  run('askSocratic', { stage: ch.stage, bookTitle: ch.title, bookAuthor:'', quotes:[], history: ch.history })
-    .then(function (r) {
-      ch.history.push({ role:'assistant', content: r.question + (r.hint ? '\n\n힌트: ' + r.hint : '') });
-      ch.busy = false; renderChatView();
-    }).catch(function (e) { ch.busy = false; alert(e.message || e); renderChatView(); });
+function delQuestion(id) {
+  if (!confirm('이 질문을 삭제할까요? 댓글도 함께 삭제됩니다.')) return;
+  run('deleteQuestion', state.classId, id).then(function () { renderQuestions(); }).catch(function (e) { alert(e.message || e); });
 }
-function chatSend() {
-  var ta = document.getElementById('ans'); var v = (ta.value || '').trim();
+var openComments = {};
+function toggleComments(qid) {
+  var box = document.getElementById('c_' + qid);
+  if (openComments[qid]) { openComments[qid] = false; box.style.display = 'none'; return; }
+  openComments[qid] = true; box.style.display = 'block';
+  loadComments(qid);
+}
+function loadComments(qid) {
+  var box = document.getElementById('c_' + qid);
+  box.innerHTML = '<span class="spin">댓글 불러오는 중…</span>';
+  run('getComments', state.classId, qid).then(function (cs) {
+    var h = cs.map(function (c) {
+      return '<div style="border-top:1px solid var(--line);padding:6px 0"><div>' + esc(c.body) + '</div>' +
+        '<div class="muted">' + esc([c.author, c.createdAt].filter(Boolean).join(' · ')) + ' ' +
+        (c.mine || state.cls.isTeacher ? '<button style="padding:1px 6px;font-size:12px" class="danger" onclick="delComment(\'' + qid + '\',\'' + c.id + '\')">삭제</button>' : '') +
+        '</div></div>';
+    }).join('');
+    h += '<div class="row" style="margin-top:6px"><input id="ci_' + qid + '" class="grow" placeholder="댓글 달기" />' +
+      '<button class="primary" onclick="sendComment(\'' + qid + '\')">등록</button></div>';
+    box.innerHTML = h;
+  }).catch(function (e) { box.innerHTML = '<span class="err">' + esc(e.message || e) + '</span>'; });
+}
+function sendComment(qid) {
+  var inp = document.getElementById('ci_' + qid); var v = (inp.value || '').trim();
   if (!v) return;
-  var ch = state.chat;
-  ch.history.push({ role:'user', content: v });
-  ta.value = '';
-  if (ch.stage === 'COMPLETE') { ch.done = true; renderChatView(); return; }
-  ch.stage = nextStageJs(ch.stage);
-  ask();
+  run('addComment', state.classId, qid, v).then(function () { loadComments(qid); bumpCount(qid, 1); }).catch(function (e) { alert(e.message || e); });
 }
-var ORDER = ['OBSERVE','INTERPRET','EVIDENCE','COUNTERARGUMENT','CONNECT','ORGANIZE','COMPLETE'];
-var LABEL = {OBSERVE:'관찰',INTERPRET:'해석',EVIDENCE:'근거',COUNTERARGUMENT:'반론',CONNECT:'연결',ORGANIZE:'정리',COMPLETE:'마무리'};
-function nextStageJs(s){ var i=ORDER.indexOf(s); return i<0||i>=ORDER.length-1?'COMPLETE':ORDER[i+1]; }
-function renderChatView() {
-  var ch = state.chat, box = document.getElementById('tab');
-  var msgs = ch.history.map(function (m) {
-    return '<div class="msg ' + (m.role === 'assistant' ? 'a' : 'u') + '">' +
-      (m.role === 'assistant' ? '<div class="badge">안내자 · ' + LABEL[ch.stage] + '</div> ' : '') + esc(m.content) + '</div>';
-  }).join('');
-  var h = '<div class="row" style="margin-bottom:8px"><button onclick="restartChat()">↺ 새 대화</button><span class="muted"> 책: ' + esc(ch.title) + '</span></div>' +
-    '<div class="card">' + (msgs || '<span class="spin">질문을 준비하는 중…</span>') + (ch.busy ? '<div class="spin">생각하는 중…</div>' : '') + '</div>';
-  if (ch.done) {
-    h += '<div class="card"><b>대화를 마쳤습니다.</b><p class="muted">이 도구는 서평을 대신 써 주지 않습니다. 정리한 <b>당신의 생각</b>으로 서평을 직접 써 보세요.</p></div>';
-  } else if (!ch.busy && ch.history.length) {
-    h += '<div class="card"><label>내 답변 (현재 단계: ' + LABEL[ch.stage] + ')</label>' +
-      '<textarea id="ans" rows="3" placeholder="스스로 생각한 답을 적어 보세요. 개인정보는 입력하지 마세요."></textarea>' +
-      '<div style="height:8px"></div><button class="primary" onclick="chatSend()">답변하고 다음 질문 받기</button></div>';
-  }
-  box.innerHTML = h;
+function delComment(qid, cid) {
+  if (!confirm('댓글을 삭제할까요?')) return;
+  run('deleteComment', state.classId, cid).then(function () { loadComments(qid); bumpCount(qid, -1); }).catch(function (e) { alert(e.message || e); });
 }
-function restartChat() { state.chat = null; renderChat(); }
+function bumpCount(qid, delta) {
+  var q = document.getElementById('q_' + qid);
+  if (!q) return;
+  var btn = q.querySelector('button[onclick^="toggleComments"]');
+  if (btn) { var m = btn.textContent.match(/\d+/); var n = (m ? parseInt(m[0], 10) : 0) + delta; btn.textContent = '💬 댓글 ' + (n < 0 ? 0 : n); }
+}
 </script>
 </body>
 </html>
