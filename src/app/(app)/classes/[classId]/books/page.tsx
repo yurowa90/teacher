@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { PageHeader, Card, LinkButton, EmptyState } from "@/components/ui";
+import { BookCover } from "@/components/books/book-cover";
+import { DeleteBookButton } from "@/components/books/delete-book-button";
 import { requireProfile } from "@/lib/auth/session";
 import { getClass } from "@/features/classes/queries";
 import { getClassBooks } from "@/features/books/queries";
@@ -41,17 +43,14 @@ export default async function ClassBooksPage({
             <li key={b.id}>
               <Card>
                 <div className="flex gap-3">
-                  {b.cover_url ? (
-                    // 외부 임의 호스트 URL 이므로 일반 img 사용(next.config 참고)
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img
-                      src={b.cover_url}
-                      alt=""
-                      className="h-20 w-14 flex-shrink-0 rounded object-cover"
-                    />
-                  ) : null}
-                  <div className="min-w-0">
-                    <p className="font-semibold text-stone-800">{b.title}</p>
+                  <BookCover url={b.cover_url} title={b.title} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="font-semibold text-stone-800">{b.title}</p>
+                      {isOwnerTeacher ? (
+                        <DeleteBookButton bookId={b.id} classId={classId} title={b.title} />
+                      ) : null}
+                    </div>
                     <p className="mt-0.5 text-sm text-stone-500">
                       {[b.author, b.publisher].filter(Boolean).join(" · ") || "정보 없음"}
                     </p>

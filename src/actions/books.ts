@@ -52,3 +52,20 @@ export async function createBookAction(
   revalidatePath(`/classes/${classId}/books`);
   return actionOk(undefined);
 }
+
+/** 도서 삭제(담당 교사만). 관련 문장·작품은 DB에서 함께 정리된다(cascade). */
+export async function deleteBookAction(formData: FormData): Promise<ActionResult> {
+  const bookId = formData.get("bookId");
+  const classId = formData.get("classId");
+  if (typeof bookId !== "string" || typeof classId !== "string") {
+    return actionError("잘못된 요청입니다.");
+  }
+
+  const supabase = await createClient();
+  // 담당 교사가 아니면 RLS books_delete_teacher 정책이 0행 삭제로 거부한다.
+  const { error } = await supabase.from("books").delete().eq("id", bookId);
+  if (error) return actionError("도서를 삭제할 권한이 없거나 삭제에 실패했습니다.");
+
+  revalidatePath(`/classes/${classId}/books`);
+  return actionOk(undefined);
+}
