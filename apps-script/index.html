@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<base target="_top" />
+<style>
+  :root { --brand:#3a5a40; --ink:#23211c; --muted:#6b665b; --line:#e3ddcf; --bg:#f7f5f0; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Apple SD Gothic Neo","Malgun Gothic",sans-serif; line-height:1.6; }
+  .wrap { max-width:760px; margin:0 auto; padding:16px; }
+  header { display:flex; align-items:center; justify-content:space-between; gap:8px;
+    border-bottom:2px solid var(--brand); padding-bottom:10px; margin-bottom:16px; }
+  h1 { font-size:20px; margin:0; color:var(--brand); }
+  .email { font-size:12px; color:var(--muted); }
+  button { font:inherit; cursor:pointer; border-radius:8px; border:1px solid var(--line);
+    background:#fff; padding:8px 12px; }
+  button.primary { background:var(--brand); color:#fff; border-color:var(--brand); font-weight:600; }
+  button.danger { color:#b91c1c; border-color:#fca5a5; }
+  button:disabled { opacity:.6; cursor:default; }
+  .card { background:#fff; border:1px solid var(--line); border-radius:12px; padding:14px; margin-bottom:10px; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  .grow { flex:1 1 auto; }
+  input, textarea, select { font:inherit; width:100%; padding:8px 10px; border:1px solid #cbc7bd; border-radius:8px; }
+  label { display:block; font-size:13px; font-weight:600; margin:10px 0 4px; }
+  .muted { color:var(--muted); font-size:13px; }
+  .tabs { display:flex; gap:6px; margin-bottom:12px; }
+  .tabs button.active { background:var(--brand); color:#fff; border-color:var(--brand); }
+  .badge { display:inline-block; background:#dfe7df; color:#1f3d2b; border-radius:999px; padding:1px 8px; font-size:12px; }
+  .quote { border-left:4px solid #dfe7df; padding-left:10px; }
+  .msg { max-width:85%; padding:10px 12px; border-radius:14px; margin:6px 0; white-space:pre-wrap; }
+  .msg.a { background:#fff; border:1px solid var(--line); }
+  .msg.u { background:var(--brand); color:#fff; margin-left:auto; }
+  .err { color:#b91c1c; font-size:13px; }
+  .ok { color:#166534; font-size:13px; }
+  .spin { color:var(--muted); font-size:13px; }
+  .code { font-family:monospace; font-size:20px; letter-spacing:3px; font-weight:700; }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>📖 책갈피</h1>
+    <span class="email" id="who">…</span>
+  </header>
+  <div id="app"><p class="spin">불러오는 중…</p></div>
+</div>
+
+<script>
+// ── google.script.run 래퍼 ─────────────────────────────
+function run(name) {
+  var args = [].slice.call(arguments, 1);
+  return new Promise(function (resolve, reject) {
+    var r = google.script.run.withSuccessHandler(resolve).withFailureHandler(function (e) { reject(e); });
+    r[name].apply(r, args);
+  });
+}
+function esc(s) { return String(s == null ? '' : s).replace(/[&<>"]/g, function (c) { return ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]); }); }
+var app = document.getElementById('app');
+var state = { classId:null, cls:null, tab:'books', chat:null };
+
+// ── 초기화 ─────────────────────────────
+run('getMe').then(function (m) {
+  document.getElementById('who').textContent = m.identified ? m.email : '(계정 확인 필요)';
+  if (!m.identified) {
+    app.innerHTML = '<div class="card"><p class="err">구글 계정 정보를 읽지 못했습니다.</p><p class="muted">학교 구글 계정으로 로그인했는지 확인하세요. (개인 Gmail은 학교 도메인 밖이면 이메일이 안 읽힐 수 있어요.)</p></div>';
+    return;
+  }
+  home();
+}).catch(showErr);
+
+function showErr(e) {
+  app.innerHTML = '<div class="card"><p class="err">' + esc(e && e.message ? e.message : e) + '</p><button onclick="home()">홈으로</button></div>';
+}
+
+// ── 홈: 내 학급 ─────────────────────────────
+function home() {
+  state.classId = null; state.chat = null;
+  app.innerHTML = '<p class="spin">학급 불러오는 중…</p>';
+  run('getMyClasses').then(function (list) {
+    var h = '<div class="row" style="margin-bottom:12px">' +
+      '<button class="primary" onclick="doCreate()">학급 만들기</button>' +
+      '<button onclick="doJoin()">학급 참여</button></div>';
+    if (!list.length) {
+      h += '<div class="card muted">아직 학급이 없습니다. 선생님은 “학급 만들기”, 학생은 “학급 참여”를 누르세요.</div>';
+    } else {
+      h += list.map(function (c) {
+        return '<div class="card row"><div class="grow"><b>' + esc(c.name) + '</b> ' +
+          (c.role !== 'student' ? '<span class="badge">교사</span>' : '') +
+          (c.joinCode ? '<div class="muted">참여코드: <span class="code">' + esc(c.joinCode) + '</span></div>' : '') +
+          '</div><button class="primary" onclick="openClass(\'' + c.id + '\')">열기</button></div>';
+      }).join('');
+    }
+    app.innerHTML = h;
+  }).catch(showErr);
+}
+
+function doCreate() {
+  var name = prompt('학급 이름을 입력하세요 (예: 1학년 3반 독서)');
+  if (!name) return;
+  run('createClass', name).then(function (c) {
+    alert('학급을 만들었습니다.\n참여코드: ' + c.joinCode + '\n(학생에게 이 코드를 알려주세요)');
+    home();
+  }).catch(function (e) { alert(e.message || e); });
+}
+function doJoin() {
+  var code = prompt('참여코드 6자리를 입력하세요');
+  if (!code) return;
+  run('joinClass', code, '').then(function (r) {
+    if (r.status === 'invalid') return alert('유효하지 않은 참여코드입니다.');
+    if (r.status === 'already') { alert('이미 참여한 학급입니다.'); return openClass(r.classId); }
+    openClass(r.classId);
+  }).catch(function (e) { alert(e.message || e); });
+}
+
+// ── 학급 화면 ─────────────────────────────
+function openClass(id) {
+  state.classId = id; state.tab = 'books'; state.chat = null;
+  app.innerHTML = '<p class="spin">불러오는 중…</p>';
+  run('getClassInfo', id).then(function (c) { state.cls = c; renderClass(); }).catch(showErr);
+}
+
+function renderClass() {
+  var c = state.cls;
+  var h = '<button onclick="home()">← 내 학급</button>' +
+    '<h2 style="margin:10px 0 4px">' + esc(c.name) + '</h2>';
+  if (c.isTeacher) h += '<div class="muted">참여코드 <span class="code">' + esc(c.joinCode) + '</span> · 구성원 ' + c.members.length + '명</div>';
+  h += '<div class="tabs" style="margin-top:12px">' +
+    tabBtn('books', '도서') + tabBtn('sentences', '문장 수집') + tabBtn('chat', '산파법 대화') + '</div>' +
+    '<div id="tab"></div>';
+  app.innerHTML = h;
+  renderTab();
+}
+function tabBtn(key, label) {
+  return '<button class="' + (state.tab === key ? 'active' : '') + '" onclick="setTab(\'' + key + '\')">' + label + '</button>';
+}
+function setTab(t) { state.tab = t; renderClass(); }
+
+function renderTab() {
+  if (state.tab === 'books') return renderBooks();
+  if (state.tab === 'sentences') return renderSentences();
+  if (state.tab === 'chat') return renderChat();
+}
+
+// ── 도서 ─────────────────────────────
+function renderBooks() {
+  var box = document.getElementById('tab');
+  box.innerHTML = '<p class="spin">불러오는 중…</p>';
+  run('getBooks', state.classId).then(function (books) {
+    var h = '';
+    if (state.cls.isTeacher) {
+      h += '<div class="card"><label>도서 등록</label>' +
+        '<input id="bt" placeholder="제목" /><div style="height:6px"></div>' +
+        '<input id="ba" placeholder="저자(선택)" /><div style="height:8px"></div>' +
+        '<button class="primary" onclick="addBook()">등록</button><span id="bmsg" class="ok"></span></div>';
+    }
+    if (!books.length) h += '<div class="card muted">아직 등록된 도서가 없습니다.</div>';
+    else h += books.map(function (b) {
+      return '<div class="card row"><div class="grow"><b>' + esc(b.title) + '</b> <span class="muted">' + esc(b.author || '') + '</span></div>' +
+        (state.cls.isTeacher ? '<button class="danger" onclick="delBook(\'' + b.id + '\',\'' + esc(b.title).replace(/'/g,"") + '\')">삭제</button>' : '') + '</div>';
+    }).join('');
+    box.innerHTML = h;
+  }).catch(showErr);
+}
+function addBook() {
+  var t = document.getElementById('bt').value, a = document.getElementById('ba').value;
+  var msg = document.getElementById('bmsg'); msg.textContent = ' 등록 중…';
+  run('addBook', state.classId, t, a).then(function () { renderBooks(); }).catch(function (e) { msg.textContent = ''; alert(e.message || e); });
+}
+function delBook(id, title) {
+  if (!confirm('‘' + title + '’ 도서를 삭제할까요? 관련 문장도 함께 삭제됩니다.')) return;
+  run('deleteBook', state.classId, id).then(function () { renderBooks(); }).catch(function (e) { alert(e.message || e); });
+}
+
+// ── 문장 수집 ─────────────────────────────
+function renderSentences() {
+  var box = document.getElementById('tab');
+  box.innerHTML = '<p class="spin">불러오는 중…</p>';
+  Promise.all([run('getBooks', state.classId), run('getSentences', state.classId)]).then(function (r) {
+    var books = r[0], sentences = r[1];
+    var h = '';
+    if (!state.cls.isTeacher) {
+      if (!books.length) {
+        h += '<div class="card muted">도서가 없어 문장을 수집할 수 없습니다. 선생님께 도서 등록을 요청하세요.</div>';
+      } else {
+        h += '<div class="card"><label>도서</label><select id="sb">' +
+          books.map(function (b) { return '<option value="' + b.id + '">' + esc(b.title) + '</option>'; }).join('') + '</select>' +
+          '<label>수집한 문장</label><textarea id="sq" rows="2"></textarea>' +
+          '<label>쪽수/위치 (선택)</label><input id="sp" />' +
+          '<label>이 문장을 고른 이유</label><textarea id="sr" rows="2"></textarea>' +
+          '<label>자신의 해석</label><textarea id="si" rows="2"></textarea>' +
+          '<label>떠오른 질문 (선택)</label><textarea id="sqq" rows="2"></textarea>' +
+          '<label>태그 (선택, 쉼표 구분)</label><input id="st" placeholder="책임, 선택, 공동체" />' +
+          '<div style="height:8px"></div><button class="primary" onclick="addSentence()">문장 저장</button> <span id="smsg" class="ok"></span></div>';
+      }
+    }
+    h += '<h3>' + (state.cls.isTeacher ? '학생 문장 기록' : '내 문장') + ' (' + sentences.length + ')</h3>';
+    if (!sentences.length) h += '<div class="card muted">아직 수집한 문장이 없습니다.</div>';
+    else h += sentences.map(function (s) {
+      return '<div class="card"><div class="quote">“' + esc(s.quote) + '”</div>' +
+        '<div class="muted" style="margin-top:4px">' + esc([s.bookTitle, s.page, s.author].filter(Boolean).join(' · ')) + '</div>' +
+        '<div style="margin-top:6px"><b>이유</b> ' + esc(s.reason) + '</div>' +
+        '<div><b>해석</b> ' + esc(s.interpretation) + '</div>' +
+        (s.question ? '<div><b>질문</b> ' + esc(s.question) + '</div>' : '') +
+        (s.tags ? '<div class="muted">#' + esc(s.tags).split(/[,\s]+/).filter(Boolean).join(' #') + '</div>' : '') +
+        (s.mine ? '<div style="margin-top:6px"><button class="danger" onclick="delSentence(\'' + s.id + '\')">삭제</button></div>' : '') +
+        '</div>';
+    }).join('');
+    box.innerHTML = h;
+  }).catch(showErr);
+}
+function addSentence() {
+  var data = {
+    bookId: document.getElementById('sb').value, quote: document.getElementById('sq').value,
+    page: document.getElementById('sp').value, reason: document.getElementById('sr').value,
+    interpretation: document.getElementById('si').value, question: document.getElementById('sqq').value,
+    tags: document.getElementById('st').value,
+  };
+  var msg = document.getElementById('smsg'); msg.textContent = ' 저장 중…';
+  run('addSentence', state.classId, data).then(function () { renderSentences(); }).catch(function (e) { msg.textContent = ''; alert(e.message || e); });
+}
+function delSentence(id) {
+  if (!confirm('이 문장을 삭제할까요?')) return;
+  run('deleteSentence', state.classId, id).then(function () { renderSentences(); }).catch(function (e) { alert(e.message || e); });
+}
+
+// ── 산파법 대화 ─────────────────────────────
+function renderChat() {
+  var box = document.getElementById('tab');
+  if (!state.chat) {
+    box.innerHTML = '<p class="spin">불러오는 중…</p>';
+    run('getBooks', state.classId).then(function (books) {
+      var opts = books.map(function (b) { return '<option value="' + b.id + '" data-t="' + esc(b.title) + '">' + esc(b.title) + '</option>'; }).join('');
+      box.innerHTML = '<div class="card"><p class="muted">AI가 서평을 대신 쓰지 않습니다. 한 번에 하나씩 질문하며 생각을 넓혀 줍니다. 개인정보(이름·연락처)는 입력하지 마세요.</p>' +
+        (books.length ? '<label>도서 선택</label><select id="cb">' + opts + '</select><div style="height:8px"></div><button class="primary" onclick="chatStart()">대화 시작</button>'
+          : '<span class="muted">도서가 없어 시작할 수 없습니다.</span>') + '</div>';
+    }).catch(showErr);
+    return;
+  }
+  renderChatView();
+}
+function chatStart() {
+  var sel = document.getElementById('cb');
+  var title = sel.options[sel.selectedIndex].getAttribute('data-t');
+  state.chat = { stage:'OBSERVE', title:title, history:[], done:false, busy:true };
+  renderChatView();
+  ask();
+}
+function ask(answer) {
+  var ch = state.chat; ch.busy = true; renderChatView();
+  run('askSocratic', { stage: ch.stage, bookTitle: ch.title, bookAuthor:'', quotes:[], history: ch.history })
+    .then(function (r) {
+      ch.history.push({ role:'assistant', content: r.question + (r.hint ? '\n\n힌트: ' + r.hint : '') });
+      ch.busy = false; renderChatView();
+    }).catch(function (e) { ch.busy = false; alert(e.message || e); renderChatView(); });
+}
+function chatSend() {
+  var ta = document.getElementById('ans'); var v = (ta.value || '').trim();
+  if (!v) return;
+  var ch = state.chat;
+  ch.history.push({ role:'user', content: v });
+  ta.value = '';
+  if (ch.stage === 'COMPLETE') { ch.done = true; renderChatView(); return; }
+  ch.stage = nextStageJs(ch.stage);
+  ask();
+}
+var ORDER = ['OBSERVE','INTERPRET','EVIDENCE','COUNTERARGUMENT','CONNECT','ORGANIZE','COMPLETE'];
+var LABEL = {OBSERVE:'관찰',INTERPRET:'해석',EVIDENCE:'근거',COUNTERARGUMENT:'반론',CONNECT:'연결',ORGANIZE:'정리',COMPLETE:'마무리'};
+function nextStageJs(s){ var i=ORDER.indexOf(s); return i<0||i>=ORDER.length-1?'COMPLETE':ORDER[i+1]; }
+function renderChatView() {
+  var ch = state.chat, box = document.getElementById('tab');
+  var msgs = ch.history.map(function (m) {
+    return '<div class="msg ' + (m.role === 'assistant' ? 'a' : 'u') + '">' +
+      (m.role === 'assistant' ? '<div class="badge">안내자 · ' + LABEL[ch.stage] + '</div> ' : '') + esc(m.content) + '</div>';
+  }).join('');
+  var h = '<div class="row" style="margin-bottom:8px"><button onclick="restartChat()">↺ 새 대화</button><span class="muted"> 책: ' + esc(ch.title) + '</span></div>' +
+    '<div class="card">' + (msgs || '<span class="spin">질문을 준비하는 중…</span>') + (ch.busy ? '<div class="spin">생각하는 중…</div>' : '') + '</div>';
+  if (ch.done) {
+    h += '<div class="card"><b>대화를 마쳤습니다.</b><p class="muted">이 도구는 서평을 대신 써 주지 않습니다. 정리한 <b>당신의 생각</b>으로 서평을 직접 써 보세요.</p></div>';
+  } else if (!ch.busy && ch.history.length) {
+    h += '<div class="card"><label>내 답변 (현재 단계: ' + LABEL[ch.stage] + ')</label>' +
+      '<textarea id="ans" rows="3" placeholder="스스로 생각한 답을 적어 보세요. 개인정보는 입력하지 마세요."></textarea>' +
+      '<div style="height:8px"></div><button class="primary" onclick="chatSend()">답변하고 다음 질문 받기</button></div>';
+  }
+  box.innerHTML = h;
+}
+function restartChat() { state.chat = null; renderChat(); }
+</script>
+</body>
+</html>
