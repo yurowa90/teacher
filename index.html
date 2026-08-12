@@ -149,6 +149,7 @@
 <!-- 2022 개정 과학과 성취기준·성취수준(A~E) 데이터 (window.SCIENCE_STANDARDS) -->
 <script src="standards-data.js"></script>
 
+<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
 <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
@@ -438,6 +439,28 @@ function parseResult(raw) {
   throw new Error("PARSE_FAIL");
 }
 
+/* ── 도식 빈칸 편집: SVG의 텍스트를 교사가 골라 ㉠㉡ 빈칸으로 ── */
+const BLANK_SYMS = ["㉠","㉡","㉢","㉣","㉤","㉥","㉦","㉧"];
+function extractSvgTexts(svg){
+  try{
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    return Array.from(doc.querySelectorAll("text")).map(t=>t.textContent.replace(/\s+/g," ").trim());
+  }catch(_){ return []; }
+}
+function buildBlankSvg(svg, sel){
+  try{
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const texts = Array.from(doc.querySelectorAll("text"));
+    const ordered = [...sel].sort((a,b)=>a-b);
+    ordered.forEach((idx,k)=>{
+      const el = texts[idx]; if(!el) return;
+      while(el.firstChild) el.removeChild(el.firstChild);
+      el.textContent = "(  " + (BLANK_SYMS[k]||"?") + "  )";
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }catch(_){ return null; }
+}
+
 /* ── 구버전 결과 호환: questions가 없으면 stem으로 구성 ──────── */
 function normQuestions(it) {
   if ((it.questions||[]).length) return it.questions;
@@ -551,6 +574,183 @@ function toMarkdown(r, showTeacher) {
     }
   }
   return L.join("\n");
+}
+
+/* ── DOCX(OOXML) 생성 — 한글(HWP)·훈워드·MS워드에서 모두 열림 ── */
+function xesc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function dRun(text, o){ o=o||{};
+  return '<w:r><w:rPr>'+(o.bold?'<w:b/>':'')+(o.color?'<w:color w:val="'+o.color+'"/>':'')+
+    (o.size?'<w:sz w:val="'+o.size+'"/><w:szCs w:val="'+o.size+'"/>':'')+'</w:rPr>'+
+    '<w:t xml:space="preserve">'+xesc(text)+'</w:t></w:r>';
+}
+function dP(text, o){ o=o||{};
+  return '<w:p><w:pPr>'+(o.shade?'<w:shd w:val="clear" w:fill="'+o.shade+'"/>':'')+
+    '<w:spacing w:before="'+(o.before||0)+'" w:after="'+(o.after==null?80:o.after)+'"/>'+
+    (o.center?'<w:jc w:val="center"/>':'')+'</w:pPr>'+
+    (Array.isArray(text)?text.join(""):dRun(text,o))+'</w:p>';
+}
+function dCell(content, o){ o=o||{};
+  const paras = Array.isArray(content) ? content.join("") : dP(content,{bold:o.bold,center:o.center,after:40});
+  return '<w:tc><w:tcPr>'+(o.w?'<w:tcW w:w="'+o.w+'" w:type="dxa"/>':'')+
+    (o.span?'<w:gridSpan w:val="'+o.span+'"/>':'')+
+    (o.fill?'<w:shd w:val="clear" w:fill="'+o.fill+'"/>':'')+
+    '<w:vAlign w:val="center"/></w:tcPr>'+paras+'</w:tc>';
+}
+function dTable(rows){
+  const borders = ['top','left','bottom','right','insideH','insideV']
+    .map(b=>'<w:'+b+' w:val="single" w:sz="6" w:color="777777"/>').join('');
+  return '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>'+borders+'</w:tblBorders></w:tblPr>'+
+    rows.map(cs=>'<w:tr>'+cs.join("")+'</w:tr>').join("")+'</w:tbl>'+dP("",{after:60});
+}
+const D_GREEN="3A5A40", D_SOFT="E8EFE6";
+function dBanner(t){ return dP(t,{bold:true,color:"FFFFFF",size:26,shade:D_GREEN,before:240,after:120}); }
+function dHd(t){ return dP(t,{bold:true,color:"2B4531",size:24,before:220,after:80}); }
+function dSq(t){ return dP("■ "+t,{bold:true,before:140,after:60}); }
+function dBul(list){ return (list||[]).map(x=>dP("• "+x,{after:40})).join(""); }
+
+function buildDocxXml(r, showTeacher){
+  const info = r.info||{}; const B=[];
+  B.push(dP("서·논술형 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
+  B.push(dBanner(info.toolName||"서·논술형 평가 문항"));
+  if (!showTeacher) B.push(dP("(   )학년 (   )반 (   )번    이름: ________________",{after:120}));
+
+  if (showTeacher){
+    B.push(dBanner("1. 평가 도구 정보표"));
+    const rows=[];
+    rows.push([dCell("학교급",{fill:D_SOFT,bold:true,center:true,w:1600}), dCell(info.schoolLevel||"",{w:3200}),
+               dCell("과목",{fill:D_SOFT,bold:true,center:true,w:1600}), dCell(info.subject||"",{w:3200})]);
+    rows.push([dCell("학년",{fill:D_SOFT,bold:true,center:true}), dCell(info.grade||""),
+               dCell("영역(단원)",{fill:D_SOFT,bold:true,center:true}), dCell(info.domain||"")]);
+    rows.push([dCell("평가 도구명",{fill:D_SOFT,bold:true,center:true}), dCell([dP(info.toolName||"",{bold:true,after:40})],{span:3})]);
+    if (r.standardText)
+      rows.push([dCell("성취기준",{fill:D_SOFT,bold:true,center:true}), dCell((r.standardCode?"["+r.standardCode+"] ":"")+r.standardText,{span:3})]);
+    (info.achievementLevels||[]).forEach(a=>{
+      rows.push([dCell("성취수준 "+a.band,{fill:D_SOFT,bold:true,center:true}), dCell(a.text||"",{span:3})]);
+    });
+    if (info.purpose) rows.push([dCell("개발 취지",{fill:D_SOFT,bold:true,center:true}), dCell(info.purpose,{span:3})]);
+    B.push(dTable(rows));
+    if ((info.itemSummary||[]).length){
+      const t=[[dCell("문항 번호",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("문항 유형",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("성취기준 기반 평가 요소",{fill:D_SOFT,bold:true,center:true})]];
+      (info.itemSummary||[]).forEach(s=>t.push([dCell(s.item||"",{center:true}),dCell(s.type||"",{center:true}),dCell([( (s.elements||[]).map(e=>dP("• "+e,{after:20})).join("") )||dP("",{after:20})])]));
+      B.push(dTable(t));
+    }
+  }
+
+  B.push(dBanner(showTeacher?"2. 평가 문항":"평가 문항"));
+  (r.items||[]).forEach(it=>{
+    B.push(dHd("평가 문항 "+(it.number||"")+"("+(it.type||"논술형")+")"));
+    if (it.intro) B.push(dP(it.intro+(it.points?" ("+it.points+"점)":""),{bold:true,after:100}));
+    (it.materials||[]).forEach(m=>{
+      if (m.body) B.push(dP((m.label?m.label+" ":"")+m.body,{after:100}));
+      if (m.imageData || m.svg || m.svgBlank)
+        B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림은 웹 화면의 인쇄/PDF에서 확인〕",{color:"888888",after:100}));
+    });
+    normQuestions(it).forEach(q=>{
+      B.push(dP((q.label?q.label+" ":"")+(q.stem||"")+(q.points?" ("+q.points+"점)":""),{bold:true,before:100,after:60}));
+      const c=q.conditions||{};
+      if ((c.content||[]).length||(c.form||[]).length){
+        B.push(dP("〈조건〉",{bold:true,after:40}));
+        if ((c.form||[]).length){
+          B.push(dP("[내용적 측면]",{bold:true,after:20})); B.push(dBul(c.content));
+          B.push(dP("[형식적 측면]",{bold:true,after:20})); B.push(dBul(c.form));
+        } else B.push(dBul(c.content));
+      }
+      if (!showTeacher){
+        B.push(dP("[답안 작성란]",{color:"888888",after:40}));
+        const n = Math.min(14, Math.max(5, (q.points||3)*2));
+        for(let k=0;k<n;k++) B.push(dP("＿".repeat(38),{color:"BBBBBB",after:100}));
+      }
+    });
+    if (showTeacher && (it.tips||[]).length){ B.push(dSq("활용 Tip !")); B.push(dBul(it.tips)); }
+  });
+
+  if (showTeacher){
+    B.push(dHd("예시 답안"));
+    { const t=[[dCell("문항",{fill:D_SOFT,bold:true,center:true,w:1400}),dCell("예시 답안",{fill:D_SOFT,bold:true,center:true})]];
+      (r.items||[]).forEach(it=>normQuestions(it).forEach(q=>{
+        t.push([dCell(String(it.number||"")+(q.label?"-"+q.label:""),{center:true}), dCell(q.modelAnswer||"")]);
+      })); B.push(dTable(t)); }
+    if ((r.items||[]).some(it=>(it.scoring||[]).length)){
+      B.push(dHd("채점 기준"));
+      const t=[[dCell("문항",{fill:D_SOFT,bold:true,center:true,w:1000}),dCell("채점 요소",{fill:D_SOFT,bold:true,center:true,w:2400}),dCell("점수",{fill:D_SOFT,bold:true,center:true,w:900}),dCell("수행 특성",{fill:D_SOFT,bold:true,center:true})]];
+      (r.items||[]).forEach(it=>(it.scoring||[]).forEach(g=>(g.levels||[]).forEach(lv=>{
+        t.push([dCell(String(it.number||""),{center:true}),
+                dCell((g.question?g.question+" ":"")+(g.element||"")),
+                dCell((lv.points!=null?lv.points+"점":""),{center:true}),
+                dCell([(dP(lv.criteria||"",{after:20}))+(lv.example?dP("예시 답안: "+lv.example,{color:"666666",after:20}):"")])]);
+      }))); B.push(dTable(t));
+    }
+    if ((r.levelCharacteristics||[]).length){
+      B.push(dHd("성취수준별 학생 수행 특성"));
+      const t=(r.levelCharacteristics||[]).map(b=>[dCell(b.band||"",{fill:D_SOFT,bold:true,center:true,w:1200}),dCell(b.scoreRange||"",{center:true,w:1500}),dCell(b.text||"")]);
+      B.push(dTable(t));
+    }
+    if ((r.scoringNotes||[]).length){ B.push(dSq("채점 시 유의점")); B.push(dBul(r.scoringNotes)); }
+    (r.feedbackCases||[]).forEach((cs,i)=>{
+      B.push(dHd(cs.title||("사례 "+(i+1))));
+      if (cs.studentAnswer){ B.push(dSq("학생 답안 예시")); B.push(dP(cs.studentAnswer,{after:80})); }
+      if ((cs.awarded||[]).length){ B.push(dSq("채점 결과 예시")); B.push(dBul((cs.awarded||[]).map(a=>(a.question?a.question+" ":"")+(a.element||"")+": "+a.points+"점"))); }
+      if (cs.feedback){ B.push(dSq("학생 개별 피드백 예시")); B.push(dP(cs.feedback,{after:80})); }
+    });
+    if ((r.feedbackNotes||[]).length){ B.push(dSq("피드백 제공 시 유의점")); B.push(dBul(r.feedbackNotes)); }
+    const ap=r.applicationTip;
+    if (ap){
+      B.push(dHd("수행평가 적용을 위한 Tip"));
+      if ((ap.planIntro||[]).length){ B.push(dSq("교수·학습 및 평가 계획")); B.push(dBul(ap.planIntro)); }
+      if (ap.lessonPlan && (ap.lessonPlan.sessions||[]).length){
+        const t=[[dCell("차시",{fill:D_SOFT,bold:true,center:true,w:1000}),dCell("교수·학습 활동",{fill:D_SOFT,bold:true,center:true}),dCell("평가 계획",{fill:D_SOFT,bold:true,center:true,w:1800})]];
+        (ap.lessonPlan.sessions||[]).forEach(s=>t.push([dCell(s.session||"",{center:true}),
+          dCell([dP(s.topic||"",{bold:true,after:20})+((s.details||[]).map(d=>dP("• "+d,{after:20})).join(""))]),
+          dCell(s.assessment||"",{center:true})]));
+        B.push(dTable(t));
+      }
+      if ((ap.variation||[]).length){ B.push(dSq("문항 변형 방향")); B.push(dBul(ap.variation)); }
+      if ((ap.rubricVariation||[]).length){ B.push(dSq("채점기준표 변형 방향")); B.push(dBul(ap.rubricVariation)); }
+    }
+  }
+
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>'+
+    B.join("")+
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'+
+    '</w:body></w:document>';
+}
+
+async function downloadDocx(r, showTeacher){
+  if (!window.JSZip) { throw new Error("문서 모듈(JSZip)을 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요."); }
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'+
+    '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'+
+    '</Types>');
+  zip.file("_rels/.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'+
+    '</Relationships>');
+  zip.file("word/_rels/document.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+    '</Relationships>');
+  zip.file("word/styles.xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr>'+
+    '<w:rFonts w:ascii="Malgun Gothic" w:eastAsia="Malgun Gothic" w:hAnsi="Malgun Gothic"/>'+
+    '<w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>');
+  zip.file("word/document.xml", buildDocxXml(r, showTeacher));
+  const blob = await zip.generateAsync({ type:"blob",
+    mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const info = r.info||{};
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = ((info.toolName||"평가도구").replace(/[\\/:*?"<>|]/g,"_")) + (showTeacher ? "" : "_학생배부본") + ".docx";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
 }
 
 /* ── UI 컴포넌트 ────────────────────────────────────────────── */
@@ -1315,7 +1515,7 @@ function App() {
         </div>}
       </div>
 
-      {result && <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher}
+      {result && <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={nr=>setResult({...nr})}
                          copyMd={copyMd} copied={copied} />}
 
       <p className="noprint" style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:40}}>
@@ -1403,8 +1603,40 @@ function ScoringTable({items, forItem, awarded}) {
   );
 }
 
+/* 도식 빈칸 편집기 — 교사가 용어를 체크해 ㉠㉡ 빈칸 지정 */
+function BlankEditor({m, onChange}) {
+  const [open, setOpen] = useState(false);
+  const texts = extractSvgTexts(m.svg);
+  const sel = m.blankSel || [];
+  function toggle(i){
+    if (m.aiBlank === undefined) m.aiBlank = m.svgBlank || null; // AI 제안본 백업
+    const next = sel.includes(i) ? sel.filter(x=>x!==i) : [...sel, i];
+    m.blankSel = next;
+    m.svgBlank = next.length ? buildBlankSvg(m.svg, next) : m.aiBlank;
+    if (onChange) onChange();
+  }
+  if (!texts.length) return null;
+  return (
+    <div className="noprint" style={{textAlign:"left",marginTop:6}}>
+      <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}} onClick={()=>setOpen(!open)}>
+        {open ? "빈칸 편집 닫기" : ("🕳 빈칸 직접 선택" + (sel.length ? ` (${sel.length}개 지정됨)` : ""))}
+      </button>
+      {open &&
+        <div style={{border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",marginTop:6,fontSize:12.5,background:"#faf8f2"}}>
+          <b>빈칸으로 바꿀 용어를 체크하세요.</b> 체크한 용어가 학생 배부본 도식에서 ㉠㉡㉢…으로 바뀝니다(도식 순서대로 기호 부여). 모두 해제하면 AI 제안 빈칸(있는 경우)으로 돌아갑니다.
+          <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
+            {texts.map((t,i)=> t ?
+              <label key={i} style={{cursor:"pointer",whiteSpace:"nowrap",fontWeight:sel.includes(i)?700:400,color:sel.includes(i)?"var(--accent)":"var(--ink)"}}>
+                <input type="checkbox" checked={sel.includes(i)} onChange={()=>toggle(i)} style={{verticalAlign:-2,marginRight:3}}/>{t}
+              </label> : null)}
+          </div>
+        </div>}
+    </div>
+  );
+}
+
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher}) {
+function ItemBlock({it, showTeacher, onEdited}) {
   const qs = normQuestions(it);
   return (
     <div>
@@ -1433,8 +1665,15 @@ function ItemBlock({it, showTeacher}) {
             <div className="kvis">
               <div dangerouslySetInnerHTML={{__html: (!showTeacher && m.svgBlank) ? m.svgBlank : (m.svg || m.svgBlank)}} />
               {m.caption && <div className="cap">{m.caption}</div>}
+              {showTeacher && (m.blankSel||[]).length>0 && (()=>{
+                const texts = extractSvgTexts(m.svg);
+                const key = [...(m.blankSel||[])].sort((a,b)=>a-b)
+                  .map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join("  ·  ");
+                return <div className="cap" style={{color:"var(--kred-dk)",fontWeight:700}}>빈칸 정답: {key}</div>;
+              })()}
               {showTeacher && m.svgBlank &&
                 <div className="cap noprint" style={{color:"var(--accent)",fontWeight:600}}>※ 학생 배부본에는 ㉠㉡ 빈칸 도식이 실립니다. (위는 완성본)</div>}
+              {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
         </div>
       ))}
@@ -1467,7 +1706,7 @@ function ItemBlock({it, showTeacher}) {
   );
 }
 
-function Result({ r, showTeacher, setShowTeacher, copyMd, copied }) {
+function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate }) {
   const info = r.info || {};
   const items = r.items || [];
   const ce = r.contentElements || {};
@@ -1475,32 +1714,11 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied }) {
   const caseItem = n => items.find(x=>x.number===n) || items[0];
   const [editing, setEditing] = useState(false);
 
-  // Word(.doc) 다운로드 — 화면의 문서(직접 수정 포함)를 워드 호환 HTML로 저장
-  function downloadDoc(){
-    const el = document.getElementById("printArea");
-    if (!el) return;
-    const css = "body{font-family:'Malgun Gothic','맑은 고딕',sans-serif;font-size:11pt;line-height:1.6;}" +
-      "table{border-collapse:collapse;width:100%;margin:6pt 0;}" +
-      "th,td{border:1px solid #888;padding:5pt 7pt;font-size:10pt;vertical-align:top;}" +
-      "th{background:#e8efe6;}" +
-      ".kban,.khead{background:#3a5a40;color:#fff;font-weight:bold;padding:6pt 10pt;margin:10pt 0 6pt;}" +
-      ".kpill{font-weight:bold;color:#2b4531;}" +
-      ".khd{font-weight:bold;color:#2b4531;font-size:13pt;margin:12pt 0 4pt;}" +
-      ".ksq{font-weight:bold;margin:8pt 0 4pt;}" +
-      ".kmat,.kcond,.kstu{border:1px solid #666;padding:6pt 9pt;margin:6pt 0;}" +
-      ".kcall,.kfbbox{background:#f2f2f2;padding:6pt 9pt;margin:6pt 0;}" +
-      ".kans .ln{border-bottom:1px dashed #999;height:24pt;}" +
-      ".noprint{display:none;}";
-    const html = '<html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:w="urn:schemas-microsoft-com:office:word">' +
-      '<head><meta charset="utf-8"><style>' + css + '</style></head><body>' + el.innerHTML + '</body></html>';
-    const blob = new Blob(['﻿', html], { type: "application/msword" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (((info.toolName)||"평가도구").replace(/[\\/:*?"<>|]/g,"_")) + (showTeacher ? "" : "_학생배부본") + ".doc";
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+  // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
+  const [docErr, setDocErr] = useState("");
+  function onDownloadDoc(){
+    setDocErr("");
+    downloadDocx(r, showTeacher).catch(e=>setDocErr(e.message||String(e)));
   }
 
   return (
@@ -1518,11 +1736,12 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied }) {
           {editing?"수정 완료":"✏️ 직접 수정"}
         </button>
         <button className="btn sec" onClick={()=>window.print()}>인쇄 / PDF 저장</button>
-        <button className="btn sec" onClick={downloadDoc}>Word(.doc) 저장</button>
+        <button className="btn sec" onClick={onDownloadDoc}>Word(.docx) 저장</button>
         <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
       </div>
       {editing &&
-        <div className="note info noprint">✏️ 수정 모드: 문서의 아무 문구나 클릭해 바로 고칠 수 있습니다. 고친 내용은 <b>인쇄·Word 저장에 반영</b>됩니다. (교사용↔학생 배부본 전환이나 다시 생성하면 수정이 사라지니, 전환 전에 인쇄/저장하세요.)</div>}
+        <div className="note info noprint">✏️ 수정 모드: 문서의 아무 문구나 클릭해 바로 고칠 수 있습니다. 고친 내용은 <b>인쇄/PDF에 반영</b>됩니다. (Word 저장은 원본 생성 데이터 기준이며, 교사용↔학생 배부본 전환·재생성 시 수정이 사라지니 전환 전에 인쇄하세요.)</div>}
+      {docErr && <div className="err noprint">⚠ {docErr}</div>}
 
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
       {r.hierarchyBlock && <div className="note info noprint">🧭 위계 점검: {r.hierarchyBlock}</div>}
@@ -1624,7 +1843,7 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied }) {
 
         {/* 2. 평가 문항 */}
         <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
-        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher}/>)}
+        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} onEdited={()=>onUpdate && onUpdate(r)}/>)}
 
         {showTeacher && <React.Fragment>
           {/* 예시 답안 */}
