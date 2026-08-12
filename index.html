@@ -262,14 +262,14 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [예시 답안] 하위 문항마다 발문·조건을 모두 충족하는 만점 예시 답안을 작성한다. 자료가 있으면 그 구체적 내용을 인용하고, 채점 기준 만점 단계의 기술과 일치시킨다.
 
-[그림자료 — SVG 인포그래픽 디자인 규격] 그림자료는 SVG 벡터로 만들되, 교과서 인포그래픽 수준의 완성도를 목표로 아래 규격을 지킨다.
-- 레이아웃: viewBox="0 0 960 400" 내외. 단계·과정형 개념은 3~5개의 흰색 둥근 카드 패널(rx=14, 테두리 #cccccc 1.5px)을 등간격으로 배치하고 패널 사이에 화살표(굵기 3, #3a5a40)를 넣는다. 비교형은 좌우 2패널, 구조형은 중앙 큰 그림+라벨 지시선.
-- 카드 내부 구성(위→아래): ① 원형 번호 배지(지름 26, #3a5a40 배경, 흰 숫자) + 굵은 제목(16px) ② 설명 1~2문장(12px, #333333, tspan으로 줄바꿈해 카드 폭 안에 수납) ③ 하단 단순 픽토그램.
-- 픽토그램: 기본 도형(circle·rect·ellipse·path) 5~15개로 그린 플랫 아이콘(예: 새=몸통 타원+머리 원+부리 삼각형, 잎=타원+잎맥 선, 태양=원+선). 실사 묘사·복잡한 곡선·그라데이션 금지. 개체 수 증감은 같은 아이콘의 개수·크기 변화로, 선택·탈락은 ✓(#3a5a40)·✗(#999999) 배지로 표현.
-- 팔레트(3~4색 이내): 포인트 #3a5a40, 보조 #a07b22, 본문 #333333, 테두리 #cccccc, 배경 흰색. 인쇄 대비를 확보한다.
-- 텍스트: 모두 <text>로 쓰고 잘림·겹침이 없도록 좌표를 계산한다. 제목 16~18px, 본문 11~13px, 한글 라벨 또렷하게.
-- 그래프는 축·눈금·수치·단위를 정확히 표기하고 데이터가 문항·답안과 일치해야 한다.
-- viewBox만 지정한다(width/height 속성 금지).
+[그림자료 — SVG 도식 디자인 규격] 그림자료는 SVG 벡터 도식으로 만든다. 기본 문법은 '둥근 상자 + 화살표 흐름도'다. 아래 규격을 정확히 지킨다.
+- 상자: 둥근 사각형(rx=10, 테두리 1.5px), 내부에 두 줄 텍스트 — 1줄째 핵심 용어(굵게 15px, text-anchor="middle"), 2줄째 짧은 부연(11.5px, 회색). 상자 폭은 텍스트보다 넉넉하게(글자수×15px+40 이상), 높이 54~60.
+- 흐름(과정형): 상자 3~5개를 가로 등간격 배치하고 사이에 화살표(선 굵기 2, marker 또는 삼각형 폴리곤). 순환·반복 개념은 흐름 아래 중앙에 "↻ 여러 세대에 걸쳐 반복" 같은 주석 텍스트(12px)를 단다.
+- 분기(비교·갈래형): 상단 중앙에 시작 상자, 거기서 좌우 두 갈래로 비스듬한 화살표를 내려 두 경로의 상자를 배치하고, 각 경로 아래로 수직 화살표→결과 상자. 두 경로는 좌우 대칭 정렬.
+- 그래프: 축·눈금·수치·단위를 정확히 표기하고 데이터가 문항·답안과 일치해야 한다.
+- 텍스트는 모두 <text>로 쓰고(줄바꿈은 tspan), 좌표를 계산해 잘림·겹침이 없게 한다. 상자 밖 주석은 12px.
+- 색은 [인쇄 설정] 지시를 따른다. 컬러 지정 시에도 상자 채움은 연한 톤(예: #f4f1ea·#e8efe6·#e4ecf5), 테두리·글자는 진한 톤으로 대비를 확보한다.
+- viewBox만 지정한다(width/height 속성 금지). viewBox="0 0 900 260"(흐름형)·"0 0 760 480"(분기형) 내외.
 
 [첨부 이미지의 자료 활용] 사용자가 이미지를 첨부하며 자료로 쓰라고 지시한 경우, 그 이미지를 다시 그리지 말고 materials 항목에 "imageIndex": N (첨부 순서, 1부터)을 지정하고 svg는 null, label과 caption만 작성하라. 그 이미지는 앱이 문서에 원본 그대로 삽입한다. 문항은 그 이미지의 내용을 직접 분석·해석해야 풀리도록 설계한다.
 
@@ -303,7 +303,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
       "targetLevel": "C",
       "points": 7,
       "intro": "(가)와 (나)의 내용을 바탕으로 물음에 답하시오.",
-      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
+      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "svgBlank": "빈칸 변형 지시가 있을 때 ㉠㉡㉢ 빈칸본 SVG, 아니면 null", "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
       "questions": [
         { "label": "(1)" 또는 "",
           "stem": "발문",
@@ -577,6 +577,8 @@ function App() {
   const [format, setFormat]   = useState("자동");
   const [style, setStyle]     = useState("");
   const [visual, setVisual]   = useState("auto");
+  const [mono, setMono]       = useState(true);   // 흑백 인쇄용 (기본 켬)
+  const [blankVer, setBlankVer] = useState(false); // 빈칸 변형(㉠㉡ 도식 완성형)
   const [count, setCount]     = useState(1);
   const [countStr, setCountStr] = useState("1");   // 입력 중간 상태(키보드 입력 허용)
   const [loading, setLoading] = useState(false);
@@ -828,9 +830,18 @@ function App() {
 
     P.push(format==="자동" ? "문항 형식: 내용에 맞게 자동 선택." : `문항 형식: '${format}'으로 고정.`);
 
-    P.push(visual==="always" ? "그림자료: 적절한 자료 상자에 SVG 도식을 반드시 생성하라."
-        : visual==="none"   ? "그림자료: 생성하지 말라(materials의 svg는 모두 null)."
-        : "그림자료: 자료가 필요한 경우에만 SVG 도식을 생성하라.");
+    if (visual === "none") {
+      P.push("그림자료: 생성하지 말라(materials의 svg는 모두 null).");
+    } else {
+      P.push(visual==="always" ? "그림자료: 적절한 자료 상자에 SVG 도식을 반드시 생성하라."
+                               : "그림자료: 자료가 필요한 경우에만 SVG 도식을 생성하라.");
+      P.push(mono
+        ? "[인쇄 설정] 흑백 인쇄용. 모든 SVG는 무채색만 사용한다(#000000, #333333, #666666, #999999, #cccccc, #f2f2f2, 흰색). 컬러 금지. 구분이 필요하면 명도 차·상자 채움 톤(흰/연회색)·선 굵기·점선으로 표현하라."
+        : "[인쇄 설정] 컬러. 상자 채움은 연한 톤(#f4f1ea, #e8efe6, #e4ecf5), 테두리·글자·화살표는 진한 톤(#3a5a40, #333333)으로 3~4색 이내.");
+      if (blankVer) {
+        P.push("[빈칸 변형 — 필수] 각 SVG 그림자료마다 완성본(svg)과 함께, 상자 속 핵심 용어 2~4개를 ㉠, ㉡, ㉢ … 빈칸으로 바꾼 빈칸본(svgBlank)을 만들어라. 빈칸은 밑줄 친 기호(예: '㉠' 뒤에 밑줄 공간)나 빈 상자로 표시하고, 빈칸 외의 모든 요소·좌표는 완성본과 동일해야 한다. 최소 한 문항(또는 하위 문항)은 '도식의 ㉠~㉢에 들어갈 내용을 쓰고, 그 근거를 서술'하게 하라. 예시 답안과 채점 기준에 각 빈칸의 정답을 반드시 포함하라.");
+      }
+    }
 
     if (style.trim()) P.push(`추가 스타일/요청: ${style.trim()}`);
     if (images.length) {
@@ -1238,6 +1249,19 @@ function App() {
               }} />
           </div>
         </div>
+        {visual!=="none" &&
+          <div style={{marginTop:10,display:"flex",gap:18,flexWrap:"wrap",alignItems:"center"}}>
+            <label style={{fontSize:13,cursor:"pointer",fontWeight:mono?700:400,color:mono?"var(--accent)":"var(--ink)"}}>
+              <input type="checkbox" checked={mono} onChange={()=>setMono(!mono)} style={{verticalAlign:-2,marginRight:5}}/>
+              🖨 흑백 인쇄용 도식
+            </label>
+            <label style={{fontSize:13,cursor:"pointer",fontWeight:blankVer?700:400,color:blankVer?"var(--accent)":"var(--ink)"}}>
+              <input type="checkbox" checked={blankVer} onChange={()=>setBlankVer(!blankVer)} style={{verticalAlign:-2,marginRight:5}}/>
+              ㉠㉡ 빈칸 변형 함께 생성 (도식 완성형)
+            </label>
+          </div>}
+        {visual!=="none" && blankVer &&
+          <div className="hint" style={{marginTop:4}}>도식의 핵심 용어 2~4개가 ㉠㉡㉢ 빈칸으로 바뀐 버전이 함께 만들어집니다. <b>학생 배부본에는 빈칸 도식</b>, 교사용에는 완성 도식과 빈칸 정답이 실리고, 빈칸을 채우고 근거를 서술하는 문항이 출제됩니다.</div>}
         <div style={{marginTop:12}}>
           <label className="fld">스타일 자유 지정</label>
           <input type="text" value={style} onChange={e=>setStyle(e.target.value)}
@@ -1405,10 +1429,12 @@ function ItemBlock({it, showTeacher}) {
               <img src={m.imageData} alt={m.caption||m.label||"자료 그림"} style={{maxWidth:"100%",borderRadius:4}}/>
               {m.caption && <div className="cap">{m.caption}</div>}
             </div>}
-          {!m.imageData && m.svg &&
+          {!m.imageData && (m.svg || m.svgBlank) &&
             <div className="kvis">
-              <div dangerouslySetInnerHTML={{__html:m.svg}} />
+              <div dangerouslySetInnerHTML={{__html: (!showTeacher && m.svgBlank) ? m.svgBlank : (m.svg || m.svgBlank)}} />
               {m.caption && <div className="cap">{m.caption}</div>}
+              {showTeacher && m.svgBlank &&
+                <div className="cap noprint" style={{color:"var(--accent)",fontWeight:600}}>※ 학생 배부본에는 ㉠㉡ 빈칸 도식이 실립니다. (위는 완성본)</div>}
             </div>}
         </div>
       ))}
