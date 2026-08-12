@@ -262,7 +262,16 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [예시 답안] 하위 문항마다 발문·조건을 모두 충족하는 만점 예시 답안을 작성한다. 자료가 있으면 그 구체적 내용을 인용하고, 채점 기준 만점 단계의 기술과 일치시킨다.
 
-[그림자료] 실사 사진이 아니라 SVG 벡터 도식(분류 도표·그래프·구조 모식도·실험 장치도 등)으로 만든다. viewBox만 지정하고(width/height 속성 금지), 한글 라벨을 또렷하게, 흑백·고대비로 인쇄에 적합하게 그린다.
+[그림자료 — SVG 인포그래픽 디자인 규격] 그림자료는 SVG 벡터로 만들되, 교과서 인포그래픽 수준의 완성도를 목표로 아래 규격을 지킨다.
+- 레이아웃: viewBox="0 0 960 400" 내외. 단계·과정형 개념은 3~5개의 흰색 둥근 카드 패널(rx=14, 테두리 #cccccc 1.5px)을 등간격으로 배치하고 패널 사이에 화살표(굵기 3, #3a5a40)를 넣는다. 비교형은 좌우 2패널, 구조형은 중앙 큰 그림+라벨 지시선.
+- 카드 내부 구성(위→아래): ① 원형 번호 배지(지름 26, #3a5a40 배경, 흰 숫자) + 굵은 제목(16px) ② 설명 1~2문장(12px, #333333, tspan으로 줄바꿈해 카드 폭 안에 수납) ③ 하단 단순 픽토그램.
+- 픽토그램: 기본 도형(circle·rect·ellipse·path) 5~15개로 그린 플랫 아이콘(예: 새=몸통 타원+머리 원+부리 삼각형, 잎=타원+잎맥 선, 태양=원+선). 실사 묘사·복잡한 곡선·그라데이션 금지. 개체 수 증감은 같은 아이콘의 개수·크기 변화로, 선택·탈락은 ✓(#3a5a40)·✗(#999999) 배지로 표현.
+- 팔레트(3~4색 이내): 포인트 #3a5a40, 보조 #a07b22, 본문 #333333, 테두리 #cccccc, 배경 흰색. 인쇄 대비를 확보한다.
+- 텍스트: 모두 <text>로 쓰고 잘림·겹침이 없도록 좌표를 계산한다. 제목 16~18px, 본문 11~13px, 한글 라벨 또렷하게.
+- 그래프는 축·눈금·수치·단위를 정확히 표기하고 데이터가 문항·답안과 일치해야 한다.
+- viewBox만 지정한다(width/height 속성 금지).
+
+[첨부 이미지의 자료 활용] 사용자가 이미지를 첨부하며 자료로 쓰라고 지시한 경우, 그 이미지를 다시 그리지 말고 materials 항목에 "imageIndex": N (첨부 순서, 1부터)을 지정하고 svg는 null, label과 caption만 작성하라. 그 이미지는 앱이 문서에 원본 그대로 삽입한다. 문항은 그 이미지의 내용을 직접 분석·해석해야 풀리도록 설계한다.
 
 [출력 형식] 반드시 아래 JSON 스키마의 객체 하나만 출력한다. 코드펜스나 설명 문장을 절대 포함하지 않는다. 한국어로 작성한다. scoring의 levels는 만점→0점 순서로 나열한다.
 
@@ -294,7 +303,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
       "targetLevel": "C",
       "points": 7,
       "intro": "(가)와 (나)의 내용을 바탕으로 물음에 답하시오.",
-      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "caption": "" } ],
+      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
       "questions": [
         { "label": "(1)" 또는 "",
           "stem": "발문",
@@ -752,6 +761,19 @@ function App() {
     e.target.value = ""; // 같은 파일 재선택 허용
   }
   function removeImage(i){ setImages(prev=>prev.filter((_,idx)=>idx!==i)); }
+  function toggleAsMaterial(i){ setImages(prev=>prev.map((x,idx)=>idx===i?{...x, asMaterial:!x.asMaterial}:x)); }
+
+  // 결과의 materials.imageIndex → 첨부 이미지 원본을 문서에 삽입
+  function attachImages(r){
+    try{
+      (r.items||[]).forEach(it=>(it.materials||[]).forEach(m=>{
+        if (m.imageIndex && images[m.imageIndex-1] && images[m.imageIndex-1].kind!=="pdf") {
+          m.imageData = images[m.imageIndex-1].url;
+        }
+      }));
+    }catch(_){}
+    return r;
+  }
 
   function buildPrompt() {
     const P = [];
@@ -818,6 +840,10 @@ function App() {
       if (nImg) parts.push(`사진 ${nImg}장`);
       if (nPdf) parts.push(`PDF ${nPdf}개(보고서·활동자료 등)`);
       P.push(`첨부 자료(${parts.join(", ")})가 있다. 첨부된 사진·PDF의 내용·자료·표·그림·데이터를 읽어 성취기준·과목 범위에 맞는 논술형 평가 문항의 근거로 반영하라. PDF에 담긴 실험 결과·보고서·활동 내용을 제시문·자료로 활용하고, 최소 한 문항 이상이 그 자료를 직접 분석·해석해야 풀리도록 설계하라.`);
+      const mats = images.map((x,i)=>({ ...x, idx:i+1 })).filter(x=>x.asMaterial && x.kind!=="pdf");
+      if (mats.length) {
+        P.push(`그중 ${mats.map(m=>`${m.idx}번째 이미지(${m.name})`).join(", ")}는 문서에 원본 그대로 그림자료로 삽입된다. 이 이미지를 SVG로 다시 그리지 말고, materials 항목에 "imageIndex"(첨부 순번)로 참조하라(label·caption 작성, svg는 null). 최소 한 문항이 이 그림의 내용을 직접 분석·해석해야 풀리도록 발문을 설계하라.`);
+      }
     }
 
     if (useNews && articles.length) {
@@ -850,6 +876,7 @@ function App() {
       let parsed = null;
       try { parsed = parseResult(raw); } catch(_){}
       if (parsed) {
+        attachImages(parsed);
         setResult(parsed);
         saveToHistory(parsed);
         if (stop === "MAX_TOKENS") {
@@ -896,7 +923,7 @@ function App() {
     setError(""); setResult(null);
     if (!pasteText.trim()) { setError("claude.ai에서 받은 결과(JSON)를 붙여넣어 주세요."); return; }
     try {
-      const p = parseResult(pasteText);
+      const p = attachImages(parseResult(pasteText));
       setResult(p); saveToHistory(p);
     } catch(e) {
       setError("붙여넣은 내용을 JSON으로 해석하지 못했습니다. claude.ai 응답 전체(중괄호 { } 포함)를 그대로 복사해 붙여넣었는지 확인하세요.");
@@ -908,7 +935,7 @@ function App() {
     setPasteText(v);
     if (v.trim().length > 80 && v.includes('"items"')) {
       try {
-        const p = parseResult(v);
+        const p = attachImages(parseResult(v));
         setResult(p); setError(""); saveToHistory(p);
       } catch(_){/* 아직 불완전하면 무시 — ③ 버튼으로 수동 시도 가능 */}
     }
@@ -1105,11 +1132,15 @@ function App() {
                   : <div className="thumb" key={i}>
                       <img src={im.url} alt={im.name}/>
                       <button onClick={()=>removeImage(i)} title="삭제">×</button>
+                      <label style={{fontSize:10,display:"block",textAlign:"center",cursor:"pointer",marginTop:2,color:im.asMaterial?"var(--accent)":"var(--muted)",fontWeight:im.asMaterial?700:400}}>
+                        <input type="checkbox" checked={!!im.asMaterial} onChange={()=>toggleAsMaterial(i)} style={{verticalAlign:-2,marginRight:2}}/>자료로 삽입
+                      </label>
                     </div>
               ))}
             </div>}
         </div>
-        <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)</div>
+        <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)<br/>
+          💡 사진 아래 <b>「자료로 삽입」</b>을 체크하면 그 그림이 <b>결과 문서의 (가)(나) 자료로 원본 그대로 들어가고</b>, 그 그림을 분석하는 문항이 출제됩니다 — 교과서 수준 삽화를 쓰고 싶을 때 가장 좋습니다.</div>
       </div>
 
       {/* 4-1. 실생활 자료 검색 (네이버 뉴스/블로그) — 선택형 */}
@@ -1369,7 +1400,12 @@ function ItemBlock({it, showTeacher}) {
           {m.body
             ? <div style={{whiteSpace:"pre-wrap"}}><span className="lbl">{m.label} </span>{m.body}</div>
             : (m.label ? <span className="lbl">{m.label}</span> : null)}
-          {m.svg &&
+          {m.imageData &&
+            <div className="kvis">
+              <img src={m.imageData} alt={m.caption||m.label||"자료 그림"} style={{maxWidth:"100%",borderRadius:4}}/>
+              {m.caption && <div className="cap">{m.caption}</div>}
+            </div>}
+          {!m.imageData && m.svg &&
             <div className="kvis">
               <div dangerouslySetInnerHTML={{__html:m.svg}} />
               {m.caption && <div className="cap">{m.caption}</div>}
