@@ -837,7 +837,7 @@ function Ed({v, editing, onC}){
 
 function EmptyDoc({subject, targets, hasInput, runMode}){
   const nextTitle = hasInput
-    ? (runMode==="paste" ? "Claude에서 만든 답변을 가져오세요" : "평가 문서를 만들 준비가 되었습니다")
+    ? (runMode==="paste" ? "Claude 답변을 가져오세요" : "평가 문서를 만들 준비가 되었습니다")
     : "출제 자료를 입력하세요";
   const nextText = hasInput
     ? (runMode==="paste"
@@ -846,7 +846,9 @@ function EmptyDoc({subject, targets, hasInput, runMode}){
     : "2단계에서 성취기준, 기존 문항 또는 수업 자료를 입력하세요.";
   return (
     <div className="emptydoc noprint">
-      <div className="empty-sheet-head" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div className="empty-sheet-head" aria-hidden="true">
+        <span>논술형 평가 문서</span><span>교사용</span><span>초안</span>
+      </div>
       <div className="empty-content">
         <div className="empty-eyebrow">결과 미리보기</div>
         <h2 className="empty-title">{nextTitle}</h2>
