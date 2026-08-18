@@ -47,10 +47,12 @@
   .stamp span+span{border-left:1px solid var(--ink);}
   .stamp .s1{background:var(--ui-accent);color:#fff;}
 
-  /* 비대칭 2단: 좌 도구 / 우 문서 */
-  .workbench{display:grid;grid-template-columns:minmax(380px,440px) 1fr;gap:28px;align-items:start;margin-top:26px;}
-  aside.tools{min-width:0;}
-  main.paperpane{min-width:0;position:sticky;top:24px;max-height:calc(100vh - 48px);overflow-y:auto;outline:none;}
+  /* 비대칭 2단: 좌 문서 미리보기 / 우 설정 도구 */
+  .workbench{display:grid;grid-template-columns:minmax(0,1fr) minmax(380px,440px);
+    grid-template-areas:"preview tools";gap:28px;align-items:start;margin-top:26px;}
+  aside.tools{grid-area:tools;min-width:0;}
+  main.paperpane{grid-area:preview;min-width:0;position:sticky;top:24px;
+    max-height:calc(100vh - 48px);overflow-y:auto;outline:none;}
 
   /* 실행 방식 요약 줄 + 설정 패널 */
   .envline{display:flex;align-items:center;gap:10px;flex-wrap:wrap;padding:12px 0;border-bottom:1px solid var(--line);font-size:14px;}
@@ -333,7 +335,7 @@
 
   /* 반응형: ≤1100px 은 탭 전환형 1단 */
   @media(max-width:1100px){
-    .workbench{grid-template-columns:1fr;}
+    .workbench{grid-template-columns:1fr;grid-template-areas:"tools" "preview";}
     .wrap{padding:24px 24px 120px;}
     main.paperpane{position:static;max-height:none;overflow:visible;}
     .mtabs{display:flex;margin-top:18px;border-bottom:2px solid var(--ink);}
@@ -382,6 +384,7 @@
   @media print{
     body{background:#fff;}
     .noprint{display:none !important;}
+    .workbench{display:block !important;margin:0 !important;}
     main.paperpane{position:static !important;max-height:none !important;overflow:visible !important;display:block !important;}
     .mtabs,.mcta,.envline,.envcfg{display:none !important;}
     body *{visibility:hidden;}
