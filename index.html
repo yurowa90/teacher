@@ -31,8 +31,13 @@
   /* 마스트헤드: 이중 괘선 */
   header.app{padding:6px 0 14px;border-bottom:2px solid var(--ink);position:relative;margin-bottom:6px;}
   header.app::after{content:"";position:absolute;left:0;right:0;bottom:-5px;border-bottom:1px solid var(--ink);}
-  header.app h1{margin:0;font-family:var(--serif);font-size:28px;font-weight:700;letter-spacing:-0.02em;}
+  header.app h1{margin:0;font-family:var(--serif);font-size:30px;font-weight:700;letter-spacing:-0.02em;}
   header.app p{margin:4px 0 0;color:var(--muted);font-size:13px;}
+  .mast{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;}
+  .stamp{display:flex;border:1.5px solid var(--ink);flex:0 0 auto;}
+  .stamp span{padding:5px 12px;font-size:11px;font-weight:700;letter-spacing:.08em;white-space:nowrap;}
+  .stamp span+span{border-left:1px solid var(--ink);}
+  .stamp .s1{background:var(--ink);color:var(--bg);}
 
   /* 비대칭 2단: 좌 도구 / 우 문서 */
   .workbench{display:grid;grid-template-columns:minmax(340px,4fr) 8fr;gap:24px;align-items:start;margin-top:26px;}
@@ -41,11 +46,11 @@
 
   /* 도구 섹션: 카드 박스 대신 수평 괘선 + 여백 */
   .card{background:transparent;border:none;border-radius:0;box-shadow:none;
-    padding:20px 0 24px;margin:0;border-top:1px solid var(--line);}
+    padding:20px 0 24px 42px;margin:0;border-top:1px solid var(--line);position:relative;}
   aside.tools > .card:first-child, .card:first-child{border-top:none;}
   .card h2{margin:0 0 12px;font-size:14px;font-weight:700;color:var(--ink);
     display:flex;align-items:center;gap:10px;letter-spacing:.02em;}
-  .num{color:var(--accent);font-weight:800;font-size:13px;background:none;
+  .num{position:absolute;left:0;top:23px;color:var(--ink);font-weight:800;font-size:13px;background:none;
     font-variant-numeric:tabular-nums;letter-spacing:.06em;width:auto;height:auto;display:inline;}
   .num::before{content:"0";}
   .num.plus::before{content:"";}
@@ -80,6 +85,14 @@
   .btn.ghost:hover{border-color:var(--accent);color:var(--accent);background:transparent;}
 
   .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .outgrp{display:inline-flex;align-items:stretch;border:1px solid var(--line-strong);border-radius:4px;overflow:hidden;background:var(--panel);}
+  .outgrp .og-l{display:flex;align-items:center;padding:0 9px;font-size:11px;font-weight:800;
+    letter-spacing:.06em;color:var(--hintc);background:var(--gold-soft);}
+  .outgrp .og-l+button{border-left:1px solid var(--line);}
+  .outgrp button{appearance:none;border:none;background:transparent;font:inherit;font-size:12.5px;
+    padding:8px 11px;cursor:pointer;color:var(--ink);border-left:1px solid var(--line);}
+  .outgrp button:hover{color:var(--accent);text-decoration:underline;}
+  .outgrp .og-l:first-child{border-left:none;}
   .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;
     letter-spacing:.03em;border:1px solid currentColor;background:transparent;}
   .badge.b22{color:var(--accent);}
@@ -113,8 +126,11 @@
 
   /* ── 결과 문서: 종이 위의 명조 조판 ───────────────────────── */
   .kdoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
-    padding:48px 52px 56px;max-width:840px;margin:0 auto;
+    padding:48px 52px 56px;max-width:840px;margin:0 auto;position:relative;
     font-family:var(--serif);font-size:14px;line-height:1.8;}
+  .spine{position:absolute;top:44px;right:-1px;writing-mode:vertical-rl;font-family:var(--serif);
+    font-size:12px;font-weight:700;letter-spacing:.35em;padding:14px 5px;color:var(--accent-dk);
+    border:1px solid var(--line-strong);border-right:none;background:var(--panel);}
   .kdoc button, .kdoc .note{font-family:var(--sans);}
   .keyebrow{font-family:var(--sans);font-size:11px;letter-spacing:.08em;color:var(--hintc);
     font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px;}
@@ -188,9 +204,10 @@
   .emptydoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
     min-height:420px;max-width:840px;margin:0 auto;padding:48px 32px;
     display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;}
-  .ed-kicker{font-size:11px;letter-spacing:.14em;color:var(--accent);font-weight:800;}
-  .ed-title{font-family:var(--serif);font-size:20px;font-weight:700;margin:0;}
   .ed-desc{color:var(--hintc);font-size:13px;max-width:34em;margin:0 0 14px;}
+  .wongoji{display:grid;grid-template-columns:repeat(10,36px);border:1.5px solid #D9B9B3;background:var(--panel);margin-bottom:18px;}
+  .wongoji .cell{width:36px;height:36px;border:0.5px solid #EFDCD8;display:flex;align-items:center;justify-content:center;
+    font-family:var(--serif);font-size:16px;color:var(--ink);}
   .skeldoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
     max-width:840px;margin:0 auto;padding:48px 52px;}
   .sk{background:#EDE7DC;border-radius:2px;margin-bottom:12px;animation:skp 1.6s ease-in-out infinite;}
@@ -206,6 +223,14 @@
   @media(max-width:620px){
     .wrap{padding:16px 20px 56px;}
     header.app h1{font-size:22px;}
+    .mast{flex-direction:column;align-items:flex-start;gap:10px;}
+    .card{padding-left:0;}
+    .num{position:static;margin-right:8px;}
+    .spine{display:none;}
+    .outgrp{display:flex;width:100%;grid-column:span 2;}
+    .outgrp button{flex:1;}
+    .wongoji{grid-template-columns:repeat(10,9vw);}
+    .wongoji .cell{width:9vw;height:9vw;font-size:13px;}
     .elems{grid-template-columns:1fr;}
     .kdoc{padding:20px 16px 28px;}
     .skeldoc,.emptydoc{padding:28px 20px;}

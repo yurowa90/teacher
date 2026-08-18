@@ -833,11 +833,13 @@ function Ed({v, editing, onC}){
 }
 
 function EmptyDoc(){
+  const MSG = "평가 도구가 이 자리에 조판됩니다";
   return (
     <div className="emptydoc noprint">
-      <span className="ed-kicker">DOCUMENT PREVIEW</span>
-      <p className="ed-title">아직 만든 문서가 없습니다</p>
-      <p className="ed-desc">왼쪽에서 과목과 성취기준을 고르고 「평가도구 문서 생성」을 누르면, KICE 양식의 서·논술형 평가도구 문서가 이 자리에 나타납니다.</p>
+      <div className="wongoji" aria-hidden="true">
+        {MSG.split("").map((ch,i)=><span key={i} className="cell">{ch===" "?"":ch}</span>)}
+      </div>
+      <p className="ed-desc">왼쪽에서 과목·성취기준을 고르고 「평가도구 문서 생성」을 누르세요.</p>
       <button className="btn sec" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>과목 선택으로 이동</button>
     </div>
   );
@@ -1300,8 +1302,15 @@ function App() {
   return (
     <div className="wrap">
       <header className="app noprint">
-        <h1>논술형 평가 문항 스튜디오</h1>
-        <p>「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론 · KICE 「서·논술형 평가도구 자료」 양식 출력 · 2022 개정 교육과정</p>
+        <div className="mast">
+          <div>
+            <h1>논술형 평가 문항 스튜디오</h1>
+            <p>과학과 서·논술형 평가도구를 조판합니다</p>
+          </div>
+          <div className="stamp" aria-hidden="true">
+            <span className="s1">과학과</span><span>2022 개정</span><span>서·논술형</span>
+          </div>
+        </div>
       </header>
 
       <div className="workbench">
@@ -1322,8 +1331,8 @@ function App() {
         </div>
         <div className="hint">
           {runMode==="paste"
-            ? "Claude Pro/Max 구독으로 claude.ai에서 직접 생성합니다. 앱이 만든 프롬프트를 복사해 claude.ai에 붙여넣고, 나온 결과를 다시 아래에 붙여넣으면 KICE 평가도구 자료 형식의 문서로 정리됩니다. API 키가 필요 없습니다."
-            : "본인 Gemini API 키로 앱 안에서 바로 생성합니다."}
+            ? "프롬프트를 복사해 claude.ai에 붙여넣고, 답변을 다시 아래에 붙여넣으면 문서로 조판됩니다. API 키 불필요."
+            : "본인 Gemini API 키로 앱에서 바로 생성합니다."}
         </div>
 
         {runMode==="api" &&
@@ -1360,10 +1369,7 @@ function App() {
             {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--accent)":"var(--warn)", fontWeight:600}}>{modelMsg}</div>}
 
             <div className="hint">
-              키는 이 브라우저(localStorage)에만 저장되며 코드·서버에 전송되지 않습니다.
-              키 발급: aistudio.google.com → Get API key(카드 등록 불필요).
-              <b> 「모델 불러오기」</b>를 누르면 이 키로 실제 사용 가능한 모델만 목록에 나옵니다.
-              권장: <code>gemini-2.5-flash</code>(빠름·저렴), <code>gemini-2.5-pro</code>(정교함).
+              키는 이 브라우저에만 저장됩니다. 발급: aistudio.google.com. 「모델 불러오기」를 누르면 이 키로 되는 모델만 표시됩니다.
               {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
             </div>
           </div>}
@@ -1381,7 +1387,7 @@ function App() {
             </optgroup>
           ))}
         </select>
-        <div className="hint">과목을 고르면 그 범위 안에서만 출제하고 상위 학년·심화 개념을 배제합니다.</div>
+        <div className="hint">과목을 고르면 상위 학년·심화 개념을 자동 배제합니다.</div>
 
         {(STANDARDS[subject]||[]).length > 0 &&
           <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
@@ -1421,8 +1427,7 @@ function App() {
         </div>
         {targetMsg && <div className="note" style={{marginTop:10}}>⚠ {targetMsg}</div>}
         <div className="hint">
-          여러 수준을 고르면 <b>각 수준마다 문항이 최소 1개씩</b> 나옵니다(문항 수가 선택 수준 수보다 적으면 자동으로 그만큼 늘어남). 문항 수 상한이 {MAX_ITEMS}개라 <b>타겟 수준도 최대 {MAX_ITEMS}개까지</b> 선택할 수 있습니다.
-          비워두면 난이도가 자동 분포됩니다. 예: C 하나만 선택 시 A·B·C는 풀고 D·E는 못 푸는 변별점으로 설계.
+          여러 수준을 고르면 수준마다 문항이 1개씩 배정됩니다(최대 {MAX_ITEMS}개). 비워 두면 난이도 자동 분포.
           {targets.length>1 && <b style={{color:"var(--accent)"}}> → 지금 {targets.length}개 수준 선택 → {targets.length}개 문항 생성.</b>}
         </div>
       </div>
@@ -1474,8 +1479,7 @@ function App() {
               ))}
             </div>}
         </div>
-        <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)<br/>
-          사진 아래 <b>「자료로 삽입」</b>을 체크하면 그 그림이 <b>결과 문서의 (가)(나) 자료로 원본 그대로 들어가고</b>, 그 그림을 분석하는 문항이 출제됩니다 — 교과서 수준 삽화를 쓰고 싶을 때 가장 좋습니다.</div>
+        <div className="hint">사진·PDF 속 자료를 읽어 문항에 반영합니다(18MB 이하). 사진의 「자료로 삽입」을 체크하면 그림이 문서에 원본 그대로 들어갑니다.</div>
       </div>
 
       {/* 4-1. 실생활 자료 검색 (네이버 뉴스/블로그) — 선택형 */}
@@ -1486,7 +1490,7 @@ function App() {
           <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사·칼럼 넣기</Pill>
         </div>
         {!useNews &&
-          <div className="hint" style={{marginTop:8}}>필요할 때만 켜세요. 켜면 네이버 뉴스·칼럼을 검색해 선택한 기사를 발문의 제시문 근거로 넣을 수 있습니다.</div>}
+          <div className="hint" style={{marginTop:8}}>필요할 때만 켜세요 — 고른 기사가 제시문 근거로 들어갑니다.</div>}
 
         {useNews && <React.Fragment>
         <div className="row" style={{alignItems:"flex-end",marginTop:12}}>
@@ -1535,10 +1539,7 @@ function App() {
             <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setArticles([]);}}>모두 해제</a>
           </div>}
 
-        <div className="hint">
-          네이버 뉴스/블로그를 검색해 <b>기사를 선택하면 그 내용이 발문의 제시문 근거</b>로 들어갑니다(최소 한 문항이 그 자료를 분석하도록 설계).
-          이 기능은 <b>배포된 사이트에서만</b> 동작하며, 관리자가 Vercel에 <code>NAVER_CLIENT_ID</code>·<code>NAVER_CLIENT_SECRET</code>를 설정해야 합니다.
-        </div>
+        <div className="hint">선택한 기사가 제시문 근거가 되고, 최소 한 문항이 그 자료를 분석하도록 설계됩니다. (배포 사이트에서 관리자 키 설정 후 동작)</div>
         </React.Fragment>}
       </div>
 
@@ -1587,13 +1588,13 @@ function App() {
             </label>
           </div>}
         {visual!=="none" && blankVer &&
-          <div className="hint" style={{marginTop:4}}>도식의 핵심 용어 2~4개가 ㉠㉡㉢ 빈칸으로 바뀐 버전이 함께 만들어집니다. <b>학생 배부본에는 빈칸 도식</b>, 교사용에는 완성 도식과 빈칸 정답이 실리고, 빈칸을 채우고 근거를 서술하는 문항이 출제됩니다.</div>}
+          <div className="hint" style={{marginTop:4}}>학생 배부본에는 ㉠㉡ 빈칸 도식, 교사용에는 완성 도식과 정답이 실립니다.</div>}
         <div style={{marginTop:12}}>
           <label className="fld">스타일 자유 지정</label>
           <input type="text" value={style} onChange={e=>setStyle(e.target.value)}
             placeholder='예: 실생활 맥락 강조, 그래프 해석 포함, 600자 분량' />
         </div>
-        <div className="hint"><b>문항 수는 최소 1개 ~ 최대 4개까지</b> 지정할 수 있습니다. 키보드로 숫자를 직접 입력하거나 화살표로 조절하세요. 완결된 평가도구 문서(정보표~피드백 사례)가 생성되므로 1~2개를 권장하며, 하위 문항 (1)·(2)는 자동 구성됩니다.</div>
+        <div className="hint">키보드로 1~4를 입력하세요. 완결 문서가 생성되므로 1~2개 권장, 하위 문항 (1)·(2)는 자동 구성.</div>
       </div>
 
       {runMode==="api" &&
@@ -1602,7 +1603,7 @@ function App() {
         </button>}
       {runMode==="api" && loading &&
         <div className="hint" style={{textAlign:"center",marginTop:8}}>
-          완결된 평가도구 문서(9개 섹션)를 작성하고 있습니다. 보통 30~60초, 서버 혼잡 시 자동 재시도로 2~3분까지 걸릴 수 있어요. 창을 닫지 말고 기다려 주세요.
+          보통 30~60초, 혼잡 시 자동 재시도로 더 걸릴 수 있습니다. 창을 닫지 마세요.
         </div>}
 
       {runMode==="paste" &&
@@ -1667,7 +1668,8 @@ function App() {
       </div>
 
       <p className="noprint" style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:40}}>
-        생성 결과는 출제 전 성취기준·성취수준·위계·자료 적합성을 한 번 더 검토하세요.
+        생성 결과는 출제 전 성취기준·성취수준·위계·자료 적합성을 한 번 더 검토하세요.<br/>
+        「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론 · KICE 「서·논술형 평가도구 자료」 양식 · 2022 개정 교육과정 기준
       </p>
     </div>
   );
@@ -1909,10 +1911,14 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           style={editing?{background:"var(--accent)",color:"#fff"}:null}>
           {editing?"수정 완료":"직접 수정"}
         </button>
-        <button className="btn sec" onClick={()=>printAs(true)}>인쇄 · 교사용</button>
-        <button className="btn sec" onClick={()=>printAs(false)}>인쇄 · 학생용</button>
-        <button className="btn sec" onClick={()=>onDownloadDoc(true)}>Word · 교사용</button>
-        <button className="btn sec" onClick={()=>onDownloadDoc(false)}>Word · 학생용</button>
+        <span className="outgrp" role="group" aria-label="출력">
+          <span className="og-l">인쇄</span>
+          <button type="button" onClick={()=>printAs(true)}>교사용</button>
+          <button type="button" onClick={()=>printAs(false)}>학생용</button>
+          <span className="og-l">Word</span>
+          <button type="button" onClick={()=>onDownloadDoc(true)}>교사용</button>
+          <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
+        </span>
         <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
       </div>
       {editing &&
@@ -1947,6 +1953,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
       {/* ───────── KICE 평가도구 자료 문서 ───────── */}
       <div className={"kdoc"+(editing?" editing":"")} id="printArea">
+        <div className="spine" aria-hidden="true">{showTeacher ? "교사용" : "학생 배부본"}</div>
         <div className="keyebrow">
           서·논술형 평가도구 자료
           <span className="chip">과학과</span>
