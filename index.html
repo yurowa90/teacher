@@ -4,158 +4,250 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <title>논술형 평가 문항 스튜디오</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Serif+KR:wght@400;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable-dynamic-subset.min.css">
 <style>
+  /* ── 디자인 토큰: '교사의 서재' 에디토리얼 시스템 ─────────── */
   :root{
-    --bg:#f4f1ea; --panel:#ffffff; --ink:#23211c; --muted:#6b665b;
-    --line:#e3ddcf; --accent:#3a5a40; --accent-soft:#dfe7df;
-    --gold:#a07b22; --gold-soft:#fbf3dd; --blue:#274c77; --blue-soft:#e4ecf5;
-    --warn:#b9560f; --warn-soft:#fbe7d6; --radius:12px;
-    /* 결과 문서 색감 — 사이트 주 색감(초록·크림·골드)에 맞춤 */
-    --kred:#3a5a40; --kred-dk:#2b4531; --kpink:#e8efe6; --kline:#cdd9cc;
+    --bg:#FAF7F2; --panel:#FFFFFF; --ink:#1F1A17;
+    --muted:#8A8178; --hintc:#5E574D;
+    --line:#E4DDD2; --line-strong:#C9C0B2;
+    --accent:#7A1E2B; --accent-dk:#5E1521; --accent-soft:#F3E7E5;
+    --gold:#6B655B; --gold-soft:#EFEBE3;
+    --blue:#4A443C; --blue-soft:#F1EDE6;
+    --warn:#7A1E2B; --warn-soft:#F7ECE9;
+    --radius:4px;
+    --kred:#7A1E2B; --kred-dk:#5E1521; --kpink:#F6F1E9; --kline:#D8D1C4;
+    --serif:'Noto Serif KR','Nanum Myeongjo',AppleMyungjo,'Batang',serif;
+    --sans:'Pretendard Variable',Pretendard,-apple-system,'Apple SD Gothic Neo','Malgun Gothic',sans-serif;
   }
   *{box-sizing:border-box}
-  body{margin:0;background:var(--bg);color:var(--ink);
-    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Apple SD Gothic Neo","Malgun Gothic",sans-serif;
-    line-height:1.6;}
-  .wrap{max-width:980px;margin:0 auto;padding:24px 18px 80px;}
-  header.app{padding:14px 0 6px;border-bottom:2px solid var(--accent);margin-bottom:22px;}
-  header.app h1{margin:0;font-size:24px;letter-spacing:-.3px;}
-  header.app p{margin:6px 0 0;color:var(--muted);font-size:14px;}
-  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);
-    padding:18px;margin-bottom:16px;box-shadow:0 1px 2px rgba(0,0,0,.03);}
-  .card h2{margin:0 0 12px;font-size:15px;color:var(--accent);
-    display:flex;align-items:center;gap:8px;}
-  .num{display:inline-flex;align-items:center;justify-content:center;width:22px;height:22px;
-    background:var(--accent);color:#fff;border-radius:50%;font-size:12px;font-weight:700;}
-  label.fld{display:block;font-size:13px;color:var(--muted);margin:0 0 5px;font-weight:600;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--sans);
+    line-height:1.7;letter-spacing:-0.01em;word-break:keep-all;overflow-wrap:break-word;}
+  .wrap{max-width:1400px;margin:0 auto;padding:32px 48px 80px;}
+
+  /* 마스트헤드: 이중 괘선 */
+  header.app{padding:6px 0 14px;border-bottom:2px solid var(--ink);position:relative;margin-bottom:6px;}
+  header.app::after{content:"";position:absolute;left:0;right:0;bottom:-5px;border-bottom:1px solid var(--ink);}
+  header.app h1{margin:0;font-family:var(--serif);font-size:28px;font-weight:700;letter-spacing:-0.02em;}
+  header.app p{margin:4px 0 0;color:var(--muted);font-size:13px;}
+
+  /* 비대칭 2단: 좌 도구 / 우 문서 */
+  .workbench{display:grid;grid-template-columns:minmax(340px,4fr) 8fr;gap:24px;align-items:start;margin-top:26px;}
+  aside.tools{min-width:0;}
+  main.paperpane{min-width:0;}
+
+  /* 도구 섹션: 카드 박스 대신 수평 괘선 + 여백 */
+  .card{background:transparent;border:none;border-radius:0;box-shadow:none;
+    padding:20px 0 24px;margin:0;border-top:1px solid var(--line);}
+  aside.tools > .card:first-child, .card:first-child{border-top:none;}
+  .card h2{margin:0 0 12px;font-size:14px;font-weight:700;color:var(--ink);
+    display:flex;align-items:center;gap:10px;letter-spacing:.02em;}
+  .num{color:var(--accent);font-weight:800;font-size:13px;background:none;
+    font-variant-numeric:tabular-nums;letter-spacing:.06em;width:auto;height:auto;display:inline;}
+  .num::before{content:"0";}
+  .num.plus::before{content:"";}
+
+  label.fld{display:block;font-size:12px;color:var(--hintc);margin:0 0 6px;font-weight:600;letter-spacing:.03em;}
   input[type=text],input[type=password],input[type=number],select,textarea{
-    width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;
-    font:inherit;background:#fff;color:var(--ink);}
-  textarea{min-height:120px;resize:vertical;}
+    width:100%;padding:10px 12px;border:1px solid var(--line-strong);border-radius:2px;
+    font:inherit;background:var(--panel);color:var(--ink);}
+  textarea{min-height:120px;resize:vertical;line-height:1.7;}
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--accent);box-shadow:0 0 0 3px var(--accent-soft);}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
   .row{display:flex;gap:12px;flex-wrap:wrap;}
   .row > div{flex:1;min-width:160px;}
+
   .pills{display:flex;flex-wrap:wrap;gap:8px;}
-  .pill{padding:7px 13px;border:1px solid var(--line);border-radius:999px;background:#fff;
-    cursor:pointer;font-size:13px;user-select:none;}
+  .pill{appearance:none;font:inherit;padding:7px 12px;border:1px solid var(--line-strong);
+    border-radius:4px;background:var(--panel);color:var(--ink);cursor:pointer;font-size:13px;user-select:none;
+    transition:border-color .15s,color .15s;}
+  .pill:hover:not(.on){border-color:var(--accent);color:var(--accent);}
   .pill.on{background:var(--accent);color:#fff;border-color:var(--accent);}
-  .pill.lv.on{background:var(--gold);border-color:var(--gold);}
-  .hint{font-size:12px;color:var(--muted);margin-top:6px;}
-  .btn{appearance:none;border:none;border-radius:10px;padding:13px 20px;font-size:15px;font-weight:700;
-    cursor:pointer;background:var(--accent);color:#fff;}
-  .btn:disabled{opacity:.5;cursor:not-allowed;}
-  .btn.sec{background:#fff;color:var(--accent);border:1px solid var(--accent);font-size:13px;padding:8px 14px;font-weight:600;}
-  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--line);font-size:13px;padding:8px 14px;font-weight:600;}
-  .toolbar{display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
-  .badge{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;font-weight:700;}
-  .badge.b22{background:var(--accent-soft);color:var(--accent);}
-  .badge.b15{background:var(--warn-soft);color:var(--warn);}
-  .note{background:var(--warn-soft);border:1px solid #f0d3b8;color:#7c3d0b;border-radius:9px;
-    padding:11px 13px;font-size:13px;margin:10px 0;}
-  .note.info{background:var(--blue-soft);border-color:#cfe0f2;color:#1d3a5c;}
+  .pill.lv.on{background:var(--ink);border-color:var(--ink);}
+  .hint{font-size:13px;color:var(--hintc);margin-top:6px;line-height:1.65;}
+
+  .btn{appearance:none;border:1px solid var(--accent);border-radius:4px;padding:12px 20px;
+    font:inherit;font-size:14px;font-weight:700;cursor:pointer;background:var(--accent);color:#fff;
+    transition:background .15s;}
+  .btn:hover:not(:disabled){background:var(--accent-dk);}
+  .btn:disabled{cursor:not-allowed;background:#B3A8A0;border-color:#B3A8A0;color:#fff;}
+  .btn.sec{background:var(--panel);color:var(--accent);font-size:13px;padding:8px 14px;font-weight:600;}
+  .btn.sec:hover:not(:disabled){background:var(--accent-soft);}
+  .btn.ghost{background:transparent;color:var(--hintc);border:1px solid var(--line-strong);font-size:13px;padding:8px 14px;font-weight:600;}
+  .btn.ghost:hover{border-color:var(--accent);color:var(--accent);background:transparent;}
+
+  .toolbar{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:14px;}
+  .badge{display:inline-block;padding:2px 8px;border-radius:3px;font-size:11px;font-weight:700;
+    letter-spacing:.03em;border:1px solid currentColor;background:transparent;}
+  .badge.b22{color:var(--accent);}
+  .badge.b15{color:var(--gold);}
+  .note{background:var(--warn-soft);border:1px solid #E3C8C1;color:#5E2A20;border-radius:4px;
+    padding:12px 14px;font-size:13px;margin:10px 0;}
+  .note.info{background:var(--blue-soft);border-color:var(--line);color:#3E382F;}
   .tags{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0;}
-  .tag{font-size:11px;padding:2px 9px;border-radius:6px;background:#eee9dd;color:#6b5e3a;font-weight:600;}
-  .tag.fmt{background:var(--accent-soft);color:var(--accent);}
-  .tag.lvl{background:var(--gold-soft);color:var(--gold);}
-  .tag.data{background:var(--blue-soft);color:var(--blue);}
-  .box{border-radius:9px;padding:12px 14px;margin:10px 0;font-size:14px;}
-  .box.gold{background:var(--gold-soft);border:1px solid #ecd9a3;}
-  .box.blue{background:var(--blue-soft);border:1px solid #cfe0f2;}
-  .box h4{margin:0 0 6px;font-size:13px;letter-spacing:.2px;}
+  .tag{font-size:11px;padding:2px 8px;border-radius:3px;border:1px solid var(--line);
+    background:var(--panel);color:var(--hintc);font-weight:600;letter-spacing:.04em;}
+  .tag.fmt{color:var(--accent);border-color:#E2CCC8;}
+  .tag.lvl{color:var(--ink);border-color:var(--line-strong);}
+  .tag.data{color:var(--blue);}
+  .box{border-radius:4px;padding:12px 14px;margin:10px 0;font-size:13px;border:1px solid var(--line);}
+  .box.gold{background:var(--gold-soft);}
+  .box.blue{background:var(--blue-soft);}
+  .box h4{margin:0 0 6px;font-size:12px;letter-spacing:.03em;}
   .elems{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;}
-  .elems .e{background:#f6f3eb;border-radius:9px;padding:10px;}
+  .elems .e{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:10px;}
   .elems .e b{display:block;font-size:12px;color:var(--accent);margin-bottom:5px;}
   .elems .e ul{margin:0;padding-left:16px;font-size:13px;}
   .spin{display:inline-block;width:16px;height:16px;border:2px solid #ffffff80;border-top-color:#fff;
     border-radius:50%;animation:sp .7s linear infinite;vertical-align:-3px;margin-right:8px;}
   @keyframes sp{to{transform:rotate(360deg)}}
-  .err{background:var(--warn-soft);border:1px solid #f0c4a0;color:#8a3a06;border-radius:9px;padding:12px 14px;margin:12px 0;font-size:14px;}
-  .thumbs{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px;}
+  .err{background:var(--warn-soft);border:1px solid #DDBBB2;color:#5E2A20;border-radius:4px;padding:12px 14px;margin:12px 0;font-size:13px;}
+  .thumbs{display:flex;gap:10px;flex-wrap:wrap;margin-top:8px;}
   .thumb{position:relative;}
-  .thumb img{width:70px;height:70px;object-fit:cover;border-radius:8px;border:1px solid var(--line);}
-  .thumb button{position:absolute;top:-6px;right:-6px;width:20px;height:20px;border-radius:50%;
-    border:none;background:#b9560f;color:#fff;cursor:pointer;font-size:12px;line-height:1;}
+  .thumb img{width:70px;height:70px;object-fit:cover;border-radius:4px;border:1px solid var(--line-strong);}
+  .thumb button{position:absolute;top:-9px;right:-9px;width:26px;height:26px;border-radius:50%;
+    border:1px solid var(--panel);background:var(--accent);color:#fff;cursor:pointer;font-size:14px;line-height:1;}
 
-  /* ── KICE 서·논술형 평가도구 스타일 결과 문서 ─────────────── */
-  .kdoc{background:#fff;border:1px solid var(--line);border-radius:var(--radius);
-    padding:28px 26px 34px;margin-top:6px;}
-  .keyebrow{font-size:12px;color:var(--kred-dk);font-weight:700;letter-spacing:.4px;margin-bottom:8px;
-    display:flex;align-items:center;gap:8px;}
-  .keyebrow .chip{background:var(--kred);color:#fff;border-radius:999px;padding:2px 12px;font-size:11px;}
-  .khead{background:var(--kred);color:#fff;border-radius:10px;padding:14px 20px;
-    font-size:20px;font-weight:800;letter-spacing:-.3px;line-height:1.35;
-    box-shadow:3px 3px 0 rgba(58,90,64,.16);}
-  .kban{background:var(--kred);color:#fff;font-weight:800;font-size:16px;border-radius:8px;
-    padding:8px 16px;margin:30px 0 14px;box-shadow:3px 3px 0 rgba(58,90,64,.16);}
-  .kpillrow{display:flex;align-items:center;gap:10px;margin:22px 0 10px;}
-  .kpill{background:var(--kred);color:#fff;font-weight:700;font-size:14px;border-radius:999px;padding:6px 18px;white-space:nowrap;}
-  .kline{flex:1;border-top:1px dashed var(--kred);opacity:.5;}
-  .khd{display:table;color:var(--kred-dk);font-size:16px;font-weight:800;margin:30px 0 10px;
-    padding-bottom:3px;border-bottom:3px double #a9c4ab;}
-  .ksq{font-size:14px;font-weight:800;margin:18px 0 8px;display:flex;align-items:center;gap:7px;}
-  .ksq::before{content:"";width:11px;height:11px;background:var(--kred);display:inline-block;flex:0 0 auto;}
-  table.ktbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 14px;border-top:2px solid var(--kred);}
-  table.ktbl th,table.ktbl td{border:1px solid var(--kline);padding:7px 10px;vertical-align:top;text-align:left;}
-  table.ktbl th{background:var(--kpink);font-weight:700;text-align:center;}
+  /* ── 결과 문서: 종이 위의 명조 조판 ───────────────────────── */
+  .kdoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:48px 52px 56px;max-width:840px;margin:0 auto;
+    font-family:var(--serif);font-size:14px;line-height:1.8;}
+  .kdoc button, .kdoc .note{font-family:var(--sans);}
+  .keyebrow{font-family:var(--sans);font-size:11px;letter-spacing:.08em;color:var(--hintc);
+    font-weight:700;display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+  .keyebrow .chip{background:transparent;color:var(--accent);border:1px solid var(--accent);
+    border-radius:3px;padding:1px 8px;font-size:11px;}
+  .khead{background:transparent;color:var(--ink);border-radius:0;box-shadow:none;
+    font-family:var(--serif);font-size:24px;font-weight:700;letter-spacing:-.02em;line-height:1.4;
+    padding:4px 0 14px;border-bottom:2px solid var(--ink);position:relative;}
+  .khead::after{content:"";position:absolute;left:0;right:0;bottom:-4px;border-bottom:1px solid var(--ink);}
+  .kban{background:transparent;color:var(--accent);border-radius:0;box-shadow:none;
+    font-family:var(--sans);font-weight:800;font-size:15px;letter-spacing:.02em;
+    padding:8px 0 2px;margin:36px 0 12px;border-top:2px solid var(--ink);}
+  .kpillrow{display:flex;align-items:center;gap:12px;margin:28px 0 8px;}
+  .kpill{background:transparent;color:var(--ink);font-family:var(--sans);
+    font-weight:800;font-size:12px;letter-spacing:.08em;border-radius:0;padding:0;white-space:nowrap;}
+  .kline{flex:1;border-top:1px solid var(--line-strong);opacity:1;}
+  .khd{display:table;color:var(--ink);font-family:var(--sans);font-size:14px;font-weight:800;
+    letter-spacing:.04em;margin:34px 0 10px;padding-bottom:4px;border-bottom:2px solid var(--accent);}
+  .ksq{font-family:var(--sans);font-size:13px;font-weight:800;letter-spacing:.03em;
+    margin:18px 0 8px;display:flex;align-items:center;gap:7px;}
+  .ksq::before{content:"";width:8px;height:8px;background:var(--accent);display:inline-block;flex:0 0 auto;}
+
+  /* 표: 상하 이중 괘선, 수평선 위주 조판 */
+  table.ktbl{width:100%;border-collapse:collapse;font-size:13px;margin:8px 0 18px;
+    border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);}
+  table.ktbl th{font-family:var(--sans);background:transparent;font-weight:700;font-size:12px;
+    letter-spacing:.03em;text-align:center;border:none;border-bottom:1px solid var(--ink);padding:8px 10px;vertical-align:middle;}
+  table.ktbl td{border:none;border-bottom:1px solid var(--line);padding:8px 10px;vertical-align:top;text-align:left;}
+  table.ktbl td+td, table.ktbl th+th, table.ktbl th+td, table.ktbl td+th{border-left:1px solid var(--line);}
+  table.ktbl tbody th{font-size:12px;}
   table.ktbl td.c{text-align:center;white-space:nowrap;vertical-align:middle;}
-  table.ktbl .kel{color:var(--kred-dk);font-weight:600;}
-  .kchk{color:var(--kred-dk);font-weight:800;text-align:center;vertical-align:middle;}
-  .kmat{border:1px solid #8b8b8b;border-radius:4px;padding:12px 14px;margin:10px 0;font-size:13.5px;}
+  table.ktbl .kel{color:var(--ink);font-family:var(--sans);font-weight:600;font-size:13px;}
+  .kchk{color:var(--accent);font-weight:800;text-align:center;vertical-align:middle;}
+  .kmat{border:1px solid var(--line-strong);border-radius:0;padding:14px 16px;margin:10px 0;font-size:14px;}
   .kmat .lbl{font-weight:700;}
   .kintro{font-size:15px;font-weight:700;margin:12px 0 8px;}
-  .kq{font-size:14.5px;font-weight:700;margin:16px 0 6px;line-height:1.55;}
-  .kcond{border:1.5px solid #666;padding:14px 14px 8px;margin:10px 0 14px;position:relative;border-radius:2px;}
-  .kcond .t{position:absolute;top:-11px;left:12px;background:#fff;padding:0 8px;font-weight:700;font-size:13px;}
-  .kcond b.axis{display:block;font-size:13px;margin:4px 0 2px;}
-  .kcond ul{margin:2px 0 8px;padding-left:18px;font-size:13.5px;}
+  .kq{font-size:15px;font-weight:700;margin:16px 0 6px;line-height:1.7;max-width:38em;}
+  .kcond{border:1px solid var(--ink);padding:14px 14px 8px;margin:10px 0 14px;position:relative;border-radius:0;}
+  .kcond .t{position:absolute;top:-11px;left:12px;background:var(--panel);padding:0 8px;
+    font-family:var(--sans);font-weight:700;font-size:13px;}
+  .kcond b.axis{display:block;font-family:var(--sans);font-size:12px;margin:4px 0 2px;letter-spacing:.02em;}
+  .kcond ul{margin:2px 0 8px;padding-left:18px;font-size:13px;}
   .kcond li{margin:2px 0;}
-  .kcall{background:#f4f4f4;border-radius:10px;padding:14px 16px 12px;margin:14px 0;}
-  .kcall .lb{display:inline-block;background:var(--kred);color:#fff;border-radius:999px;
-    font-size:12px;font-weight:700;padding:3px 14px;margin-bottom:8px;}
+  .kcall{background:var(--kpink);border-left:2px solid var(--accent);border-radius:0;
+    padding:12px 16px;margin:14px 0;font-family:var(--sans);}
+  .kcall .lb{display:inline-block;background:transparent;color:var(--accent);border-radius:0;
+    font-size:12px;font-weight:800;letter-spacing:.05em;padding:0;margin-bottom:6px;}
   .kcall ul{margin:0;padding-left:18px;font-size:13px;}
   .kcall li{margin:3px 0;}
-  .kul{margin:4px 0;padding-left:18px;font-size:13.5px;}
+  .kul{margin:4px 0;padding-left:18px;font-size:13px;}
   .kul li{margin:3px 0;}
-  .kstu{border:1px solid #bbb;background:#fff;padding:12px 14px;font-size:13.5px;border-radius:4px;margin:8px 0;}
-  .kfbbox{background:#f7f7f7;border-radius:8px;padding:12px 14px;font-size:13.5px;margin:8px 0;white-space:pre-wrap;}
-  .kex{margin-top:6px;padding:8px 10px;background:#eef3ec;border:1px dashed #bcccbc;border-radius:6px;font-size:12.5px;}
-  .kex b{color:var(--kred-dk);}
+  .kstu{border:1px solid var(--line-strong);background:var(--panel);padding:12px 14px;font-size:13px;border-radius:0;margin:8px 0;}
+  .kfbbox{background:var(--kpink);border-radius:0;padding:12px 14px;font-size:13px;margin:8px 0;white-space:pre-wrap;}
+  .kex{margin-top:8px;padding:6px 0 0;background:transparent;border:none;border-top:1px dashed var(--line-strong);border-radius:0;font-size:12px;}
+  .kex b{color:var(--accent);font-family:var(--sans);}
   .kvis{text-align:center;margin:8px 0 2px;}
   .kvis svg{max-width:100%;height:auto;}
-  .kvis .cap{font-size:12px;color:var(--muted);margin-top:4px;}
-  .ktotal{font-size:12.5px;color:var(--muted);text-align:right;margin:-8px 0 10px;}
-  .kans{border:1.2px solid #888;border-radius:3px;padding:4px 12px 10px;margin:6px 0 18px;}
-  .kans .kans-t{font-size:11px;color:var(--muted);margin:4px 0 2px;}
-  .kans .ln{height:34px;border-bottom:1px dashed #b9b9b9;}
+  .kvis .cap{font-family:var(--sans);font-size:12px;color:var(--hintc);margin-top:4px;letter-spacing:.02em;}
+  .ktotal{font-family:var(--sans);font-size:12px;color:var(--hintc);text-align:right;margin:-10px 0 10px;}
+  .kans{border:1px solid var(--line-strong);border-radius:0;padding:4px 12px 10px;margin:6px 0 18px;}
+  .kans .kans-t{font-family:var(--sans);font-size:11px;color:var(--muted);margin:4px 0 2px;letter-spacing:.05em;}
+  .kans .ln{height:36px;border-bottom:1px dashed var(--line-strong);}
   .kans .ln:last-child{border-bottom:none;}
   .kdoc.editing{outline:2px dashed var(--accent);outline-offset:4px;cursor:text;}
-  .kdoc.editing:focus{outline-color:var(--gold);}
 
-  @media(max-width:620px){.elems{grid-template-columns:1fr}}
+  /* 빈 상태 · 스켈레톤 */
+  .emptydoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    min-height:420px;max-width:840px;margin:0 auto;padding:48px 32px;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:8px;}
+  .ed-kicker{font-size:11px;letter-spacing:.14em;color:var(--accent);font-weight:800;}
+  .ed-title{font-family:var(--serif);font-size:20px;font-weight:700;margin:0;}
+  .ed-desc{color:var(--hintc);font-size:13px;max-width:34em;margin:0 0 14px;}
+  .skeldoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    max-width:840px;margin:0 auto;padding:48px 52px;}
+  .sk{background:#EDE7DC;border-radius:2px;margin-bottom:12px;animation:skp 1.6s ease-in-out infinite;}
+  @keyframes skp{0%,100%{opacity:1}50%{opacity:.55}}
+  @media(prefers-reduced-motion:reduce){.sk{animation:none}}
+  .skmsg{font-family:var(--sans);font-size:13px;color:var(--hintc);text-align:center;margin:16px 0 0;}
 
+  /* 반응형 */
+  @media(max-width:1100px){
+    .workbench{grid-template-columns:1fr;}
+    .wrap{padding:24px 24px 64px;}
+  }
+  @media(max-width:620px){
+    .wrap{padding:16px 20px 56px;}
+    header.app h1{font-size:22px;}
+    .elems{grid-template-columns:1fr;}
+    .kdoc{padding:20px 16px 28px;}
+    .skeldoc,.emptydoc{padding:28px 20px;}
+    .khead{font-size:19px;}
+    .toolbar{display:grid;grid-template-columns:1fr 1fr;gap:8px;}
+    .toolbar .btn{width:100%;}
+    .toolbar > span:empty{display:none;}
+    table.ktbl{display:block;overflow-x:auto;-webkit-overflow-scrolling:touch;}
+    table.ktbl td.c{white-space:normal;}
+  }
+
+  /* 인쇄: A4 판형 */
+  @page{size:A4;margin:16mm 14mm;}
   @media print{
     body{background:#fff;}
     .noprint{display:none !important;}
     body *{visibility:hidden;}
     #printArea, #printArea *{visibility:visible;}
-    #printArea{position:absolute;left:0;top:0;width:100%;border:none;border-radius:0;padding:0;margin:0;}
-    .kban,.khead,.kpill,.kcall .lb{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
+    #printArea{position:absolute;left:0;top:0;width:100%;max-width:none;border:none;border-radius:0;padding:0;margin:0;}
+    .kmat,.kans,.kcond,.kcall,.kstu,.kfbbox,.kvis{break-inside:avoid;page-break-inside:avoid;}
+    table.ktbl tr{break-inside:avoid;}
+    table.ktbl thead{display:table-header-group;}
+    .kban,.khd,.ksq{break-after:avoid;}
+    .kban,.khead,.kchk,.khd{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
     table.ktbl th{-webkit-print-color-adjust:exact;print-color-adjust:exact;}
   }
 </style>
 </head>
 <body>
-<div id="root"></div>
+<div id="root">
+  <div style="max-width:520px;margin:18vh auto 0;padding:0 24px;font-family:Pretendard,-apple-system,'Malgun Gothic',sans-serif;color:#5E574D;text-align:center;">
+    <p style="font-size:15px;font-weight:700;color:#1F1A17;margin:0 0 6px;">논술형 평가 문항 스튜디오</p>
+    <p style="font-size:13px;margin:0;">앱을 불러오는 중입니다…</p>
+  </div>
+</div>
 
 <!-- 2022 개정 과학과 성취기준·성취수준(A~E) 데이터 (window.SCIENCE_STANDARDS) -->
-<script src="standards-data.js"></script>
+<script defer src="standards-data.js"></script>
 
-<script src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
-<script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-<script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
-<script src="https://unpkg.com/@babel/standalone@7/babel.min.js"></script>
+<script defer src="https://unpkg.com/jszip@3.10.1/dist/jszip.min.js"></script>
+<script defer crossorigin src="https://unpkg.com/react@18.3.1/umd/react.production.min.js"></script>
+<script defer crossorigin src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.production.min.js"></script>
+<script defer src="https://unpkg.com/@babel/standalone@7.26.4/babel.min.js"></script>
 
 <script type="text/babel" data-presets="react">
-const { useState, useEffect } = React;
+const { useState, useEffect, useRef } = React;
 
 /* ──────────────────────────────────────────────────────────────
    교육과정 데이터 — 2022 개정 과학과 (위계 순서)
@@ -461,6 +553,23 @@ function buildBlankSvg(svg, sel){
   }catch(_){ return null; }
 }
 
+/* ── SVG 무해화: script·이벤트 핸들러·외부 참조 제거 (XSS 방어) ── */
+function sanitizeSvg(svg){
+  try{
+    const doc = new DOMParser().parseFromString(svg||"", "image/svg+xml");
+    if (!doc.documentElement || doc.documentElement.nodeName.toLowerCase() !== "svg") return "";
+    doc.querySelectorAll("script,foreignObject,iframe,object,embed,animate,set,animateTransform").forEach(e=>e.remove());
+    doc.querySelectorAll("*").forEach(el=>{
+      Array.from(el.attributes).forEach(a=>{
+        const n = a.name.toLowerCase(), v = (a.value||"").toLowerCase();
+        if (n.startsWith("on") || ((n==="href"||n==="xlink:href") && !v.startsWith("#")) || v.includes("javascript:"))
+          el.removeAttribute(a.name);
+      });
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }catch(_){ return ""; }
+}
+
 /* ── SVG → PNG 변환 (개별 저장·docx 삽입용) ─────────────────── */
 function svgDims(svg){
   const m = (svg||"").match(/viewBox\s*=\s*["']\s*[\d.\-]+[ ,]+[\d.\-]+[ ,]+([\d.]+)[ ,]+([\d.]+)/);
@@ -469,6 +578,7 @@ function svgDims(svg){
 function svgToPngDataUrl(svg, scale){
   return new Promise((resolve, reject)=>{
     const { w, h } = svgDims(svg);
+    svg = sanitizeSvg(svg) || svg;
     // 이미지 로드가 되려면 독립 SVG 문서 요건(xmlns·크기)이 필요 — 없으면 보정
     if (!/xmlns\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
     if (!/<svg[^>]*\swidth\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg width="'+w+'" height="'+h+'"');
@@ -518,7 +628,7 @@ function toMarkdown(r, showTeacher) {
   if (r.standardCode) L.push(`- 성취기준 코드: ${r.standardCode}`);
   if (r.subjectScope) L.push(`- 과목 범위: ${r.subjectScope}`);
   if (r.standardNote) L.push(`> ⚠ ${r.standardNote}`);
-  if (r.hierarchyBlock) L.push(`> 🧭 위계 점검: ${r.hierarchyBlock}`);
+  if (r.hierarchyBlock) L.push(`> 위계 점검: ${r.hierarchyBlock}`);
 
   if (showTeacher) {
     L.push(""); L.push("## 1. 평가 도구 정보표");
@@ -850,7 +960,35 @@ async function downloadDocx(r, showTeacher){
 
 /* ── UI 컴포넌트 ────────────────────────────────────────────── */
 function Pill({on, onClick, children, cls}) {
-  return <span className={"pill "+(cls||"")+(on?" on":"")} onClick={onClick}>{children}</span>;
+  return <button type="button" aria-pressed={on} className={"pill "+(cls||"")+(on?" on":"")} onClick={onClick}>{children}</button>;
+}
+
+function EmptyDoc(){
+  return (
+    <div className="emptydoc noprint">
+      <span className="ed-kicker">DOCUMENT PREVIEW</span>
+      <p className="ed-title">아직 만든 문서가 없습니다</p>
+      <p className="ed-desc">왼쪽에서 과목과 성취기준을 고르고 「평가도구 문서 생성」을 누르면, KICE 양식의 서·논술형 평가도구 문서가 이 자리에 나타납니다.</p>
+      <button className="btn sec" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>과목 선택으로 이동</button>
+    </div>
+  );
+}
+
+function SkeletonDoc({sec}){
+  return (
+    <div className="skeldoc noprint" role="status" aria-live="polite">
+      <div className="sk" style={{height:26,width:"55%"}}></div>
+      <div className="sk" style={{height:12,width:"30%",marginBottom:24}}></div>
+      <div className="sk" style={{height:12,width:"100%"}}></div>
+      <div className="sk" style={{height:12,width:"96%"}}></div>
+      <div className="sk" style={{height:12,width:"88%",marginBottom:24}}></div>
+      <div className="sk" style={{height:120,width:"100%",marginBottom:24}}></div>
+      <div className="sk" style={{height:12,width:"92%"}}></div>
+      <div className="sk" style={{height:12,width:"84%",marginBottom:24}}></div>
+      <div className="sk" style={{height:90,width:"100%"}}></div>
+      <p className="skmsg">문항·채점기준·피드백 사례까지 작성하고 있습니다 — {sec}초 경과</p>
+    </div>
+  );
 }
 
 function App() {
@@ -914,11 +1052,16 @@ function App() {
   // 결과 자동 저장(브라우저 localStorage, 최근 10건)
   function saveToHistory(r){
     try{
-      const s = JSON.stringify(r);
+      let slim = r;
+      try{
+        slim = JSON.parse(JSON.stringify(r));
+        (slim.items||[]).forEach(it=>(it.materials||[]).forEach(m=>{ delete m.imageData; delete m.__docxImg; }));
+      }catch(_){ slim = r; }
+      const s = JSON.stringify(slim);
       if (s.length > 1500000) return; // 너무 크면 저장 생략(용량 보호)
       if (historyList[0] && JSON.stringify(historyList[0].data) === s) return; // 중복 방지
       const entry = { ts: Date.now(), name: (r.info&&r.info.toolName)||"평가도구",
-        subject: (r.info&&r.info.subject)||"", data: r };
+        subject: (r.info&&r.info.subject)||"", data: slim };
       const next = [entry, ...historyList].slice(0,10);
       localStorage.setItem(HKEY, JSON.stringify(next));
       setHistoryList(next);
@@ -930,12 +1073,16 @@ function App() {
     try{ localStorage.setItem(HKEY, JSON.stringify(next)); }catch(_){}
   }
 
-  // 성취기준 복수 선택 토글 (+ 입력칸 자동 구성)
+  // 성취기준 복수 선택 토글 — 자동 채움은 사용자가 직접 쓴 입력을 덮어쓰지 않는다
+  const autoTextRef = useRef("");
   function toggleStd(code){
     setSelectedStds(prev=>{
       const next = prev.includes(code) ? prev.filter(c=>c!==code) : [...prev, code];
       const arr = (STANDARDS[subject]||[]).filter(s=>next.includes(s.code));
-      if (arr.length) { setMode("standard"); setText(arr.map(s=>`[${s.code}] ${s.text}`).join("\n")); }
+      const auto = arr.map(s=>`[${s.code}] ${s.text}`).join("\n");
+      if (arr.length && (text.trim()==="" || text===autoTextRef.current)) {
+        setMode("standard"); setText(auto); autoTextRef.current = auto;
+      }
       return next;
     });
   }
@@ -1169,7 +1316,12 @@ function App() {
   // Gemini API 자동 호출 모드
   async function generate() {
     setError(""); setResult(null);
-    if (!apiKey.trim()) { setError("먼저 상단에 Gemini API 키를 입력하세요."); return; }
+    if (!apiKey.trim()) {
+      setError("먼저 상단에 Gemini API 키를 입력하세요.");
+      const el = document.getElementById("apiKey");
+      if (el) { el.focus(); el.scrollIntoView({block:"center",behavior:"smooth"}); }
+      return;
+    }
     if (!text.trim() && !images.length) { setError("성취기준·문항·아이디어 등 입력 내용 또는 사진을 넣어주세요."); return; }
     setLoading(true);
     try {
@@ -1222,7 +1374,7 @@ function App() {
       "\n\n반드시 위 [출력 형식]의 JSON 객체 하나만 출력하세요. 코드블록이나 설명 문장은 넣지 마세요.";
     navigator.clipboard.writeText(full).then(()=>{
       setPromptCopied(true); setTimeout(()=>setPromptCopied(false), 2000);
-    });
+    }).catch(()=>setError("클립보드 복사에 실패했습니다. 브라우저의 클립보드 권한을 확인해 주세요."));
   }
 
   function showPasted() {
@@ -1250,7 +1402,7 @@ function App() {
   function copyMd() {
     if (!result) return;
     const md = toMarkdown(result, showTeacher);
-    navigator.clipboard.writeText(md).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1500); });
+    navigator.clipboard.writeText(md).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1500); }).catch(()=>setError("클립보드 복사에 실패했습니다. 브라우저의 클립보드 권한을 확인해 주세요."));
   }
 
   // 과목 그룹핑 (드롭다운 optgroup)
@@ -1263,7 +1415,8 @@ function App() {
         <p>「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론 · KICE 「서·논술형 평가도구 자료」 양식 출력 · 2022 개정 교육과정</p>
       </header>
 
-      <div className="noprint">
+      <div className="workbench">
+      <aside className="tools noprint">
       {/* 0. 실행 방식 */}
       <div className="card">
         <h2><span className="num">0</span> 실행 방식</h2>
@@ -1281,14 +1434,14 @@ function App() {
           <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
             <div className="row" style={{alignItems:"flex-end"}}>
               <div style={{flex:2}}>
-                <label className="fld">Gemini API 키 (AIza…)</label>
-                <input type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
+                <label className="fld" htmlFor="apiKey">Gemini API 키 (AIza…)</label>
+                <input id="apiKey" type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
                   onBlur={()=>{ if(apiKey.trim().length>20 && !modelList.length && !modelLoading) fetchModels(true); }}
                   placeholder="AIza..." />
               </div>
               <div style={{flex:"0 0 auto"}}>
-                <button className="btn sec" onClick={fetchModels} disabled={modelLoading} style={{whiteSpace:"nowrap"}}>
-                  {modelLoading ? "불러오는 중…" : "🔄 이 키로 쓸 수 있는 모델 불러오기"}
+                <button className="btn sec" onClick={()=>fetchModels(false)} disabled={modelLoading} style={{whiteSpace:"nowrap"}}>
+                  {modelLoading ? "불러오는 중…" : "이 키로 쓸 수 있는 모델 불러오기"}
                 </button>
               </div>
             </div>
@@ -1349,9 +1502,11 @@ function App() {
                   {list.map(s=>{
                     const on = selectedStds.includes(s.code);
                     return (
-                      <div key={s.code} onClick={()=>toggleStd(s.code)}
+                      <div key={s.code} role="checkbox" aria-checked={on} tabIndex={0}
+                        onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleStd(s.code); } }}
+                        onClick={()=>toggleStd(s.code)}
                         style={{padding:"8px 10px",borderRadius:8,cursor:"pointer",marginBottom:5,fontSize:13,
-                          background:on?"var(--accent-soft)":"#faf8f2",
+                          background:on?"var(--accent-soft)":"#FFFFFF",
                           border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
                         <b>{on?"✓ ":""}[{s.code}]</b> {s.text}
                         <span style={{fontSize:11,color:"var(--muted)",marginLeft:6}}>{s.area}</span>
@@ -1419,7 +1574,7 @@ function App() {
           } />
         <div style={{marginTop:10}}>
           <label className="btn ghost" style={{display:"inline-block",cursor:"pointer"}}>
-            📷 사진 · 📄 PDF 올리기
+            사진 · PDF 올리기
             <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={onFiles} style={{display:"none"}} />
           </label>
           {images.length>0 &&
@@ -1433,11 +1588,11 @@ function App() {
                         <span style={{fontSize:22}}>📄</span>
                         <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{im.name}</span>
                       </div>
-                      <button onClick={()=>removeImage(i)} title="삭제">×</button>
+                      <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
                     </div>
                   : <div className="thumb" key={i}>
                       <img src={im.url} alt={im.name}/>
-                      <button onClick={()=>removeImage(i)} title="삭제">×</button>
+                      <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
                       <label style={{fontSize:10,display:"block",textAlign:"center",cursor:"pointer",marginTop:2,color:im.asMaterial?"var(--accent)":"var(--muted)",fontWeight:im.asMaterial?700:400}}>
                         <input type="checkbox" checked={!!im.asMaterial} onChange={()=>toggleAsMaterial(i)} style={{verticalAlign:-2,marginRight:2}}/>자료로 삽입
                       </label>
@@ -1446,12 +1601,12 @@ function App() {
             </div>}
         </div>
         <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)<br/>
-          💡 사진 아래 <b>「자료로 삽입」</b>을 체크하면 그 그림이 <b>결과 문서의 (가)(나) 자료로 원본 그대로 들어가고</b>, 그 그림을 분석하는 문항이 출제됩니다 — 교과서 수준 삽화를 쓰고 싶을 때 가장 좋습니다.</div>
+          사진 아래 <b>「자료로 삽입」</b>을 체크하면 그 그림이 <b>결과 문서의 (가)(나) 자료로 원본 그대로 들어가고</b>, 그 그림을 분석하는 문항이 출제됩니다 — 교과서 수준 삽화를 쓰고 싶을 때 가장 좋습니다.</div>
       </div>
 
       {/* 4-1. 실생활 자료 검색 (네이버 뉴스/블로그) — 선택형 */}
       <div className="card">
-        <h2><span className="num">＋</span> 실생활 자료 (신문기사·칼럼) <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>선택 사항 · 발문 제시문으로 활용</span></h2>
+        <h2><span className="num plus">＋</span> 실생활 자료 (신문기사·칼럼) <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>선택 사항 · 발문 제시문으로 활용</span></h2>
         <div className="pills">
           <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용 안 함 (기본)</Pill>
           <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사·칼럼 넣기</Pill>
@@ -1476,7 +1631,7 @@ function App() {
           </div>
           <div style={{flex:"0 0 auto"}}>
             <button className="btn sec" onClick={searchNews} disabled={newsLoading} style={{whiteSpace:"nowrap"}}>
-              {newsLoading ? "검색 중…" : "🔎 검색"}
+              {newsLoading ? "검색 중…" : "검색"}
             </button>
           </div>
         </div>
@@ -1487,9 +1642,11 @@ function App() {
             {newsResults.map((a,i)=>{
               const on = articles.some(x=>x.link===a.link);
               return (
-                <div key={i} onClick={()=>toggleArticle(a)}
+                <div key={i} role="checkbox" aria-checked={on} tabIndex={0}
+                  onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleArticle(a); } }}
+                  onClick={()=>toggleArticle(a)}
                   style={{padding:"9px 10px",borderRadius:8,cursor:"pointer",marginBottom:6,
-                    background:on?"var(--accent-soft)":"#faf8f2",border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
+                    background:on?"var(--accent-soft)":"#FFFFFF",border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
                   <div style={{fontSize:13.5,fontWeight:700}}>{on?"✓ ":""}{a.title}</div>
                   <div style={{fontSize:11,color:"var(--muted)",margin:"2px 0"}}>{a.source}{a.date?` · ${a.date}`:""}</div>
                   <div style={{fontSize:12.5,color:"var(--ink)"}}>{a.desc}</div>
@@ -1548,7 +1705,7 @@ function App() {
           <div style={{marginTop:10,display:"flex",gap:18,flexWrap:"wrap",alignItems:"center"}}>
             <label style={{fontSize:13,cursor:"pointer",fontWeight:mono?700:400,color:mono?"var(--accent)":"var(--ink)"}}>
               <input type="checkbox" checked={mono} onChange={()=>setMono(!mono)} style={{verticalAlign:-2,marginRight:5}}/>
-              🖨 흑백 인쇄용 도식
+              흑백 인쇄용 도식
             </label>
             <label style={{fontSize:13,cursor:"pointer",fontWeight:blankVer?700:400,color:blankVer?"var(--accent)":"var(--ink)"}}>
               <input type="checkbox" checked={blankVer} onChange={()=>setBlankVer(!blankVer)} style={{verticalAlign:-2,marginRight:5}}/>
@@ -1597,21 +1754,28 @@ function App() {
       {/* 최근 생성 결과 (브라우저 자동 저장) */}
       {historyList.length>0 &&
         <div className="card">
-          <h2>🕘 최근 생성 결과 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span></h2>
+          <h2>최근 생성 결과 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span></h2>
           {historyList.map((h,i)=>(
             <div key={h.ts} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",
               borderBottom: i<historyList.length-1 ? "1px dashed var(--line)" : "none",fontSize:13}}>
               <b style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.name}</b>
               <span style={{color:"var(--muted)",fontSize:11,whiteSpace:"nowrap"}}>{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-              <button className="btn sec" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{ setResult(h.data); setError(""); }}>열기</button>
+              <button className="btn sec" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); }}>열기</button>
               <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>deleteHistory(i)}>삭제</button>
             </div>
           ))}
         </div>}
-      </div>
+      </aside>
 
-      {result && <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={nr=>setResult({...nr})}
-                         copyMd={copyMd} copied={copied} />}
+      <main className="paperpane">
+        {loading && runMode==="api"
+          ? <SkeletonDoc sec={loadSec}/>
+          : (result
+              ? <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={nr=>setResult({...nr})}
+                        copyMd={copyMd} copied={copied} />
+              : <EmptyDoc/>)}
+      </main>
+      </div>
 
       <p className="noprint" style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:40}}>
         생성 결과는 출제 전 성취기준·성취수준·위계·자료 적합성을 한 번 더 검토하세요.
@@ -1625,7 +1789,7 @@ function KCallout({label, items}) {
   if (!(items||[]).length) return null;
   return (
     <div className="kcall">
-      <span className="lb">💡 {label}</span>
+      <span className="lb">{label}</span>
       <ul>{(items||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
     </div>
   );
@@ -1714,10 +1878,10 @@ function BlankEditor({m, onChange}) {
   return (
     <div className="noprint" style={{textAlign:"left",marginTop:6}}>
       <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}} onClick={()=>setOpen(!open)}>
-        {open ? "빈칸 편집 닫기" : ("🕳 빈칸 직접 선택" + (sel.length ? ` (${sel.length}개 지정됨)` : ""))}
+        {open ? "빈칸 편집 닫기" : ("빈칸 직접 선택" + (sel.length ? ` (${sel.length}개 지정됨)` : ""))}
       </button>
       {open &&
-        <div style={{border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",marginTop:6,fontSize:12.5,background:"#faf8f2"}}>
+        <div style={{border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",marginTop:6,fontSize:12.5,background:"#FFFFFF"}}>
           <b>빈칸으로 바꿀 용어를 체크하세요.</b> 체크한 용어가 학생 배부본 도식에서 ㉠㉡㉢…으로 바뀝니다(도식 순서대로 기호 부여). 모두 해제하면 AI 제안 빈칸(있는 경우)으로 돌아갑니다.
           <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
             {texts.map((t,i)=> t ?
@@ -1758,13 +1922,14 @@ function ItemBlock({it, showTeacher, onEdited}) {
               <div className="noprint" style={{marginTop:4}}>
                 <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
                   onClick={()=>downloadDataUrl(m.imageData, ("자료그림_"+(m.label||"").replace(/[()\\/:*?"<>|]/g,"")||"자료그림")+".png")}>
-                  🖼 그림 저장
+                  그림 저장
                 </button>
               </div>
             </div>}
           {!m.imageData && (m.svg || m.svgBlank) &&
             <div className="kvis">
-              <div dangerouslySetInnerHTML={{__html: (!showTeacher && m.svgBlank) ? m.svgBlank : (m.svg || m.svgBlank)}} />
+              <div role="img" aria-label={(m.label||"자료 그림")+(m.caption?": "+m.caption:"")}
+                dangerouslySetInnerHTML={{__html: sanitizeSvg((!showTeacher && m.svgBlank) ? m.svgBlank : (m.svg || m.svgBlank))}} />
               {m.caption && <div className="cap">{m.caption}</div>}
               {showTeacher && (m.blankSel||[]).length>0 && (()=>{
                 const texts = extractSvgTexts(m.svg);
@@ -1778,12 +1943,12 @@ function ItemBlock({it, showTeacher, onEdited}) {
                 {m.svg &&
                   <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svg,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_완성본.png"); }catch(e){ alert(e.message); } }}>
-                    🖼 완성 도식 PNG 저장
+                    완성 도식 PNG 저장
                   </button>}
                 {m.svgBlank &&
                   <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svgBlank,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_빈칸.png"); }catch(e){ alert(e.message); } }}>
-                    🖼 빈칸 도식 PNG 저장
+                    빈칸 도식 PNG 저장
                   </button>}
               </div>
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
@@ -1846,18 +2011,18 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate }) {
           {showTeacher?"교사용 숨기기 (학생 배부본)":"교사용 보기"}
         </button>
         <button className="btn sec" onClick={()=>setEditing(!editing)} style={editing?{background:"var(--accent)",color:"#fff"}:null}>
-          {editing?"수정 완료":"✏️ 직접 수정"}
+          {editing?"수정 완료":"직접 수정"}
         </button>
         <button className="btn sec" onClick={()=>window.print()}>인쇄 / PDF 저장</button>
         <button className="btn sec" onClick={onDownloadDoc}>Word(.docx) 저장</button>
         <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
       </div>
       {editing &&
-        <div className="note info noprint">✏️ 수정 모드: 문서의 아무 문구나 클릭해 바로 고칠 수 있습니다. 고친 내용은 <b>인쇄/PDF에 반영</b>됩니다. (Word 저장은 원본 생성 데이터 기준이며, 교사용↔학생 배부본 전환·재생성 시 수정이 사라지니 전환 전에 인쇄하세요.)</div>}
+        <div className="note info noprint">수정 모드: 문서의 아무 문구나 클릭해 바로 고칠 수 있습니다. 고친 내용은 <b>인쇄/PDF에 반영</b>됩니다. (Word 저장은 원본 생성 데이터 기준이며, 교사용↔학생 배부본 전환·재생성 시 수정이 사라지니 전환 전에 인쇄하세요.)</div>}
       {docErr && <div className="err noprint">⚠ {docErr}</div>}
 
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
-      {r.hierarchyBlock && <div className="note info noprint">🧭 위계 점검: {r.hierarchyBlock}</div>}
+      {r.hierarchyBlock && <div className="note info noprint">위계 점검: {r.hierarchyBlock}</div>}
 
       {/* 내용요소·평가요소 — 화면 전용 참고 카드 */}
       {showTeacher && ((ce.knowledge||[]).length || (ce.process||[]).length || (ce.value||[]).length) > 0 &&
@@ -2005,7 +2170,7 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate }) {
               return (
                 <div key={i}>
                   <div className="kpillrow">
-                    <span className="kpill">💡 {cs.title||`사례 ${i+1}`}</span>
+                    <span className="kpill">{cs.title||`사례 ${i+1}`}</span>
                     <span className="kline"></span>
                   </div>
                   {cs.studentAnswer && <React.Fragment>
