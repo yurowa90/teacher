@@ -76,3 +76,18 @@
 
 - `index.html` — 앱 전체(React + Babel standalone, 빌드 불필요). UI·교육과정 데이터·프롬프트 조립·
   Gemini API 호출·결과 렌더링이 한 파일에 들어 있습니다.
+
+## 개발 (코드 수정 방법)
+
+앱 소스는 `app.jsx`(JSX 원본)이며, 배포는 컴파일된 `app.js`를 정적으로 서빙합니다.
+`app.jsx`를 수정한 뒤 반드시 아래 명령으로 `app.js`를 다시 생성해 **함께 커밋**하세요:
+
+```bash
+npx esbuild app.jsx --loader:.jsx=jsx --minify --charset=utf8 --outfile=app.js
+```
+
+- `index.html` — 마크업·스타일·스크립트 로드 (브라우저 내 Babel 컴파일 제거됨)
+- `vendor/` — React 18.3.1 · ReactDOM 18.3.1 · JSZip 3.10.1 셀프호스팅 (CDN 미의존)
+- `standards-data.js` — 2022 개정 과학과 성취기준·성취수준 데이터 (엑셀에서 자동 생성)
+- `api/naver-news.js` — 네이버 검색 프록시 (Vercel 서버리스, 환경변수 필요)
+- `vercel.json` — 정적 배포 설정 + CSP 등 보안 헤더
