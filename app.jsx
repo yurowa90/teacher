@@ -1,0 +1,2144 @@
+/*
+ * 논술형 평가 문항 스튜디오 — 앱 소스 (JSX)
+ * 이 파일이 소스의 원본이다. 수정 후 아래 명령으로 app.js를 다시 생성해 함께 커밋할 것:
+ *   npx esbuild app.jsx --loader:.jsx=jsx --minify --charset=utf8 --outfile=app.js
+ * (배포는 컴파일된 app.js를 정적으로 서빙한다 — 브라우저 내 Babel 컴파일 제거됨)
+ */
+const { useState, useEffect, useRef } = React;
+
+/* ──────────────────────────────────────────────────────────────
+   교육과정 데이터 — 2022 개정 과학과 (위계 순서)
+   각 과목은 hierarchy 레벨(낮을수록 하위 학년/기초)을 가진다.
+   상위 레벨 과목에서 처음 도입되는 개념은 선행학습 방지를 위해 배제.
+   ────────────────────────────────────────────────────────────── */
+const SUBJECTS = [
+  { v:"중학교 과학", lv:0, group:"중학교" },
+  { v:"통합과학1", lv:1, group:"고1 공통" },
+  { v:"통합과학2", lv:1, group:"고1 공통" },
+  { v:"과학탐구실험1", lv:1, group:"고1 공통" },
+  { v:"과학탐구실험2", lv:1, group:"고1 공통" },
+  { v:"물리학", lv:2, group:"일반선택" },
+  { v:"화학", lv:2, group:"일반선택" },
+  { v:"생명과학", lv:2, group:"일반선택" },
+  { v:"지구과학", lv:2, group:"일반선택" },
+  { v:"역학과 에너지", lv:3, group:"진로선택" },
+  { v:"전자기와 양자", lv:3, group:"진로선택" },
+  { v:"물질과 에너지", lv:3, group:"진로선택" },
+  { v:"화학 반응의 세계", lv:3, group:"진로선택" },
+  { v:"세포와 물질대사", lv:3, group:"진로선택" },
+  { v:"생물의 유전", lv:3, group:"진로선택" },
+  { v:"지구시스템과학", lv:3, group:"진로선택" },
+  { v:"행성우주과학", lv:3, group:"진로선택" },
+  { v:"과학의 역사와 문화", lv:4, group:"융합선택" },
+  { v:"기후변화와 환경생태", lv:4, group:"융합선택" },
+  { v:"융합과학 탐구", lv:4, group:"융합선택" },
+];
+
+/* ──────────────────────────────────────────────────────────────
+   실제 성취기준·성취수준 데이터 (2022 개정 과학과)
+   standards-data.js(window.SCIENCE_STANDARDS)에서 로드한다.
+   출처: 과학과 교육과정(교육부 고시 2022-33호 별책9) + 성취수준 3종(교육부·평가원).
+   20개 과목·성취기준 371개, 각 A~E 성취수준.
+   ────────────────────────────────────────────────────────────── */
+const STANDARDS = (typeof window !== "undefined" && window.SCIENCE_STANDARDS) || {};
+
+// 문항 형식 (FORMATS 6종 + 자동)
+const FORMATS = ["자동","자료제시형","문제해결형","비교분석형","논증형","실험탐구형","자유서술형"];
+
+// 입력 방식
+const MODES = [
+  { v:"standard",  t:"성취기준 → 문항 생성", d:"성취기준·성취수준을 입력해 새 문항 제작" },
+  { v:"convert",   t:"지필/학력평가 → 논술형 변환", d:"선다형·단답형 등을 논술형으로 변환" },
+  { v:"transform", t:"논술형 → 변형", d:"기존 논술형 문항을 새 소재로 변형" },
+  { v:"idea",      t:"아이디어·주제로 만들기", d:"주제·키워드만으로 문항 제작" },
+];
+
+// 성취수준 (LEVELS A~E)
+const LEVELS = ["A","B","C","D","E"];
+
+// 그림자료 옵션
+const VISUALS = [
+  { v:"auto",   t:"필요하면 생성" },
+  { v:"always", t:"반드시 생성" },
+  { v:"none",   t:"생성 안 함" },
+];
+
+// 길라잡이 반응 지시어 17종
+const DIRECTIVES = ["요약","분류","비교","대조","분석","추론","적용","논증","설명",
+  "예측","평가","종합","해석","서술","구분","제안","도출"];
+
+/* ──────────────────────────────────────────────────────────────
+   시스템 지침 (GUIDE)
+   — KICE 「서·논술형 평가도구 자료」(과학과) 양식
+   — 「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론
+   ────────────────────────────────────────────────────────────── */
+const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평가도구 자료」(과학과) 양식과 「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론을 따르는 과학과 서·논술형 평가 도구 개발 전문가다. 결과물은 KICE 평가도구 자료 한 편과 같은 완결된 문서 구조를 갖는다: ① 평가 도구 정보표 → ② 평가 문항 → ③ 예시 답안 → ④ 채점 기준 → ⑤ 성취수준별 학생 수행 특성 → ⑥ 채점 시 유의점 → ⑦ 채점 및 피드백 사례 → ⑧ 피드백 제공 시 유의점 → ⑨ 수행평가 적용을 위한 Tip.
+
+[문항 제작 절차]
+1) 성취기준·성취수준 분석 → 2) 평가요소(내용요소) 도출 → 3) 문항 제작(발문·자료·조건) → 4) 채점기준표 작성 → 5) 예시 답안·성취수준별 수행 특성·피드백 사례 작성. 이 순서를 따른다.
+
+[문항 구성요소]
+- 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
+- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 출처가 있는 듯한 제시문은 "– ○○ 자료, 20XX 변형" 식 표기를 붙일 수 있다.
+- 조건: 조건은 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 논술형에서 분량 제한(예: "500~700자로 작성할 것")처럼 발문만으로 통제하기 어려운 것만 조건으로 둔다. 조건을 넣지 않는 문항은 conditions.content·conditions.form을 모두 빈 배열([])로 둔다.
+
+[반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
+  · 요약: 자료의 핵심 개념·결론을 간결하게 정리   · 분류: 공통된 과학적 특성으로 상위·하위 범주로 묶기
+  · 구분: 명확한 기준에 따라 개념·현상을 나눔   · 비교: 둘 이상의 공통점과 차이점을 모두 진술
+  · 대조: 차이점을 중심으로 진술   · (의견) 제시: 주장·자료를 해석해 자신의 판단과 근거를 제시
+  · 설명: 용어·개념의 의미와 작동 원리를 구체적 사례로   · 분석: 자료·그래프를 구성 요소별로 해석해 의미 도출
+  · 평가: 자료의 장점과 한계를 기준에 따라 판단   · 논증: 과학적 주장에 근거와 자료를 연결해 타당성을 설득력 있게 제시
+  · 서술: 현상·과정·절차를 조건에 맞게 자세히 기록   (그 밖: 추론·적용·예측·종합·해석·도출도 의미에 맞게 사용 가능)
+
+[평가요소 표기] 평가요소·채점 요소는 반드시 명사형 '~하기'로 적는다(예: "기후변화로부터 감염병 문제 추론하기").
+
+[자료-발문 연계 원칙] 자료가 있으면 최소 한 문항 이상이 그 자료를 직접 분석·해석해야만 풀 수 있게 하고, 발문/조건에서 자료를 명시적으로 가리킨다("(나)에 제시된 ~를 근거로", "(가)와 (나)를 비교하여"). 자료에 없는 사실을 묻거나 답의 단서를 자료에서 빠뜨리지 않는다. 자료 없이 일반 지식만으로 풀리는 문항은 배제한다.
+
+[채점 기준] 분석적 채점을 원칙으로 한다. 하위 문항(또는 문항)마다 채점 요소를 정하고, 만점부터 0점까지 모든 점수 단계에 '수행 특성'을 기술한다(예: 3점=3가지를 옳게 제시함 / 2점=2가지 / 1점=1가지 / 0점=옳게 제시하지 못하거나 답안을 작성하지 않음). 단계 간 기준이 서로 중복되지 않게 하고, 도움이 되면 점수 단계별 예시 답안을 덧붙인다. 배점은 3층으로 정합해야 한다: 각 하위 문항 배점 = 그 하위 문항 채점 요소 만점의 합, 문항 배점 = 하위 문항 배점의 합. 논증·평가·해석 요소는 개수가 아니라 수행의 질로 단계를 구분한다(예: 3점=근거와 자료를 연결해 타당하게 논증함 / 2점=근거는 있으나 자료와의 연결이 불완전함 / 1점=근거 없이 주장만 제시함). 점수 단계는 만점부터 0점까지 촘촘히 두는 것을 원칙으로 하되, 건너뛸 경우 그 이유가 수행 특성에서 드러나야 한다.
+
+[성취수준별 학생 수행 특성] 밴드 구획은 정보표 achievementLevels의 밴드와 동일하게 하고, scoreRange는 전체 문항 배점 합계를 기준으로 0점부터 만점까지 빠짐·겹침 없이 나눈다. 각 밴드별로 그 구간 학생이 무엇을 해냈고 무엇을 보완해야 하는지 '~하였습니다 / ~해야 합니다' 문체로 2~4문장 기술한다.
+
+[채점 및 피드백 사례] 수준이 다른 가상 학생 사례 2개를 만든다. 각 사례는 ① 학생 답안 예시(실제 학생이 쓴 듯한 불완전한 답안), ② 채점 요소별 부여 점수, ③ 'ooo 학생은 ~'으로 시작하는 개별 피드백(잘한 점 → 보완할 점 → 학습 제안 순, '~할 수 있을 것입니다' 문체)으로 구성한다. 부여 점수는 채점 기준의 점수 단계 값 중 하나와 정확히 일치해야 한다.
+
+[수행평가 적용을 위한 Tip] ① 교수·학습 및 평가 계획(도구 활용 개요 1~2문장 + 차시별 계획 1~2차시: 활동 제목, 주요 학습 내용, 평가 계획), ② 문항 변형 방향 2~3개, ③ 채점기준표 변형 방향 2~3개를 제안한다.
+
+[평가 도구 정보표] 학교급·학년·영역(단원)은 성취기준·과목에서 추론해 채운다. 성취수준은 입력에 있으면 그대로 쓰고, 없으면 성취기준으로부터 A~E 수준 기술을 만들어 2~3개 밴드(예: A·B / C·D / E)로 묶어 작성한다. 평가 도구 개발 취지는 '~하도록 한다 / ~평가한다' 문체 2~3문장으로 쓴다.
+
+[성취수준과 최소능력자 변별] 각 문항의 '타겟 수준'은 그 수준의 최소능력자(borderline) 기준으로 설계한다. 예: 타겟이 C인 문항은 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 갖는다. 타겟 수준의 최소능력자가 각 채점 요소에서 어느 점수 단계에 도달하는지(예: "C 최소능력자 기대 득점 4점/7점")를 levelAnalysis.rationale에 명시하고, 그 기대 득점이 levelCharacteristics의 해당 밴드 점수 구간과 맞물리게 하라. 채점기준 만점 단계와 성취수준별 수행 특성은 성취수준 기술의 행동 동사·내용요소를 재사용해 일관되게 작성한다(성취수준을 직접 입력받지 않은 모드에서도 동일하게 적용).
+
+[교육과정 정합성] 2022 개정 과학과를 기본으로 한다. 입력된 성취기준 코드가 2015 개정(과목명에 로마숫자 Ⅰ·Ⅱ가 붙거나 통합과학 코드가 [10통과01-..] 형태)이면 curriculum을 "2015"로 판정하고 대응하는 2022 개정 과목·표기를 standardNote에 안내한다. 2022 개정이면 "2022"로 판정한다.
+
+[위계 통제] 대상 과목이 지정되면 그 과목의 학습 범위 안에서만 출제하고, 상위 학년·심화 과목에서 처음 도입되는 개념은 자료·문항·조건·예시 답안에서 배제한다. 배제한 상위 개념을 hierarchyBlock에 한 문장으로 기술한다.
+
+[예시 답안] 하위 문항마다 발문·조건을 모두 충족하는 만점 예시 답안을 작성한다. 자료가 있으면 그 구체적 내용을 인용하고, 채점 기준 만점 단계의 기술과 일치시킨다.
+
+[그림자료 — SVG 도식 디자인 규격] 그림자료는 SVG 벡터 도식으로 만든다. 기본 문법은 '둥근 상자 + 화살표 흐름도'다. 아래 규격을 정확히 지킨다.
+- 상자: 둥근 사각형(rx=10, 테두리 1.5px), 내부에 두 줄 텍스트 — 1줄째 핵심 용어(굵게 15px, text-anchor="middle"), 2줄째 짧은 부연(11.5px, 회색). 상자 폭은 텍스트보다 넉넉하게(글자수×15px+40 이상), 높이 54~60.
+- 흐름(과정형): 상자 3~5개를 가로 등간격 배치하고 사이에 화살표(선 굵기 2, marker 또는 삼각형 폴리곤). 순환·반복 개념은 흐름 아래 중앙에 "↻ 여러 세대에 걸쳐 반복" 같은 주석 텍스트(12px)를 단다.
+- 분기(비교·갈래형): 상단 중앙에 시작 상자, 거기서 좌우 두 갈래로 비스듬한 화살표를 내려 두 경로의 상자를 배치하고, 각 경로 아래로 수직 화살표→결과 상자. 두 경로는 좌우 대칭 정렬.
+- 그래프: 축·눈금·수치·단위를 정확히 표기하고 데이터가 문항·답안과 일치해야 한다.
+- 텍스트는 모두 <text>로 쓰고(줄바꿈은 tspan), 좌표를 계산해 잘림·겹침이 없게 한다. 상자 밖 주석은 12px.
+- 색은 [인쇄 설정] 지시를 따른다. 컬러 지정 시에도 상자 채움은 연한 톤(예: #f4f1ea·#e8efe6·#e4ecf5), 테두리·글자는 진한 톤으로 대비를 확보한다.
+- viewBox만 지정한다(width/height 속성 금지). viewBox="0 0 900 260"(흐름형)·"0 0 760 480"(분기형) 내외.
+- 접근성: <svg>의 첫 자식으로 <title>도식 한 줄 요약</title>을 넣는다.
+
+[첨부 이미지의 자료 활용] 사용자가 이미지를 첨부하며 자료로 쓰라고 지시한 경우, 그 이미지를 다시 그리지 말고 materials 항목에 "imageIndex": N (첨부 순서, 1부터)을 지정하고 svg는 null, label과 caption만 작성하라. 그 이미지는 앱이 문서에 원본 그대로 삽입한다. 문항은 그 이미지의 내용을 직접 분석·해석해야 풀리도록 설계한다.
+
+[출력 형식] 반드시 아래 JSON 스키마의 객체 하나만 출력한다. 코드펜스나 설명 문장을 절대 포함하지 않는다. 한국어로 작성한다. scoring의 levels는 만점→0점 순서로 나열한다.
+
+{
+  "curriculum": "2022" | "2015",
+  "standardCode": "감지된 성취기준 코드 또는 ''",
+  "standardText": "성취기준 문장(있으면) 또는 ''",
+  "standardNote": "교육과정 혼용/대응 안내 또는 ''",
+  "subjectScope": "출제에 적용한 과목 범위 설명",
+  "hierarchyBlock": "위계상 배제한 상위 개념 설명 또는 ''",
+  "info": {
+    "schoolLevel": "고등학교",
+    "subject": "통합과학2",
+    "grade": "1학년",
+    "domain": "(3) 과학과 미래 사회",
+    "toolName": "평가 도구명",
+    "achievementLevels": [ { "band": "A·B", "text": "해당 수준 성취수준 기술" } ],
+    "purpose": "평가 도구 개발 취지(2~3문장)",
+    "itemSummary": [ { "item": "문항 1", "type": "논술형", "elements": ["성취기준 기반 평가 요소"] } ]
+  },
+  "contentElements": { "knowledge": ["지식·이해 요소"], "process": ["과정·기능 요소"], "value": ["가치·태도 요소"] },
+  "evaluationElements": ["명사형 ~하기 평가요소"],
+  "items": [
+    {
+      "number": 1,
+      "type": "서술형" | "논술형",
+      "format": "자료제시형",
+      "directive": "논증",
+      "targetLevel": "C",
+      "points": 7,
+      "intro": "(가)와 (나)의 내용을 바탕으로 물음에 답하시오.",
+      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "svgBlank": "빈칸 변형 지시가 있을 때 ㉠㉡㉢ 빈칸본 SVG, 아니면 null", "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
+      "questions": [
+        { "label": "(1)" 또는 "",
+          "stem": "발문",
+          "points": 3,
+          "conditions": { "content": ["내용적 측면 조건"], "form": ["형식적 측면 조건(없으면 빈 배열)"] },
+          "modelAnswer": "만점 예시 답안" }
+      ],
+      "tips": ["활용 Tip 문장(답안 작성 예상 시간·변형 아이디어 등) 2~3개"],
+      "scoring": [
+        { "question": "(1)" 또는 "",
+          "element": "채점 요소(~하기)",
+          "levels": [ { "points": 3, "criteria": "수행 특성", "example": "이 단계 예시 답안 또는 ''" } ] }
+      ],
+      "levelAnalysis": {
+        "standardElements": "이 문항이 성취기준에서 가져온 내용요소",
+        "levelElements": "타겟 수준 성취수준의 내용요소 분석",
+        "rationale": "왜 타겟 수준 이상은 도달하고 미만은 도달하지 못하는지 근거"
+      }
+    }
+  ],
+  "levelCharacteristics": [ { "band": "A·B", "scoreRange": "5점~7점", "text": "수행 특성 및 보완 방향 기술" } ],
+  "scoringNotes": ["채점 시 유의점 2~3개"],
+  "feedbackCases": [
+    { "title": "사례 1",
+      "itemNumber": 1,
+      "studentAnswer": "학생 답안 예시",
+      "awarded": [ { "question": "(1)", "element": "채점 요소", "points": 2 } ],
+      "feedback": "ooo 학생은 ~" }
+  ],
+  "feedbackNotes": ["피드백 제공 시 유의점 2~3개"],
+  "applicationTip": {
+    "planIntro": ["교수·학습 및 평가 계획 개요 문장"],
+    "lessonPlan": {
+      "relatedItem": "평가 도구명-문항1(논술형)",
+      "sessions": [ { "session": "1차시", "topic": "활동 제목", "details": ["주요 학습 내용"], "assessment": "보고서 평가·동료 평가" } ]
+    },
+    "variation": ["문항 변형 방향"],
+    "rubricVariation": ["채점기준표 변형 방향"]
+  }
+}`;
+
+/* ── Gemini API 호출 ─────────────────────────────────────────── */
+async function callGemini({ apiKey, model, system, userText, images, maxTokens }) {
+  const parts = [{ text:userText }];
+  for (const img of images) {
+    parts.push({ inline_data:{ mime_type:img.mime, data:img.data } });
+  }
+  const body = {
+    system_instruction: { parts:[{ text:system }] },
+    contents: [{ role:"user", parts }],
+    generationConfig: {
+      temperature: 0.7,
+      maxOutputTokens: maxTokens || 32000,
+      responseMimeType: "application/json", // JSON 출력 강제
+    },
+  };
+  const url = "https://generativelanguage.googleapis.com/v1beta/models/"
+    + encodeURIComponent(model) + ":generateContent?key=" + encodeURIComponent(apiKey);
+  const MAX_TRY = 4;
+  let res;
+  for (let attempt = 1; attempt <= MAX_TRY; attempt++) {
+    res = await fetch(url, {
+      method:"POST",
+      headers:{ "content-type":"application/json" },
+      body: JSON.stringify(body),
+    });
+    if (res.ok) break;
+    // 503(과부하)·500(일시 오류)은 잠시 뒤 자동 재시도
+    if ((res.status === 503 || res.status === 500) && attempt < MAX_TRY) {
+      await new Promise(r => setTimeout(r, attempt * 2500));
+      continue;
+    }
+    let detail = "";
+    try { const e = await res.json(); if (e.error && e.error.message) detail = e.error.message; } catch(_){}
+    let msg, kind = "";
+    if (res.status === 400)      { msg = "요청이 거부되었습니다. 모델명 또는 입력을 확인하세요."; kind = "bad_request"; }
+    else if (res.status === 403) { msg = "API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인하세요."; kind = "auth"; }
+    else if (res.status === 404) { msg = "이 키로는 '" + model + "' 모델을 사용할 수 없습니다."; kind = "model_unavailable"; }
+    else if (res.status === 429) { msg = "요청 한도를 초과했습니다(무료 등급 할당량 부족일 수 있음)."; kind = "quota"; }
+    else if (res.status === 503 || res.status === 500) { msg = "모델이 일시적으로 혼잡합니다(구글 서버 과부하). 여러 번 자동 재시도했지만 실패했습니다. 잠시 후 다시 누르거나 다른 모델(예: gemini-2.5-flash)을 선택하세요."; kind = "overloaded"; }
+    else                         { msg = "API 오류 (" + res.status + ")."; }
+    if (detail) msg += " (구글 응답: " + detail + ")";
+    const err = new Error(msg); err.kind = kind; err.status = res.status;
+    throw err;
+  }
+  const data = await res.json();
+  const cand = (data.candidates || [])[0];
+  const stop = cand && cand.finishReason;
+  const text = cand && cand.content && cand.content.parts
+    ? cand.content.parts.map(p=>p.text||"").join("") : "";
+  if (!text) {
+    const block = data.promptFeedback && data.promptFeedback.blockReason;
+    throw new Error(block ? ("요청이 안전 정책으로 차단되었습니다: "+block) : "빈 응답을 받았습니다. 다시 시도해 주세요.");
+  }
+  return { raw:text, stop };
+}
+
+// 잘리거나(truncation) 사소하게 깨진 JSON도 최대한 복구해 파싱
+function autoCloseJson(s) {
+  let inStr = false, esc = false; const stack = []; let out = "";
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i]; out += c;
+    if (esc) { esc = false; continue; }
+    if (c === "\\") { esc = true; continue; }
+    if (c === '"') { inStr = !inStr; continue; }
+    if (inStr) continue;
+    if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") stack.pop();
+  }
+  if (inStr) out += '"';                                   // 문자열 도중에 끊겼으면 닫기
+  out = out.replace(/,\s*"[^"]*"\s*:?\s*$/,"")             // 끝에 매달린 미완성 key 제거
+           .replace(/:\s*$/,": null")                       // 값 없는 key
+           .replace(/,\s*$/,"");                            // 매달린 콤마
+  for (let i = stack.length - 1; i >= 0; i--) out += (stack[i] === "{" ? "}" : "]");
+  return out;
+}
+
+function parseResult(raw) {
+  let s = (raw || "").trim();
+  s = s.replace(/^```(json)?/i,"").replace(/```\s*$/,"").trim();
+  const a = s.indexOf("{");
+  if (a > 0) s = s.slice(a);
+  const b = s.lastIndexOf("}");
+  const noTrailingComma = x => x.replace(/,\s*([}\]])/g, "$1");
+  const attempts = [
+    s,
+    b > 0 ? s.slice(0, b + 1) : s,
+    noTrailingComma(b > 0 ? s.slice(0, b + 1) : s),
+    noTrailingComma(autoCloseJson(s)),   // 잘린 출력 복구
+  ];
+  for (const t of attempts) { try { return JSON.parse(t); } catch(_){} }
+  throw new Error("PARSE_FAIL");
+}
+
+/* ── 도식 빈칸 편집: SVG의 텍스트를 교사가 골라 ㉠㉡ 빈칸으로 ── */
+const BLANK_SYMS = ["㉠","㉡","㉢","㉣","㉤","㉥","㉦","㉧"];
+function extractSvgTexts(svg){
+  try{
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    return Array.from(doc.querySelectorAll("text")).map(t=>t.textContent.replace(/\s+/g," ").trim());
+  }catch(_){ return []; }
+}
+function buildBlankSvg(svg, sel){
+  try{
+    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const texts = Array.from(doc.querySelectorAll("text"));
+    const ordered = [...sel].sort((a,b)=>a-b);
+    ordered.forEach((idx,k)=>{
+      const el = texts[idx]; if(!el) return;
+      while(el.firstChild) el.removeChild(el.firstChild);
+      el.textContent = "(  " + (BLANK_SYMS[k]||"?") + "  )";
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }catch(_){ return null; }
+}
+
+/* ── SVG 무해화: script·이벤트 핸들러·외부 참조 제거 (XSS 방어) ── */
+function sanitizeSvg(svg){
+  try{
+    const doc = new DOMParser().parseFromString(svg||"", "image/svg+xml");
+    if (!doc.documentElement || doc.documentElement.nodeName.toLowerCase() !== "svg") return "";
+    doc.querySelectorAll("script,foreignObject,iframe,object,embed,animate,set,animateTransform").forEach(e=>e.remove());
+    doc.querySelectorAll("*").forEach(el=>{
+      Array.from(el.attributes).forEach(a=>{
+        const n = a.name.toLowerCase(), v = (a.value||"").toLowerCase();
+        if (n.startsWith("on") || ((n==="href"||n==="xlink:href") && !v.startsWith("#")) || v.includes("javascript:"))
+          el.removeAttribute(a.name);
+      });
+    });
+    return new XMLSerializer().serializeToString(doc.documentElement);
+  }catch(_){ return ""; }
+}
+
+/* ── SVG → PNG 변환 (개별 저장·docx 삽입용) ─────────────────── */
+function svgDims(svg){
+  const m = (svg||"").match(/viewBox\s*=\s*["']\s*[\d.\-]+[ ,]+[\d.\-]+[ ,]+([\d.]+)[ ,]+([\d.]+)/);
+  return m ? { w: parseFloat(m[1]), h: parseFloat(m[2]) } : { w: 900, h: 400 };
+}
+function svgToPngDataUrl(svg, scale){
+  return new Promise((resolve, reject)=>{
+    const { w, h } = svgDims(svg);
+    svg = sanitizeSvg(svg) || svg;
+    // 이미지 로드가 되려면 독립 SVG 문서 요건(xmlns·크기)이 필요 — 없으면 보정
+    if (!/xmlns\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
+    if (!/<svg[^>]*\swidth\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg width="'+w+'" height="'+h+'"');
+    const img = new Image();
+    img.onload = ()=>{
+      const c = document.createElement("canvas");
+      c.width = Math.max(1, Math.round(w * (scale||2)));
+      c.height = Math.max(1, Math.round(h * (scale||2)));
+      const ctx = c.getContext("2d");
+      ctx.fillStyle = "#ffffff"; ctx.fillRect(0, 0, c.width, c.height);
+      ctx.drawImage(img, 0, 0, c.width, c.height);
+      try { resolve(c.toDataURL("image/png")); } catch(e){ reject(e); }
+    };
+    img.onerror = ()=>reject(new Error("도식(SVG)을 그림으로 변환하지 못했습니다."));
+    img.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(svg);
+  });
+}
+function loadImgDims(dataUrl){
+  return new Promise((resolve)=>{
+    const img = new Image();
+    img.onload = ()=>resolve({ w: img.naturalWidth||600, h: img.naturalHeight||400 });
+    img.onerror = ()=>resolve({ w: 600, h: 400 });
+    img.src = dataUrl;
+  });
+}
+function downloadDataUrl(dataUrl, name){
+  const a = document.createElement("a");
+  a.href = dataUrl; a.download = name;
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+}
+
+/* ── 자동 정합성 검증: 배점 산수·채점 단계·반응지시어 대조 ──── */
+function auditResult(r){
+  const issues = [];
+  const items = r.items||[];
+  const okDirectives = DIRECTIVES.concat(["제시"]);
+  items.forEach(it=>{
+    const qs = normQuestions(it);
+    const qSum = qs.reduce((n,q)=>n+(Number(q.points)||0),0);
+    const sSum = (it.scoring||[]).reduce((n,g)=>{
+      const tops = (g.levels||[]).map(l=>Number(l.points)||0);
+      return n + (tops.length ? Math.max(...tops) : 0);
+    },0);
+    const pts = Number(it.points)||0;
+    if (pts && qSum && pts !== qSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 하위 문항 배점 합 ${qSum}점`);
+    if (pts && sSum && pts !== sSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 채점 요소 만점 합 ${sSum}점`);
+    if (it.directive && !okDirectives.includes(it.directive)) issues.push(`문항 ${it.number}: 반응지시어 '${it.directive}'는 표준 17종 목록에 없음`);
+  });
+  (r.feedbackCases||[]).forEach((cs,ci)=>{
+    const it = items.find(x=>x.number===cs.itemNumber) || items[0];
+    (cs.awarded||[]).forEach(a=>{
+      const g = ((it&&it.scoring)||[]).find(g=> a.element ? g.element===a.element : (a.question && g.question===a.question));
+      if (g && !(g.levels||[]).some(l=>Number(l.points)===Number(a.points)))
+        issues.push(`${cs.title||`사례 ${ci+1}`}: '${g.element}' 부여 점수 ${a.points}점이 채점 기준의 단계에 없음`);
+    });
+  });
+  const total = items.reduce((n,it)=>n+(Number(it.points)||0),0);
+  const bands = r.levelCharacteristics||[];
+  if (bands.length && total){
+    const nums = bands.flatMap(b=>String(b.scoreRange||"").match(/\d+/g)||[]).map(Number);
+    if (nums.length && Math.max(...nums) !== total)
+      issues.push(`성취수준별 점수 구간의 최댓값(${Math.max(...nums)}점)이 문서 총점(${total}점)과 다름`);
+  }
+  return issues;
+}
+
+/* ── 구버전 결과 호환: questions가 없으면 stem으로 구성 ──────── */
+function normQuestions(it) {
+  if ((it.questions||[]).length) return it.questions;
+  if (it.stem) return [{ label:"", stem:it.stem, points:it.points,
+    conditions:{ content:it.conditions||[], form:[] }, modelAnswer:it.modelAnswer||"" }];
+  return [];
+}
+
+/* ── 마크다운 변환 (KICE 평가도구 문서 구조) ───────────────── */
+function toMarkdown(r, showTeacher) {
+  const L = [];
+  const info = r.info || {};
+  L.push(`# ${info.toolName || "서·논술형 평가 문항"}`);
+  L.push("");
+  L.push(`- 교육과정: ${r.curriculum === "2015" ? "2015 개정" : "2022 개정"}`);
+  if (r.standardCode) L.push(`- 성취기준 코드: ${r.standardCode}`);
+  if (r.subjectScope) L.push(`- 과목 범위: ${r.subjectScope}`);
+  if (r.standardNote) L.push(`> ⚠ ${r.standardNote}`);
+  if (r.hierarchyBlock) L.push(`> 위계 점검: ${r.hierarchyBlock}`);
+
+  if (showTeacher) {
+    L.push(""); L.push("## 1. 평가 도구 정보표");
+    L.push("");
+    L.push(`| 학교급 | ${info.schoolLevel||""} | 과목 | ${info.subject||""} |`);
+    L.push(`|---|---|---|---|`);
+    L.push(`| 학년 | ${info.grade||""} | 영역(단원) | ${info.domain||""} |`);
+    L.push("");
+    if (r.standardText) L.push(`**성취기준** ${r.standardCode?`[${r.standardCode}] `:""}${r.standardText}`);
+    (info.achievementLevels||[]).forEach(a=>L.push(`- **${a.band}**: ${a.text}`));
+    if (info.purpose) { L.push(""); L.push(`**평가 도구 개발 취지** ${info.purpose}`); }
+    if ((info.itemSummary||[]).length) {
+      L.push(""); L.push("| 문항 번호 | 문항 유형 | 성취기준 기반 평가 요소 |"); L.push("|---|---|---|");
+      (info.itemSummary||[]).forEach(s=>L.push(`| ${s.item} | ${s.type} | ${(s.elements||[]).join(" / ")} |`));
+    }
+  }
+
+  L.push(""); L.push("## 2. 평가 문항");
+  (r.items||[]).forEach(it=>{
+    L.push(""); L.push(`### 평가 문항 ${it.number}(${it.type||"논술형"})`);
+    if (it.intro) { L.push(""); L.push(`**${it.intro}${it.points?` (${it.points}점)`:""}**`); }
+    (it.materials||[]).forEach(m=>{
+      L.push("");
+      L.push(`> **${m.label||""}** ${(m.body||"").replace(/\n/g,"\n> ")}`);
+      if (m.svg) L.push(`> (그림자료: ${m.caption||"SVG 도식"})`);
+    });
+    normQuestions(it).forEach(q=>{
+      L.push(""); L.push(`**${q.label?q.label+" ":""}${q.stem}${q.points?` (${q.points}점)`:""}**`);
+      const c = q.conditions||{};
+      if ((c.content||[]).length || (c.form||[]).length) {
+        L.push(""); L.push("〈조건〉");
+        if ((c.form||[]).length) {
+          L.push("[내용적 측면]"); (c.content||[]).forEach(x=>L.push(`- ${x}`));
+          L.push("[형식적 측면]"); (c.form||[]).forEach(x=>L.push(`- ${x}`));
+        } else {
+          (c.content||[]).forEach(x=>L.push(`- ${x}`));
+        }
+      }
+    });
+    if (showTeacher && (it.tips||[]).length) {
+      L.push(""); L.push("**활용 Tip!**"); (it.tips||[]).forEach(t=>L.push(`- ${t}`));
+    }
+    const la = it.levelAnalysis||{};
+    if (showTeacher && (la.standardElements||la.levelElements||la.rationale)) {
+      L.push(""); L.push(`**수준 설계 해설 (타겟 ${it.targetLevel||"-"})**`);
+      if (la.standardElements) L.push(`- 성취기준 내용요소: ${la.standardElements}`);
+      if (la.levelElements) L.push(`- 해당 수준 내용요소: ${la.levelElements}`);
+      if (la.rationale) L.push(`- 수준 적합성: ${la.rationale}`);
+    }
+    if (showTeacher) (it.materials||[]).forEach(m=>{
+      if ((m.blankSel||[]).length && m.svg) {
+        const texts = extractSvgTexts(m.svg);
+        const key = [...m.blankSel].sort((a,b)=>a-b).map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join(" · ");
+        L.push(""); L.push(`**${m.label||"자료"} 빈칸 정답**: ${key}`);
+      }
+    });
+  });
+
+  if (showTeacher) {
+    L.push(""); L.push("## 예시 답안");
+    L.push(""); L.push("| 문항 | 예시 답안 |"); L.push("|---|---|");
+    (r.items||[]).forEach(it=>normQuestions(it).forEach(q=>{
+      L.push(`| ${it.number}${q.label?`-${q.label}`:""} | ${(q.modelAnswer||"").replace(/\n/g,"<br>")} |`);
+    }));
+
+    L.push(""); L.push("## 채점 기준");
+    L.push(""); L.push("| 문항 | 채점 요소 | 점수 | 수행 특성 |"); L.push("|---|---|---|---|");
+    (r.items||[]).forEach(it=>(it.scoring||[]).forEach(g=>(g.levels||[]).forEach(lv=>{
+      const ex = lv.example ? `<br>_예시 답안: ${lv.example.replace(/\n/g," ")}_` : "";
+      L.push(`| ${it.number}${g.question?`-${g.question}`:""} | ${g.element} | ${lv.points}점 | ${(lv.criteria||"").replace(/\n/g," ")}${ex} |`);
+    })));
+
+    if ((r.levelCharacteristics||[]).length) {
+      L.push(""); L.push("## 성취수준별 학생 수행 특성");
+      L.push(""); L.push("| 수준 | 점수 구간 | 수행 특성 |"); L.push("|---|---|---|");
+      (r.levelCharacteristics||[]).forEach(b=>L.push(`| ${b.band} | ${b.scoreRange||""} | ${(b.text||"").replace(/\n/g," ")} |`));
+    }
+    if ((r.scoringNotes||[]).length) {
+      L.push(""); L.push("## 채점 시 유의점"); (r.scoringNotes||[]).forEach(x=>L.push(`- ${x}`));
+    }
+    (r.feedbackCases||[]).forEach((cs,i)=>{
+      L.push(""); L.push(`## 채점 및 피드백 — ${cs.title||`사례 ${i+1}`}`);
+      L.push(""); L.push("**학생 답안 예시**"); L.push(""); L.push(`> ${(cs.studentAnswer||"").replace(/\n/g,"\n> ")}`);
+      if ((cs.awarded||[]).length) {
+        L.push(""); L.push("**채점 결과 예시**");
+        (cs.awarded||[]).forEach(a=>L.push(`- ${a.question?a.question+" ":""}${a.element}: **${a.points}점**`));
+      }
+      if (cs.feedback) { L.push(""); L.push("**학생 개별 피드백 예시**"); L.push(""); L.push(cs.feedback); }
+    });
+    if ((r.feedbackNotes||[]).length) {
+      L.push(""); L.push("## 피드백 제공 시 유의점"); (r.feedbackNotes||[]).forEach(x=>L.push(`- ${x}`));
+    }
+    const ap = r.applicationTip;
+    if (ap) {
+      L.push(""); L.push("## 수행평가 적용을 위한 Tip");
+      if ((ap.planIntro||[]).length) { L.push(""); L.push("**교수·학습 및 평가 계획**"); (ap.planIntro||[]).forEach(x=>L.push(`- ${x}`)); }
+      const lp = ap.lessonPlan;
+      if (lp && (lp.sessions||[]).length) {
+        L.push("");
+        if (lp.relatedItem) L.push(`관련 문항(문항 유형): ${lp.relatedItem}`);
+        L.push(""); L.push("| 차시 | 교수·학습 활동 | 평가 계획 |"); L.push("|---|---|---|");
+        (lp.sessions||[]).forEach(s=>L.push(`| ${s.session} | **${s.topic||""}**<br>${(s.details||[]).map(d=>"· "+d).join("<br>")} | ${s.assessment||""} |`));
+      }
+      if ((ap.variation||[]).length) { L.push(""); L.push("**문항 변형 방향**"); (ap.variation||[]).forEach(x=>L.push(`- ${x}`)); }
+      if ((ap.rubricVariation||[]).length) { L.push(""); L.push("**채점기준표 변형 방향**"); (ap.rubricVariation||[]).forEach(x=>L.push(`- ${x}`)); }
+    }
+  }
+  return L.join("\n");
+}
+
+/* ── DOCX(OOXML) 생성 — 한글(HWP)·훈워드·MS워드에서 모두 열림 ── */
+function xesc(s){ return String(s==null?"":s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;"); }
+function dRun(text, o){ o=o||{};
+  return '<w:r><w:rPr>'+(o.bold?'<w:b/>':'')+(o.color?'<w:color w:val="'+o.color+'"/>':'')+
+    (o.size?'<w:sz w:val="'+o.size+'"/><w:szCs w:val="'+o.size+'"/>':'')+'</w:rPr>'+
+    '<w:t xml:space="preserve">'+xesc(text)+'</w:t></w:r>';
+}
+function dP(text, o){ o=o||{};
+  return '<w:p><w:pPr>'+(o.shade?'<w:shd w:val="clear" w:fill="'+o.shade+'"/>':'')+
+    '<w:spacing w:before="'+(o.before||0)+'" w:after="'+(o.after==null?80:o.after)+'"/>'+
+    (o.center?'<w:jc w:val="center"/>':'')+'</w:pPr>'+
+    (Array.isArray(text)?text.join(""):dRun(text,o))+'</w:p>';
+}
+function dCell(content, o){ o=o||{};
+  const paras = Array.isArray(content) ? content.join("") : dP(content,{bold:o.bold,center:o.center,after:40});
+  return '<w:tc><w:tcPr>'+(o.w?'<w:tcW w:w="'+o.w+'" w:type="dxa"/>':'')+
+    (o.span?'<w:gridSpan w:val="'+o.span+'"/>':'')+
+    (o.fill?'<w:shd w:val="clear" w:fill="'+o.fill+'"/>':'')+
+    '<w:vAlign w:val="center"/></w:tcPr>'+paras+'</w:tc>';
+}
+function dTable(rows){
+  const borders = ['top','left','bottom','right','insideH','insideV']
+    .map(b=>'<w:'+b+' w:val="single" w:sz="6" w:color="777777"/>').join('');
+  return '<w:tbl><w:tblPr><w:tblW w:w="5000" w:type="pct"/><w:tblBorders>'+borders+'</w:tblBorders></w:tblPr>'+
+    rows.map(cs=>'<w:tr>'+cs.join("")+'</w:tr>').join("")+'</w:tbl>'+dP("",{after:60});
+}
+const D_GREEN="3A5A40", D_SOFT="E8EFE6";
+function dDrawing(g){ // 문서 본문에 인라인 그림 삽입
+  return '<w:p><w:pPr><w:jc w:val="center"/><w:spacing w:after="80"/></w:pPr><w:r><w:drawing>'+
+    '<wp:inline distT="0" distB="0" distL="0" distR="0">'+
+    '<wp:extent cx="'+g.cx+'" cy="'+g.cy+'"/>'+
+    '<wp:docPr id="'+(100+g.id)+'" name="그림'+g.id+'"/>'+
+    '<a:graphic><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">'+
+    '<pic:pic>'+
+    '<pic:nvPicPr><pic:cNvPr id="'+(100+g.id)+'" name="그림'+g.id+'"/><pic:cNvPicPr/></pic:nvPicPr>'+
+    '<pic:blipFill><a:blip r:embed="'+g.rid+'"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>'+
+    '<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="'+g.cx+'" cy="'+g.cy+'"/></a:xfrm>'+
+    '<a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr>'+
+    '</pic:pic></a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>';
+}
+function dBanner(t){ return dP(t,{bold:true,color:"FFFFFF",size:26,shade:D_GREEN,before:240,after:120}); }
+function dHd(t){ return dP(t,{bold:true,color:"2B4531",size:24,before:220,after:80}); }
+function dSq(t){ return dP("■ "+t,{bold:true,before:140,after:60}); }
+function dBul(list){ return (list||[]).map(x=>dP("• "+x,{after:40})).join(""); }
+
+function buildDocxXml(r, showTeacher){
+  const info = r.info||{}; const B=[];
+  B.push(dP("서·논술형 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
+  B.push(dBanner(info.toolName||"서·논술형 평가 문항"));
+  if (!showTeacher) B.push(dP("(   )학년 (   )반 (   )번    이름: ________________",{after:120}));
+
+  if (showTeacher){
+    B.push(dBanner("1. 평가 도구 정보표"));
+    const rows=[];
+    rows.push([dCell("학교급",{fill:D_SOFT,bold:true,center:true,w:1600}), dCell(info.schoolLevel||"",{w:3200}),
+               dCell("과목",{fill:D_SOFT,bold:true,center:true,w:1600}), dCell(info.subject||"",{w:3200})]);
+    rows.push([dCell("학년",{fill:D_SOFT,bold:true,center:true}), dCell(info.grade||""),
+               dCell("영역(단원)",{fill:D_SOFT,bold:true,center:true}), dCell(info.domain||"")]);
+    rows.push([dCell("평가 도구명",{fill:D_SOFT,bold:true,center:true}), dCell([dP(info.toolName||"",{bold:true,after:40})],{span:3})]);
+    if (r.standardText)
+      rows.push([dCell("성취기준",{fill:D_SOFT,bold:true,center:true}), dCell((r.standardCode?"["+r.standardCode+"] ":"")+r.standardText,{span:3})]);
+    (info.achievementLevels||[]).forEach(a=>{
+      rows.push([dCell("성취수준 "+a.band,{fill:D_SOFT,bold:true,center:true}), dCell(a.text||"",{span:3})]);
+    });
+    if (info.purpose) rows.push([dCell("개발 취지",{fill:D_SOFT,bold:true,center:true}), dCell(info.purpose,{span:3})]);
+    B.push(dTable(rows));
+    if ((info.itemSummary||[]).length){
+      const t=[[dCell("문항 번호",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("문항 유형",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("성취기준 기반 평가 요소",{fill:D_SOFT,bold:true,center:true})]];
+      (info.itemSummary||[]).forEach(s=>t.push([dCell(s.item||"",{center:true}),dCell(s.type||"",{center:true}),dCell([( (s.elements||[]).map(e=>dP("• "+e,{after:20})).join("") )||dP("",{after:20})])]));
+      B.push(dTable(t));
+    }
+  }
+
+  B.push(dBanner(showTeacher?"2. 평가 문항":"평가 문항"));
+  (r.items||[]).forEach(it=>{
+    B.push(dHd("평가 문항 "+(it.number||"")+"("+(it.type||"논술형")+")"));
+    if (it.intro) B.push(dP(it.intro+(it.points?" ("+it.points+"점)":""),{bold:true,after:100}));
+    (it.materials||[]).forEach(m=>{
+      if (m.body) B.push(dP((m.label?m.label+" ":"")+m.body,{after:100}));
+      if (m.__docxImg) {
+        B.push(dDrawing(m.__docxImg));
+        if (m.label || m.caption)
+          B.push(dP("〔"+(m.label||"")+(m.caption?" "+m.caption:"")+"〕",{color:"666666",center:true,after:100}));
+      } else if (m.imageData || m.svg || m.svgBlank) {
+        B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림 변환에 실패해 웹 화면의 인쇄/PDF에서 확인하세요〕",{color:"888888",after:100}));
+      }
+    });
+    normQuestions(it).forEach(q=>{
+      B.push(dP((q.label?q.label+" ":"")+(q.stem||"")+(q.points?" ("+q.points+"점)":""),{bold:true,before:100,after:60}));
+      const c=q.conditions||{};
+      if ((c.content||[]).length||(c.form||[]).length){
+        B.push(dP("〈조건〉",{bold:true,after:40}));
+        if ((c.form||[]).length){
+          B.push(dP("[내용적 측면]",{bold:true,after:20})); B.push(dBul(c.content));
+          B.push(dP("[형식적 측면]",{bold:true,after:20})); B.push(dBul(c.form));
+        } else B.push(dBul(c.content));
+      }
+      if (!showTeacher){
+        B.push(dP("[답안 작성란]",{color:"888888",after:40}));
+        const n = Math.min(14, Math.max(5, (q.points||3)*2));
+        for(let k=0;k<n;k++) B.push(dP("＿".repeat(38),{color:"BBBBBB",after:100}));
+      }
+    });
+    if (showTeacher && (it.tips||[]).length){ B.push(dSq("활용 Tip !")); B.push(dBul(it.tips)); }
+    const la = it.levelAnalysis||{};
+    if (showTeacher && (la.standardElements||la.levelElements||la.rationale)){
+      B.push(dSq("수준 설계 해설 (타겟 "+(it.targetLevel||"-")+")"));
+      const rows=[];
+      if (la.standardElements) rows.push("성취기준 내용요소: "+la.standardElements);
+      if (la.levelElements) rows.push("해당 수준 내용요소: "+la.levelElements);
+      if (la.rationale) rows.push("수준 적합성: "+la.rationale);
+      B.push(dBul(rows));
+    }
+    if (showTeacher) (it.materials||[]).forEach(m=>{
+      if ((m.blankSel||[]).length && m.svg){
+        try{
+          const texts = extractSvgTexts(m.svg);
+          const key = [...m.blankSel].sort((a,b)=>a-b).map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join(" · ");
+          B.push(dP((m.label||"자료")+" 빈칸 정답: "+key,{bold:true,color:"7A1E2B",after:100}));
+        }catch(_){}
+      }
+    });
+  });
+
+  if (showTeacher){
+    B.push(dHd("예시 답안"));
+    { const t=[[dCell("문항",{fill:D_SOFT,bold:true,center:true,w:1400}),dCell("예시 답안",{fill:D_SOFT,bold:true,center:true})]];
+      (r.items||[]).forEach(it=>normQuestions(it).forEach(q=>{
+        t.push([dCell(String(it.number||"")+(q.label?"-"+q.label:""),{center:true}), dCell(q.modelAnswer||"")]);
+      })); B.push(dTable(t)); }
+    if ((r.items||[]).some(it=>(it.scoring||[]).length)){
+      B.push(dHd("채점 기준"));
+      const t=[[dCell("문항",{fill:D_SOFT,bold:true,center:true,w:1000}),dCell("채점 요소",{fill:D_SOFT,bold:true,center:true,w:2400}),dCell("점수",{fill:D_SOFT,bold:true,center:true,w:900}),dCell("수행 특성",{fill:D_SOFT,bold:true,center:true})]];
+      (r.items||[]).forEach(it=>(it.scoring||[]).forEach(g=>(g.levels||[]).forEach(lv=>{
+        t.push([dCell(String(it.number||""),{center:true}),
+                dCell((g.question?g.question+" ":"")+(g.element||"")),
+                dCell((lv.points!=null?lv.points+"점":""),{center:true}),
+                dCell([(dP(lv.criteria||"",{after:20}))+(lv.example?dP("예시 답안: "+lv.example,{color:"666666",after:20}):"")])]);
+      }))); B.push(dTable(t));
+    }
+    if ((r.levelCharacteristics||[]).length){
+      B.push(dHd("성취수준별 학생 수행 특성"));
+      const t=(r.levelCharacteristics||[]).map(b=>[dCell(b.band||"",{fill:D_SOFT,bold:true,center:true,w:1200}),dCell(b.scoreRange||"",{center:true,w:1500}),dCell(b.text||"")]);
+      B.push(dTable(t));
+    }
+    if ((r.scoringNotes||[]).length){ B.push(dSq("채점 시 유의점")); B.push(dBul(r.scoringNotes)); }
+    (r.feedbackCases||[]).forEach((cs,i)=>{
+      B.push(dHd(cs.title||("사례 "+(i+1))));
+      if (cs.studentAnswer){ B.push(dSq("학생 답안 예시")); B.push(dP(cs.studentAnswer,{after:80})); }
+      if ((cs.awarded||[]).length){ B.push(dSq("채점 결과 예시")); B.push(dBul((cs.awarded||[]).map(a=>(a.question?a.question+" ":"")+(a.element||"")+": "+a.points+"점"))); }
+      if (cs.feedback){ B.push(dSq("학생 개별 피드백 예시")); B.push(dP(cs.feedback,{after:80})); }
+    });
+    if ((r.feedbackNotes||[]).length){ B.push(dSq("피드백 제공 시 유의점")); B.push(dBul(r.feedbackNotes)); }
+    const ap=r.applicationTip;
+    if (ap){
+      B.push(dHd("수행평가 적용을 위한 Tip"));
+      if ((ap.planIntro||[]).length){ B.push(dSq("교수·학습 및 평가 계획")); B.push(dBul(ap.planIntro)); }
+      if (ap.lessonPlan && (ap.lessonPlan.sessions||[]).length){
+        const t=[[dCell("차시",{fill:D_SOFT,bold:true,center:true,w:1000}),dCell("교수·학습 활동",{fill:D_SOFT,bold:true,center:true}),dCell("평가 계획",{fill:D_SOFT,bold:true,center:true,w:1800})]];
+        (ap.lessonPlan.sessions||[]).forEach(s=>t.push([dCell(s.session||"",{center:true}),
+          dCell([dP(s.topic||"",{bold:true,after:20})+((s.details||[]).map(d=>dP("• "+d,{after:20})).join(""))]),
+          dCell(s.assessment||"",{center:true})]));
+        B.push(dTable(t));
+      }
+      if ((ap.variation||[]).length){ B.push(dSq("문항 변형 방향")); B.push(dBul(ap.variation)); }
+      if ((ap.rubricVariation||[]).length){ B.push(dSq("채점기준표 변형 방향")); B.push(dBul(ap.rubricVariation)); }
+    }
+  }
+
+  return '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'+
+    ' xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"'+
+    ' xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"'+
+    ' xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"'+
+    ' xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><w:body>'+
+    B.join("")+
+    '<w:sectPr><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1134" w:right="1134" w:bottom="1134" w:left="1134"/></w:sectPr>'+
+    '</w:body></w:document>';
+}
+
+async function downloadDocx(r, showTeacher){
+  if (!window.JSZip) { throw new Error("문서 모듈(JSZip)을 불러오지 못했습니다. 인터넷 연결을 확인하고 새로고침해 주세요."); }
+
+  // 도식(SVG)·첨부 그림을 PNG로 변환해 문서에 그림으로 포함
+  const imgs = [], tagged = [];
+  for (const it of (r.items||[])) {
+    for (const m of (it.materials||[])) {
+      try{
+        let dataUrl = null, w = 600, h = 400;
+        if (m.imageData) {
+          dataUrl = m.imageData;
+          const d = await loadImgDims(dataUrl); w = d.w; h = d.h;
+        } else {
+          const svg = showTeacher ? (m.svg || m.svgBlank) : (m.svgBlank || m.svg);
+          if (svg) { const d = svgDims(svg); w = d.w; h = d.h; dataUrl = await svgToPngDataUrl(svg, 2); }
+        }
+        if (!dataUrl) continue;
+        const base64 = dataUrl.slice(dataUrl.indexOf(",")+1);
+        const mime = dataUrl.slice(5, dataUrl.indexOf(";"));
+        const ext = mime === "image/jpeg" ? "jpeg" : "png";
+        const id = imgs.length + 1;
+        const dispW = Math.min(600, w||600);                 // 문서 안 표시 폭(px)
+        const cx = Math.round(dispW * 9525);                  // EMU 변환
+        const cy = Math.round(dispW * ((h||400)/(w||600)) * 9525);
+        imgs.push({ id, base64, ext, rid: "rImg"+id });
+        m.__docxImg = { id, rid: "rImg"+id, cx, cy };
+        tagged.push(m);
+      }catch(_){/* 변환 실패한 자료는 안내문으로 대체 */}
+    }
+  }
+
+  const zip = new JSZip();
+  zip.file("[Content_Types].xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">'+
+    '<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>'+
+    '<Default Extension="xml" ContentType="application/xml"/>'+
+    '<Default Extension="png" ContentType="image/png"/>'+
+    '<Default Extension="jpeg" ContentType="image/jpeg"/>'+
+    '<Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>'+
+    '<Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>'+
+    '</Types>');
+  zip.file("_rels/.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>'+
+    '</Relationships>');
+  zip.file("word/_rels/document.xml.rels",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">'+
+    '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>'+
+    imgs.map(g=>'<Relationship Id="'+g.rid+'" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image'+g.id+'.'+g.ext+'"/>').join("")+
+    '</Relationships>');
+  zip.file("word/styles.xml",
+    '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>'+
+    '<w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr>'+
+    '<w:rFonts w:ascii="Malgun Gothic" w:eastAsia="Malgun Gothic" w:hAnsi="Malgun Gothic"/>'+
+    '<w:sz w:val="21"/><w:szCs w:val="21"/></w:rPr></w:rPrDefault></w:docDefaults></w:styles>');
+  imgs.forEach(g=>zip.file("word/media/image"+g.id+"."+g.ext, g.base64, { base64:true }));
+  zip.file("word/document.xml", buildDocxXml(r, showTeacher));
+  tagged.forEach(m=>{ delete m.__docxImg; }); // 결과 상태·히스토리 오염 방지
+  const blob = await zip.generateAsync({ type:"blob",
+    mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+  const info = r.info||{};
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = ((info.toolName||"평가도구").replace(/[\\/:*?"<>|]/g,"_")) + (showTeacher ? "" : "_학생배부본") + ".docx";
+  document.body.appendChild(a); a.click(); document.body.removeChild(a);
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+
+/* ── UI 컴포넌트 ────────────────────────────────────────────── */
+function Pill({on, onClick, children, cls}) {
+  return <button type="button" aria-pressed={on} className={"pill "+(cls||"")+(on?" on":"")} onClick={onClick}>{children}</button>;
+}
+
+/* 성취기준 선택 목록 — 본문 타이핑 시 재렌더 차단(memo) */
+const StdList = React.memo(function StdList({subject, filter, selected, onToggle}){
+  const all = STANDARDS[subject]||[];
+  const f = filter.trim().toLowerCase();
+  const list = f ? all.filter(s=>(s.code + " " + s.text + " " + s.area).toLowerCase().includes(f)) : all;
+  return (
+    <div style={{maxHeight:230,overflowY:"auto",border:"1px solid var(--line)",borderRadius:4,padding:6}}>
+      {list.length===0 && <div className="hint" style={{padding:8}}>검색 결과가 없습니다. 다른 키워드로 시도하세요.</div>}
+      {list.map(s=>{
+        const on = selected.includes(s.code);
+        return (
+          <div key={s.code} role="checkbox" aria-checked={on} tabIndex={0}
+            onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onToggle(s.code); } }}
+            onClick={()=>onToggle(s.code)}
+            style={{padding:"8px 10px",borderRadius:4,cursor:"pointer",marginBottom:5,fontSize:13,
+              background:on?"var(--accent-soft)":"#FFFFFF",
+              border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
+            <b>{on?"✓ ":""}[{s.code}]</b> {s.text}
+            <span style={{fontSize:11,color:"var(--muted)",marginLeft:6}}>{s.area}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}, (p,n)=> p.subject===n.subject && p.filter===n.filter && p.selected===n.selected);
+
+/* 클릭해서 고치는 편집 필드 — 수정이 문서 데이터에 저장된다 */
+function Ed({v, editing, onC}){
+  const [on, setOn] = useState(false);
+  if (!editing) return <React.Fragment>{v}</React.Fragment>;
+  if (!on) return (
+    <span className="edt" tabIndex={0} title="클릭해서 수정"
+      onClick={()=>setOn(true)}
+      onKeyDown={e=>{ if(e.key==="Enter"){ e.preventDefault(); setOn(true); } }}>
+      {v || "(비어 있음 — 클릭해 입력)"}
+    </span>
+  );
+  return (
+    <textarea className="edt-input" defaultValue={v} autoFocus
+      onBlur={e=>{ setOn(false); const nv=e.target.value; if(nv!==v && onC) onC(nv); }}
+      onKeyDown={e=>{ if(e.key==="Escape") setOn(false); }} />
+  );
+}
+
+function EmptyDoc(){
+  return (
+    <div className="emptydoc noprint">
+      <span className="ed-kicker">DOCUMENT PREVIEW</span>
+      <p className="ed-title">아직 만든 문서가 없습니다</p>
+      <p className="ed-desc">왼쪽에서 과목과 성취기준을 고르고 「평가도구 문서 생성」을 누르면, KICE 양식의 서·논술형 평가도구 문서가 이 자리에 나타납니다.</p>
+      <button className="btn sec" onClick={()=>window.scrollTo({top:0,behavior:"smooth"})}>과목 선택으로 이동</button>
+    </div>
+  );
+}
+
+function SkeletonDoc({sec}){
+  return (
+    <div className="skeldoc noprint" role="status" aria-live="polite">
+      <div className="sk" style={{height:26,width:"55%"}}></div>
+      <div className="sk" style={{height:12,width:"30%",marginBottom:24}}></div>
+      <div className="sk" style={{height:12,width:"100%"}}></div>
+      <div className="sk" style={{height:12,width:"96%"}}></div>
+      <div className="sk" style={{height:12,width:"88%",marginBottom:24}}></div>
+      <div className="sk" style={{height:120,width:"100%",marginBottom:24}}></div>
+      <div className="sk" style={{height:12,width:"92%"}}></div>
+      <div className="sk" style={{height:12,width:"84%",marginBottom:24}}></div>
+      <div className="sk" style={{height:90,width:"100%"}}></div>
+      <p className="skmsg">문항·채점기준·피드백 사례까지 작성하고 있습니다 — {sec}초 경과</p>
+    </div>
+  );
+}
+
+function App() {
+  const [apiKey, setApiKey]   = useState(()=>localStorage.getItem("gemini_key")||"");
+  const [model, setModel]     = useState(()=>{
+    const saved = localStorage.getItem("gemini_model");
+    // 새 키에 막혀 있는 구 기본값은 안전한 모델로 자동 교체
+    if (!saved || saved === "gemini-2.5-flash") return "gemini-2.0-flash";
+    return saved;
+  });
+  const [subject, setSubject] = useState("자동");
+  const [selectedStds, setSelectedStds] = useState([]); // 선택한 실제 성취기준 코드(복수)
+  const [stdFilter, setStdFilter] = useState("");       // 성취기준 검색 필터
+  const [targets, setTargets] = useState([]);          // 타겟 수준 다중선택
+  const [targetMsg, setTargetMsg] = useState("");      // 타겟 선택 상한 안내
+  const [mode, setMode]       = useState("standard");
+  const [text, setText]       = useState("");
+  const [images, setImages]   = useState([]);
+  const [format, setFormat]   = useState("자동");
+  const [style, setStyle]     = useState("");
+  const [visual, setVisual]   = useState("auto");
+  const [mono, setMono]       = useState(true);   // 흑백 인쇄용 (기본 켬)
+  const [blankVer, setBlankVer] = useState(false); // 빈칸 변형(㉠㉡ 도식 완성형)
+  const [count, setCount]     = useState(1);
+  const [countStr, setCountStr] = useState("1");   // 입력 중간 상태(키보드 입력 허용)
+  const [loading, setLoading] = useState(false);
+  const [error, setError]     = useState("");
+  const [result, setResult]   = useState(null);
+  const [showTeacher, setShowTeacher] = useState(true);
+  const [copied, setCopied]   = useState(false);
+  const [runMode, setRunMode] = useState(()=>localStorage.getItem("run_mode")||"paste"); // "paste"=claude.ai(Pro/Max) · "api"=Gemini
+  const [showRunCfg, setShowRunCfg] = useState(false); // 실행 방식 설정(기본 접힘)
+  const [promptCopied, setPromptCopied] = useState(false);
+  const [pasteText, setPasteText] = useState("");
+  const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
+  const [modelLoading, setModelLoading] = useState(false);
+  const [modelMsg, setModelMsg]       = useState("");
+  // 실생활 자료(네이버 뉴스/블로그) 검색 — 선택형(기본 사용 안 함)
+  const [useNews, setUseNews]         = useState(false);
+  const [newsQuery, setNewsQuery]     = useState("");
+  const [newsType, setNewsType]       = useState("news"); // news | blog(칼럼·에세이)
+  const [newsLoading, setNewsLoading] = useState(false);
+  const [newsResults, setNewsResults] = useState([]);
+  const [newsMsg, setNewsMsg]         = useState("");
+  const [articles, setArticles]       = useState([]);     // 선택한 실생활 자료
+  const [loadSec, setLoadSec]         = useState(0);      // 생성 경과 시간(초)
+  const HKEY = "eval_history_v1";
+  const [historyList, setHistoryList] = useState(()=>{ try{ return JSON.parse(localStorage.getItem(HKEY)||"[]"); }catch(_){ return []; } });
+
+  useEffect(()=>{ localStorage.setItem("run_mode", runMode); }, [runMode]);
+
+  useEffect(()=>{ if(apiKey) localStorage.setItem("gemini_key", apiKey); }, [apiKey]);
+  useEffect(()=>{ localStorage.setItem("gemini_model", model); }, [model]);
+
+  // 생성 경과 시간 표시
+  useEffect(()=>{
+    if (!loading) { setLoadSec(0); return; }
+    const t = setInterval(()=>setLoadSec(s=>s+1), 1000);
+    return ()=>clearInterval(t);
+  }, [loading]);
+
+  // 결과 자동 저장(브라우저 localStorage, 최근 10건)
+  function saveToHistory(r){
+    try{
+      let slim = r;
+      try{
+        slim = JSON.parse(JSON.stringify(r));
+        (slim.items||[]).forEach(it=>(it.materials||[]).forEach(m=>{ delete m.imageData; delete m.__docxImg; }));
+      }catch(_){ slim = r; }
+      const s = JSON.stringify(slim);
+      if (s.length > 1500000) return; // 너무 크면 저장 생략(용량 보호)
+      if (historyList[0] && JSON.stringify(historyList[0].data) === s) return; // 중복 방지
+      const entry = { ts: Date.now(), name: (r.info&&r.info.toolName)||"평가도구",
+        subject: (r.info&&r.info.subject)||"", data: slim };
+      const next = [entry, ...historyList].slice(0,10);
+      localStorage.setItem(HKEY, JSON.stringify(next));
+      setHistoryList(next);
+    }catch(_){/* 용량 초과 등은 무시 */}
+  }
+  function importHistoryFile(e){
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = ()=>{
+      try{
+        const j = JSON.parse(rd.result);
+        const data = j && j.data && j.data.items ? j.data : (j && j.items ? j : null);
+        if (!data) throw new Error();
+        setResult(attachImages(JSON.parse(JSON.stringify(data))));
+        setError(""); saveToHistory(data);
+      }catch(_){ setError("JSON 파일을 해석하지 못했습니다. 이 앱에서 백업한 파일인지 확인하세요."); }
+    };
+    rd.readAsText(f); e.target.value = "";
+  }
+  function deleteHistory(i){
+    const next = historyList.filter((_,x)=>x!==i);
+    setHistoryList(next);
+    try{ localStorage.setItem(HKEY, JSON.stringify(next)); }catch(_){}
+  }
+
+  // 성취기준 복수 선택 토글 — 자동 채움은 사용자가 직접 쓴 입력을 덮어쓰지 않는다
+  const autoTextRef = useRef("");
+  const textRef = useRef(text); textRef.current = text;
+  function toggleStd(code){
+    setSelectedStds(prev=>{
+      const next = prev.includes(code) ? prev.filter(c=>c!==code) : [...prev, code];
+      const arr = (STANDARDS[subject]||[]).filter(s=>next.includes(s.code));
+      const auto = arr.map(s=>`[${s.code}] ${s.text}`).join("\n");
+      const cur = textRef.current;
+      if (arr.length && (cur.trim()==="" || cur===autoTextRef.current)) {
+        setMode("standard"); setText(auto); autoTextRef.current = auto;
+      }
+      return next;
+    });
+  }
+
+  const MAX_ITEMS = 4; // 문항 수 상한(타겟 수준 선택 상한과 동일)
+  function toggleTarget(l){
+    setTargets(t=>{
+      if (t.includes(l)) { setTargetMsg(""); return t.filter(x=>x!==l); }
+      if (t.length >= MAX_ITEMS) {
+        setTargetMsg(`문항 수 상한(${MAX_ITEMS}개)과 맞추기 위해 타겟 수준은 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다. 다른 수준을 해제한 뒤 선택하세요.`);
+        return t;
+      }
+      setTargetMsg(""); return [...t, l];
+    });
+  }
+
+  // API 키로 사용 가능한 모델 목록 조회 (generateContent 지원 모델만)
+  async function fetchModels(auto) {
+    setModelMsg("");
+    const key = apiKey.trim();
+    if (!key) { setModelMsg("먼저 API 키를 입력하세요."); return; }
+    setModelLoading(true);
+    try {
+      let names = [], pageToken = "";
+      do {
+        const url = "https://generativelanguage.googleapis.com/v1beta/models?pageSize=200&key="
+          + encodeURIComponent(key) + (pageToken ? "&pageToken=" + encodeURIComponent(pageToken) : "");
+        const res = await fetch(url);
+        if (!res.ok) {
+          let m = "모델 목록을 불러오지 못했습니다 (" + res.status + ").";
+          if (res.status === 400 || res.status === 403) m = "API 키가 올바르지 않거나 권한이 없습니다. 키를 확인하세요.";
+          try { const e = await res.json(); if (e.error && e.error.message) m += " " + e.error.message; } catch(_){}
+          throw new Error(m);
+        }
+        const data = await res.json();
+        (data.models || []).forEach(mo => {
+          const methods = mo.supportedGenerationMethods || [];
+          if (methods.includes("generateContent")) {
+            names.push((mo.name || "").replace(/^models\//, ""));
+          }
+        });
+        pageToken = data.nextPageToken || "";
+      } while (pageToken);
+
+      // 최신 버전 → 무료 등급 친화(flash) 순으로 정렬 (3.5 > 2.5 > 2.0 …, flash 우선)
+      const ver = n => { const m = n.match(/(\d+)\.(\d+)/); return m ? (parseInt(m[1],10)*100 + parseInt(m[2],10)) : 0; };
+      const pr  = n => (/flash-lite/.test(n)?1 : /flash/.test(n)?0 : /pro/.test(n)?2 : 3); // 무료 한도 넉넉한 flash 우선
+      names = Array.from(new Set(names)).sort((a, b) => ver(b)-ver(a) || pr(a)-pr(b) || a.localeCompare(b));
+
+      if (!names.length) { setModelMsg("이 키로 쓸 수 있는 생성 모델을 찾지 못했습니다."); }
+      else {
+        setModelList(names);
+        // 자동 조회(키 입력 직후)면 최신 flash 선택, 수동 새로고침이면 유효할 때 현재 선택 유지
+        if (auto || !names.includes(model)) setModel(names[0]);
+        setModelMsg("사용 가능한 모델 " + names.length + "개를 불러왔습니다. 최신 모델을 자동 선택했습니다.");
+      }
+    } catch(e) {
+      setModelList([]);
+      setModelMsg(e.message || String(e));
+    } finally {
+      setModelLoading(false);
+    }
+  }
+
+  // HTML 태그·엔티티 제거(네이버 응답은 <b>…</b> 등이 섞여 있음)
+  function stripTags(s){
+    return (s||"").replace(/<[^>]*>/g,"")
+      .replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&lt;/g,"<")
+      .replace(/&gt;/g,">").replace(/&#39;/g,"'").replace(/&apos;/g,"'").replace(/&nbsp;/g," ");
+  }
+
+  // 실생활 자료 검색 (서버리스 함수 /api/naver-news 경유)
+  async function searchNews(){
+    setNewsMsg("");
+    if(!newsQuery.trim()){ setNewsMsg("검색어를 입력하세요. 예: 기후변화, 감염병, 미세먼지"); return; }
+    setNewsLoading(true);
+    try{
+      const r = await fetch("/api/naver-news?query=" + encodeURIComponent(newsQuery.trim())
+        + "&type=" + newsType + "&display=10&sort=sim");
+      let data = {};
+      try { data = await r.json(); } catch(_){}
+      if(!r.ok){ throw new Error(data.error || ("검색에 실패했습니다 (" + r.status + ").")); }
+      const items = (data.items||[]).map(it=>{
+        const link = it.originallink || it.link || "";
+        return {
+          title: stripTags(it.title),
+          desc: stripTags(it.description),
+          link,
+          source: link.replace(/^https?:\/\//,"").split("/")[0],
+          date: (it.pubDate || it.postdate || "").trim(),
+        };
+      });
+      setNewsResults(items);
+      if(!items.length) setNewsMsg("검색 결과가 없습니다. 다른 검색어로 시도하세요.");
+    }catch(e){
+      setNewsResults([]);
+      setNewsMsg((e.message||String(e)) + " (배포된 사이트에서만 동작하며, 관리자가 Vercel에 네이버 API 키를 설정해야 합니다.)");
+    }finally{ setNewsLoading(false); }
+  }
+  function toggleArticle(a){
+    setArticles(prev=> prev.some(x=>x.link===a.link) ? prev.filter(x=>x.link!==a.link) : [...prev, a]);
+  }
+
+  function onFiles(e){
+    const files = Array.from(e.target.files||[]);
+    files.forEach(f=>{
+      const isImg = (f.type||"").startsWith("image/");
+      const isPdf = f.type === "application/pdf" || /\.pdf$/i.test(f.name);
+      if (!isImg && !isPdf) { setError("이미지 또는 PDF 파일만 올릴 수 있습니다: " + f.name); return; }
+      if (f.size > 18*1024*1024) { setError("파일이 너무 큽니다(18MB 초과): " + f.name + ". 필요한 페이지만 잘라 올리거나 용량을 줄여주세요."); return; }
+      const reader = new FileReader();
+      reader.onload = ()=>{
+        const res = reader.result;       // data:<mime>;base64,xxxx
+        const mime = res.substring(5, res.indexOf(";"));
+        const data = res.substring(res.indexOf(",")+1);
+        setImages(prev=>[...prev, { mime, data, url:res, name:f.name, kind: isPdf ? "pdf" : "image" }]);
+      };
+      reader.readAsDataURL(f);
+    });
+    e.target.value = ""; // 같은 파일 재선택 허용
+  }
+  function removeImage(i){ setImages(prev=>prev.filter((_,idx)=>idx!==i)); }
+  function toggleAsMaterial(i){ setImages(prev=>prev.map((x,idx)=>idx===i?{...x, asMaterial:!x.asMaterial}:x)); }
+
+  // 결과의 materials.imageIndex → 첨부 이미지 원본을 문서에 삽입
+  function attachImages(r){
+    try{
+      (r.items||[]).forEach(it=>(it.materials||[]).forEach(m=>{
+        if (m.imageIndex && images[m.imageIndex-1] && images[m.imageIndex-1].kind!=="pdf") {
+          m.imageData = images[m.imageIndex-1].url;
+        }
+      }));
+    }catch(_){}
+    return r;
+  }
+
+  function buildPrompt() {
+    const P = [];
+    const modeText = {
+      standard:"아래에 주어진 성취기준(및 성취수준)을 바탕으로 KICE 서·논술형 평가도구 자료 한 편을 제작하라.",
+      convert:"아래에 주어진 지필/선다형/단답형/학력평가 문항을 같은 성취기준·개념을 유지한 채 서·논술형 문항으로 변환하고, KICE 평가도구 자료 한 편으로 완성하라.",
+      transform:"아래에 주어진 논술형 문항을 평가 의도는 유지하되 소재·맥락을 바꾸어 변형하고, KICE 평가도구 자료 한 편으로 완성하라.",
+      idea:"아래에 주어진 아이디어·주제·키워드를 바탕으로 KICE 서·논술형 평가도구 자료 한 편을 제작하라.",
+    }[mode];
+    P.push(modeText);
+    // 여러 타겟 수준을 고르면 각 수준마다 최소 1개 문항을 보장 → 문항 수를 수준 개수까지 자동 확대(상한 4)
+    const effCount = Math.min(MAX_ITEMS, targets.length ? Math.max(count, targets.length) : count);
+    P.push(`제작할 문항 수: ${effCount}개. (필요하면 각 문항 안에 하위 문항 (1), (2)를 구성해도 된다.)`);
+
+    if (subject !== "자동") {
+      const cur = SUBJECTS.find(s=>s.v===subject);
+      const higher = SUBJECTS.filter(s=>s.lv > cur.lv).map(s=>s.v);
+      P.push(`대상 과목: '${subject}'. 이 과목의 학습 범위 안에서만 출제하고, 상위/심화 과목(${higher.join(", ")})에서 처음 도입되는 개념은 자료·문항·조건·예시 답안에서 배제하라(선행학습 방지). 배제한 상위 개념을 hierarchyBlock에 기술하라.`);
+    } else {
+      P.push("대상 과목: 자동. 성취기준에서 수준을 추정해 출제하되 위계 통제는 적용하지 않는다(hierarchyBlock는 '').");
+    }
+
+    // 선택된 실제 성취기준·성취수준(공식 원문)을 그대로 사용하도록 강제 (복수 가능)
+    const stds = (STANDARDS[subject]||[]).filter(s=>selectedStds.includes(s.code));
+    if (stds.length) {
+      const blocks = stds.map(std=>{
+        const lv = std.levels.map(l=>`  - ${l.level}: ${l.text}`).join("\n");
+        return `[공식 성취기준 (원문 그대로 사용)]\n[${std.code}] ${std.text}\n소속 영역: ${std.area}\n` +
+               `[공식 성취수준 (원문 그대로 사용 — 절대 새로 지어내지 말 것)]\n${lv}`;
+      }).join("\n\n");
+      P.push(
+        blocks + "\n→ standardCode·standardText·info.domain·info.achievementLevels는 위 공식 원문을 그대로 옮겨라(요약·변형 금지). " +
+        (stds.length>1
+          ? `성취기준이 ${stds.length}개다: 이들을 통합·연계한 문항으로 설계하고, standardCode에는 모든 코드를 ', '로 연결해 적고 standardText도 각 성취기준을 병기하며, info.achievementLevels에는 코드별 수준 기술을 구분해 담아라. `
+          : "") +
+        "채점기준·성취수준별 수행 특성도 이 공식 성취수준의 표현·위계와 일관되게 작성하라."
+      );
+    }
+
+    if (targets.length) {
+      if (targets.length === 1) {
+        P.push(`각 문항의 타겟 성취수준: ${targets[0]}. 모든 문항을 이 수준으로 설계하라. 타겟이 C인 문항이라면 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 갖도록 최소능력자 기준으로 설계하라. 각 문항 levelAnalysis에 근거를 적어라.`);
+      } else {
+        P.push(`타겟 성취수준: ${targets.join(", ")} (${targets.length}개 선택). 반드시 선택된 각 수준마다 최소 1개 이상의 문항을 배정하라. 총 ${effCount}개 문항 중 ${targets.join("·")} 수준을 각각 최소 1회 포함하고, 남는 문항이 있으면 이 수준들에 고르게 추가 배분하라. 문항마다 그 문항이 겨냥하는 수준을 targetLevel에 명시하고, 어떤 수준의 문항인지 알 수 있게 하라. 예를 들어 타겟이 C인 문항은 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 최소능력자 기준으로 설계하라. 각 문항 levelAnalysis에 배정 수준과 변별 근거를 적어라.`);
+      }
+    } else {
+      P.push("타겟 성취수준: 자동(난이도를 고르게 분포). 각 문항에 적절한 targetLevel을 지정하라.");
+    }
+
+    P.push("발문 작성: 모든 발문을 반응 지시어(요약·분류·구분·비교·대조·제시·설명·분석·평가·논증·서술 등)로 끝맺고, 그 지시어의 인지 활동에 맞게 설계하라. 각 문항 directive에 사용한 지시어를 명시하라.");
+    P.push("조건 최소화: 가급적 문항별 조건(conditions)을 넣지 말고 발문만으로 요구가 분명하게 하라. 분량 제한 등 꼭 필요한 경우에만 최소한으로 넣고, 없으면 conditions.content·conditions.form을 빈 배열([])로 둬라.");
+
+    P.push(format==="자동" ? "문항 형식: 내용에 맞게 자동 선택." : `문항 형식: '${format}'으로 고정.`);
+
+    if (visual === "none") {
+      P.push("그림자료: 생성하지 말라(materials의 svg는 모두 null).");
+    } else {
+      P.push(visual==="always" ? "그림자료: 적절한 자료 상자에 SVG 도식을 반드시 생성하라."
+                               : "그림자료: 자료가 필요한 경우에만 SVG 도식을 생성하라.");
+      P.push(mono
+        ? "[인쇄 설정] 흑백 인쇄용. 모든 SVG는 무채색만 사용한다(#000000, #333333, #666666, #999999, #cccccc, #f2f2f2, 흰색). 컬러 금지. 구분이 필요하면 명도 차·상자 채움 톤(흰/연회색)·선 굵기·점선으로 표현하라."
+        : "[인쇄 설정] 컬러. 상자 채움은 연한 톤(#f4f1ea, #e8efe6, #e4ecf5), 테두리·글자·화살표는 진한 톤(#3a5a40, #333333)으로 3~4색 이내.");
+      if (blankVer) {
+        P.push("[빈칸 변형 — 필수] 각 SVG 그림자료마다 완성본(svg)과 함께, 상자 속 핵심 용어 2~4개를 ㉠, ㉡, ㉢ … 빈칸으로 바꾼 빈칸본(svgBlank)을 만들어라. 빈칸은 밑줄 친 기호(예: '㉠' 뒤에 밑줄 공간)나 빈 상자로 표시하고, 빈칸 외의 모든 요소·좌표는 완성본과 동일해야 한다. 빈칸으로 바꾼 용어의 부연 설명 줄이 정답 힌트가 되면 부연도 함께 가리거나 일반화하라. 최소 한 문항(또는 하위 문항)은 '도식의 ㉠~㉢에 들어갈 내용을 쓰고, 그 근거를 서술'하게 하라. 예시 답안과 채점 기준에 각 빈칸의 정답을 반드시 포함하라.");
+      }
+    }
+
+    if (style.trim()) P.push(`추가 스타일/요청: ${style.trim()}`);
+    if (images.length) {
+      const nPdf = images.filter(x=>x.kind==="pdf").length;
+      const nImg = images.length - nPdf;
+      const parts = [];
+      if (nImg) parts.push(`사진 ${nImg}장`);
+      if (nPdf) parts.push(`PDF ${nPdf}개(보고서·활동자료 등)`);
+      P.push(`첨부 자료(${parts.join(", ")})가 있다. 첨부된 사진·PDF의 내용·자료·표·그림·데이터를 읽어 성취기준·과목 범위에 맞는 논술형 평가 문항의 근거로 반영하라. PDF에 담긴 실험 결과·보고서·활동 내용을 제시문·자료로 활용하고, 최소 한 문항 이상이 그 자료를 직접 분석·해석해야 풀리도록 설계하라.`);
+      const mats = images.map((x,i)=>({ ...x, idx:i+1 })).filter(x=>x.asMaterial && x.kind!=="pdf");
+      if (mats.length) {
+        P.push(`그중 ${mats.map(m=>`${m.idx}번째 이미지(${m.name})`).join(", ")}는 문서에 원본 그대로 그림자료로 삽입된다. 이 이미지를 SVG로 다시 그리지 말고, materials 항목에 "imageIndex"(첨부 순번)로 참조하라(label·caption 작성, svg는 null). 최소 한 문항이 이 그림의 내용을 직접 분석·해석해야 풀리도록 발문을 설계하라.`);
+      }
+    }
+
+    if (useNews && articles.length) {
+      const A = articles.map((a,i)=>`(${i+1}) ${a.title}${a.source?` — ${a.source}`:""}${a.date?` · ${a.date}`:""}\n    ${a.desc}\n    출처: ${a.link}`).join("\n");
+      P.push(
+        `[실생활 자료 (신문기사·칼럼) — 제시문·발문의 근거로 활용]\n${A}\n` +
+        `→ 위 실생활 자료를 바탕으로 제시문(materials)을 구성하고, 최소 한 문항 이상이 이 자료를 직접 분석·해석해야만 풀리도록 발문·조건을 설계하라. ` +
+        `제시문 말미에 출처를 "– 매체명, 날짜" 형식으로 표기하라. 자료의 사실을 왜곡하지 말고, 학생 수준에 맞게 요약·재구성하되 핵심 내용과 맥락은 유지하라. ` +
+        `제공된 자료가 성취기준·과목 범위와 맞지 않는 부분은 제외하라.`
+      );
+    }
+
+    P.push("\n[입력 내용]\n" + (text.trim() || "(텍스트 입력 없음 — 첨부 이미지를 근거로 작업하라.)"));
+    return P.join("\n");
+  }
+
+  // Gemini API 자동 호출 모드
+  async function generate() {
+    setError(""); setResult(null);
+    if (!apiKey.trim()) {
+      setError("먼저 상단 [실행 방식]에서 Gemini API 키를 입력하세요.");
+      setShowRunCfg(true);
+      setTimeout(()=>{
+        const el = document.getElementById("apiKey");
+        if (el) { el.focus(); el.scrollIntoView({block:"center",behavior:"smooth"}); }
+      }, 150);
+      return;
+    }
+    if (!text.trim() && !images.length) { setError("성취기준·문항·아이디어 등 입력 내용 또는 사진을 넣어주세요."); return; }
+    setLoading(true);
+    try {
+      const { raw, stop } = await callGemini({
+        apiKey: apiKey.trim(), model: model.trim(), system: GUIDE,
+        userText: buildPrompt(), images,
+        maxTokens: 32000,
+      });
+      const bigTip = "\n\n▶ 해결: ① 문항 수를 1개로 줄이기 ② 그림자료를 '생성 안 함'으로 ③ 출력 한도가 큰 모델(gemini-2.5-flash 또는 gemini-2.5-pro)로 바꾸기 — gemini-2.0-flash는 출력이 짧아 긴 문서가 잘립니다 ④ 그래도 안 되면 «claude.ai 붙여넣기» 모드(긴 문서에 가장 안정적).";
+      let parsed = null;
+      try { parsed = parseResult(raw); } catch(_){}
+      if (parsed) {
+        attachImages(parsed);
+        setResult(parsed);
+        saveToHistory(parsed);
+        if (stop === "MAX_TOKENS") {
+          setError("⚠ 출력이 모델의 최대 길이에서 잘려 일부 섹션(예시답안·채점기준·피드백 등)이 빠졌을 수 있습니다. 완전한 문서를 원하면 아래 방법을 쓰세요." + bigTip + "\n(현재 모델: " + model + ")");
+        }
+      } else {
+        if (stop === "MAX_TOKENS") {
+          throw new Error("출력이 모델의 최대 길이에서 잘려 문서를 해석하지 못했습니다 (현재 모델: " + model + ")." + bigTip);
+        }
+        throw new Error("결과(JSON) 해석에 실패했습니다 (응답 종료 사유: " + (stop || "알 수 없음") + ")." + bigTip);
+      }
+    } catch(e) {
+      const kind = e.kind;
+      const paste = "\n\n▶ 무료 API 키의 할당량·정책 제한일 가능성이 큽니다. 위 [실행 방식]을 «claude.ai 붙여넣기»로 바꾸면 API 키·한도 없이 바로 생성됩니다(Claude Pro/Max). 또는 aistudio.google.com에서 결제(billing)를 연결하면 한도가 올라갑니다.";
+      if (kind === "model_unavailable" && model.trim() !== "gemini-2.0-flash") {
+        setModel("gemini-2.0-flash");
+        setError((e.message || "") + "\n\n→ 자동으로 'gemini-2.0-flash' 모델로 바꿨습니다. 「평가도구 문서 생성」을 한 번 더 눌러 주세요.");
+      } else if (kind === "quota" || kind === "model_unavailable") {
+        setError((e.message || String(e)) + paste);
+      } else {
+        setError(e.message || String(e));
+      }
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // claude.ai 붙여넣기 모드 (Pro/Max, API 불필요)
+  function copyPromptForClaude() {
+    setError("");
+    if (!text.trim() && !images.length) { setError("성취기준·문항·아이디어 등 입력 내용 또는 사진을 넣어주세요."); return; }
+    const full =
+      GUIDE +
+      "\n\n========== 작업 지시 ==========\n" +
+      buildPrompt() +
+      (images.length ? "\n\n※ 사진·PDF 자료는 이 메시지(claude.ai 대화)에 직접 첨부합니다. 첨부한 사진·PDF 내용을 근거로 작업하세요." : "") +
+      "\n\n반드시 위 [출력 형식]의 JSON 객체 하나만 출력하세요. 코드블록이나 설명 문장은 넣지 마세요.";
+    navigator.clipboard.writeText(full).then(()=>{
+      setPromptCopied(true); setTimeout(()=>setPromptCopied(false), 2000);
+    }).catch(()=>setError("클립보드 복사에 실패했습니다. 브라우저의 클립보드 권한을 확인해 주세요."));
+  }
+
+  function showPasted() {
+    setError(""); setResult(null);
+    if (!pasteText.trim()) { setError("claude.ai에서 받은 결과(JSON)를 붙여넣어 주세요."); return; }
+    try {
+      const p = attachImages(parseResult(pasteText));
+      setResult(p); saveToHistory(p);
+    } catch(e) {
+      setError("붙여넣은 내용을 JSON으로 해석하지 못했습니다. claude.ai 응답 전체(중괄호 { } 포함)를 그대로 복사해 붙여넣었는지 확인하세요.");
+    }
+  }
+
+  // 붙여넣는 즉시 자동 인식(성공하면 바로 문서 표시)
+  function onPasteChange(v){
+    setPasteText(v);
+    if (v.trim().length > 80 && v.includes('"items"')) {
+      try {
+        const p = attachImages(parseResult(v));
+        setResult(p); setError(""); saveToHistory(p);
+      } catch(_){/* 아직 불완전하면 무시 — ③ 버튼으로 수동 시도 가능 */}
+    }
+  }
+
+  function copyMd() {
+    if (!result) return;
+    const md = toMarkdown(result, showTeacher);
+    navigator.clipboard.writeText(md).then(()=>{ setCopied(true); setTimeout(()=>setCopied(false),1500); }).catch(()=>setError("클립보드 복사에 실패했습니다. 브라우저의 클립보드 권한을 확인해 주세요."));
+  }
+
+  // 과목 그룹핑 (드롭다운 optgroup)
+  const groups = SUBJECTS.reduce((m,s)=>{ (m[s.group]=m[s.group]||[]).push(s); return m; }, {});
+
+  return (
+    <div className="wrap">
+      <header className="app noprint">
+        <h1>논술형 평가 문항 스튜디오</h1>
+        <p>「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론 · KICE 「서·논술형 평가도구 자료」 양식 출력 · 2022 개정 교육과정</p>
+      </header>
+
+      <div className="workbench">
+      <aside className="tools noprint">
+      {/* 0. 실행 방식 */}
+      <div className="card">
+        <h2><span className="num">0</span> 실행 방식
+          <span style={{fontWeight:400,fontSize:12,color:"var(--hintc)"}}>
+            — {runMode==="paste" ? "claude.ai 붙여넣기 (API 불필요)" : "Gemini API 자동 호출"}
+          </span>
+          <button className="btn ghost" style={{marginLeft:"auto",padding:"4px 12px",fontSize:12}}
+            onClick={()=>setShowRunCfg(!showRunCfg)}>{showRunCfg?"접기":"변경"}</button>
+        </h2>
+        {showRunCfg && <React.Fragment>
+        <div className="pills">
+          <Pill on={runMode==="paste"} onClick={()=>setRunMode("paste")}>claude.ai 붙여넣기 (Pro·Max · API 불필요)</Pill>
+          <Pill on={runMode==="api"} onClick={()=>setRunMode("api")}>Gemini API 자동 호출</Pill>
+        </div>
+        <div className="hint">
+          {runMode==="paste"
+            ? "Claude Pro/Max 구독으로 claude.ai에서 직접 생성합니다. 앱이 만든 프롬프트를 복사해 claude.ai에 붙여넣고, 나온 결과를 다시 아래에 붙여넣으면 KICE 평가도구 자료 형식의 문서로 정리됩니다. API 키가 필요 없습니다."
+            : "본인 Gemini API 키로 앱 안에서 바로 생성합니다."}
+        </div>
+
+        {runMode==="api" &&
+          <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
+            <div className="row" style={{alignItems:"flex-end"}}>
+              <div style={{flex:2}}>
+                <label className="fld" htmlFor="apiKey">Gemini API 키 (AIza…)</label>
+                <input id="apiKey" type="password" value={apiKey} onChange={e=>setApiKey(e.target.value)}
+                  onBlur={()=>{ if(apiKey.trim().length>20 && !modelList.length && !modelLoading) fetchModels(true); }}
+                  placeholder="AIza..." />
+              </div>
+              <div style={{flex:"0 0 auto"}}>
+                <button className="btn sec" onClick={()=>fetchModels(false)} disabled={modelLoading} style={{whiteSpace:"nowrap"}}>
+                  {modelLoading ? "불러오는 중…" : "이 키로 쓸 수 있는 모델 불러오기"}
+                </button>
+              </div>
+            </div>
+
+            <div style={{marginTop:12}}>
+              <label className="fld">모델</label>
+              {modelList.length > 0
+                ? <select value={modelList.includes(model)?model:"__custom__"}
+                    onChange={e=>{ if(e.target.value!=="__custom__") setModel(e.target.value); }}>
+                    {modelList.map(m=><option key={m} value={m}>{m}</option>)}
+                    <option value="__custom__">직접 입력…</option>
+                  </select>
+                : <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                    placeholder="gemini-2.5-flash" />}
+              {modelList.length > 0 && !modelList.includes(model) &&
+                <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                  placeholder="모델명 직접 입력 (예: gemini-2.5-flash)" style={{marginTop:8}} />}
+            </div>
+
+            {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--accent)":"var(--warn)", fontWeight:600}}>{modelMsg}</div>}
+
+            <div className="hint">
+              키는 이 브라우저(localStorage)에만 저장되며 코드·서버에 전송되지 않습니다.
+              키 발급: aistudio.google.com → Get API key(카드 등록 불필요).
+              <b> 「모델 불러오기」</b>를 누르면 이 키로 실제 사용 가능한 모델만 목록에 나옵니다.
+              권장: <code>gemini-2.5-flash</code>(빠름·저렴), <code>gemini-2.5-pro</code>(정교함).
+              {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
+            </div>
+          </div>}
+        </React.Fragment>}
+      </div>
+
+      {/* 1. 과목 + 성취기준 */}
+      <div className="card">
+        <h2><span className="num">1</span> 대상 과목 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>(위계·선행학습 통제)</span></h2>
+        <select value={subject} onChange={e=>{ setSubject(e.target.value); setSelectedStds([]); setStdFilter(""); }}>
+          <option value="자동">자동 (위계 통제 안 함)</option>
+          {Object.keys(groups).map(g=>(
+            <optgroup key={g} label={g}>
+              {groups[g].map(s=><option key={s.v} value={s.v}>{s.v}</option>)}
+            </optgroup>
+          ))}
+        </select>
+        <div className="hint">과목을 고르면 그 범위 안에서만 출제하고 상위 학년·심화 개념을 배제합니다.</div>
+
+        {(STANDARDS[subject]||[]).length > 0 &&
+          <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
+            <label className="fld">성취기준 선택 <span style={{fontWeight:400,color:"var(--muted)"}}>(복수 선택 가능 · 공식 성취수준 A~E 자동 반영)</span></label>
+            <input type="text" value={stdFilter} onChange={e=>setStdFilter(e.target.value)}
+              placeholder={"🔍 키워드·코드로 검색 (전체 " + (STANDARDS[subject]||[]).length + "개 · 예: 광합성, 03-05)"}
+              style={{marginBottom:8}} />
+            <StdList subject={subject} filter={stdFilter} selected={selectedStds} onToggle={toggleStd}/>
+            {selectedStds.length>0 &&
+              <div className="note info" style={{marginTop:10}}>
+                선택한 성취기준 <b>{selectedStds.length}개</b>{selectedStds.length>1?" — 통합·연계형 문항으로 설계됩니다.":""}
+                <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setSelectedStds([]);}}>모두 해제</a>
+              </div>}
+            {selectedStds.map(code=>{
+              const std=(STANDARDS[subject]||[]).find(s=>s.code===code); if(!std) return null;
+              return (
+                <div className="box blue" key={code} style={{marginTop:10}}>
+                  <h4>[{std.code}] 공식 성취수준 (그대로 문항·채점에 반영)</h4>
+                  <table className="ktbl" style={{margin:"4px 0 0"}}>
+                    <tbody>{std.levels.map((lv,i)=>(
+                      <tr key={i}><th style={{width:52}}>{lv.level}</th><td style={{fontSize:12.5}}>{lv.text}</td></tr>
+                    ))}</tbody>
+                  </table>
+                </div>
+              );
+            })}
+          </div>}
+        {(STANDARDS[subject]||[]).length === 0 && subject !== "자동" &&
+          <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 아래 [입력 내용]에 성취기준·성취수준을 직접 붙여넣으면 그대로 반영됩니다.</div>}
+      </div>
+
+      {/* 2. 타겟 수준 */}
+      <div className="card">
+        <h2><span className="num">2</span> 문항 타겟 수준 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>(최소능력자 변별)</span></h2>
+        <div className="pills">
+          {LEVELS.map(l=><Pill key={l} cls="lv" on={targets.includes(l)} onClick={()=>toggleTarget(l)}>{l} 수준</Pill>)}
+        </div>
+        {targetMsg && <div className="note" style={{marginTop:10}}>⚠ {targetMsg}</div>}
+        <div className="hint">
+          여러 수준을 고르면 <b>각 수준마다 문항이 최소 1개씩</b> 나옵니다(문항 수가 선택 수준 수보다 적으면 자동으로 그만큼 늘어남). 문항 수 상한이 {MAX_ITEMS}개라 <b>타겟 수준도 최대 {MAX_ITEMS}개까지</b> 선택할 수 있습니다.
+          비워두면 난이도가 자동 분포됩니다. 예: C 하나만 선택 시 A·B·C는 풀고 D·E는 못 푸는 변별점으로 설계.
+          {targets.length>1 && <b style={{color:"var(--accent)"}}> → 지금 {targets.length}개 수준 선택 → {targets.length}개 문항 생성.</b>}
+        </div>
+      </div>
+
+      {/* 3. 입력 방식 */}
+      <div className="card">
+        <h2><span className="num">3</span> 입력 방식</h2>
+        <div className="pills">
+          {MODES.map(m=><Pill key={m.v} on={mode===m.v} onClick={()=>setMode(m.v)}>{m.t}</Pill>)}
+        </div>
+        <div className="hint">{MODES.find(m=>m.v===mode).d}</div>
+      </div>
+
+      {/* 4. 입력 내용 */}
+      <div className="card">
+        <h2><span className="num">4</span> 입력 내용</h2>
+        <textarea value={text} onChange={e=>setText(e.target.value)}
+          placeholder={
+            mode==="standard" ? "성취기준(및 성취수준)을 붙여넣으세요. 예: [10통과1-02-01] ..." :
+            mode==="convert"  ? "변환할 지필/선다형 문항을 붙여넣으세요." :
+            mode==="transform"? "변형할 논술형 문항을 붙여넣으세요." :
+                                "주제·아이디어·키워드를 적으세요. 예: 광합성과 세포호흡의 관계"
+          } />
+        <div style={{marginTop:10}}>
+          <label className="btn ghost" style={{display:"inline-block",cursor:"pointer"}}>
+            사진 · PDF 올리기
+            <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={onFiles} style={{display:"none"}} />
+          </label>
+          {images.length>0 &&
+            <div className="thumbs">
+              {images.map((im,i)=>(
+                im.kind === "pdf"
+                  ? <div className="thumb" key={i} style={{width:"auto"}}>
+                      <div style={{width:120,height:70,border:"1px solid var(--line)",borderRadius:8,
+                        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
+                        background:"#f6f3eb",padding:"4px 8px",fontSize:11,textAlign:"center",overflow:"hidden"}}>
+                        <span style={{fontSize:22}}>📄</span>
+                        <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{im.name}</span>
+                      </div>
+                      <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
+                    </div>
+                  : <div className="thumb" key={i}>
+                      <img src={im.url} alt={im.name}/>
+                      <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
+                      <label style={{fontSize:10,display:"block",textAlign:"center",cursor:"pointer",marginTop:2,color:im.asMaterial?"var(--accent)":"var(--muted)",fontWeight:im.asMaterial?700:400}}>
+                        <input type="checkbox" checked={!!im.asMaterial} onChange={()=>toggleAsMaterial(i)} style={{verticalAlign:-2,marginRight:2}}/>자료로 삽입
+                      </label>
+                    </div>
+              ))}
+            </div>}
+        </div>
+        <div className="hint">글과 함께 <b>사진·PDF(보고서·활동자료)</b>를 넣을 수 있습니다. 사진·PDF 속 내용·자료·표·그림을 읽어 문항에 반영합니다. (PDF는 파일당 18MB 이하)<br/>
+          사진 아래 <b>「자료로 삽입」</b>을 체크하면 그 그림이 <b>결과 문서의 (가)(나) 자료로 원본 그대로 들어가고</b>, 그 그림을 분석하는 문항이 출제됩니다 — 교과서 수준 삽화를 쓰고 싶을 때 가장 좋습니다.</div>
+      </div>
+
+      {/* 4-1. 실생활 자료 검색 (네이버 뉴스/블로그) — 선택형 */}
+      <div className="card">
+        <h2><span className="num plus">＋</span> 실생활 자료 (신문기사·칼럼) <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>선택 사항 · 발문 제시문으로 활용</span></h2>
+        <div className="pills">
+          <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용 안 함 (기본)</Pill>
+          <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사·칼럼 넣기</Pill>
+        </div>
+        {!useNews &&
+          <div className="hint" style={{marginTop:8}}>필요할 때만 켜세요. 켜면 네이버 뉴스·칼럼을 검색해 선택한 기사를 발문의 제시문 근거로 넣을 수 있습니다.</div>}
+
+        {useNews && <React.Fragment>
+        <div className="row" style={{alignItems:"flex-end",marginTop:12}}>
+          <div style={{flex:2}}>
+            <label className="fld">검색어</label>
+            <input type="text" value={newsQuery} onChange={e=>setNewsQuery(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") searchNews(); }}
+              placeholder="예: 기후변화 감염병, 미세먼지, 생물다양성" />
+          </div>
+          <div style={{flex:"0 0 130px"}}>
+            <label className="fld">종류</label>
+            <select value={newsType} onChange={e=>setNewsType(e.target.value)}>
+              <option value="news">신문기사</option>
+              <option value="blog">칼럼·블로그</option>
+            </select>
+          </div>
+          <div style={{flex:"0 0 auto"}}>
+            <button className="btn sec" onClick={searchNews} disabled={newsLoading} style={{whiteSpace:"nowrap"}}>
+              {newsLoading ? "검색 중…" : "검색"}
+            </button>
+          </div>
+        </div>
+        {newsMsg && <div className="hint" style={{color:"var(--warn)",fontWeight:600,marginTop:8}}>{newsMsg}</div>}
+
+        {newsResults.length>0 &&
+          <div style={{marginTop:12,maxHeight:320,overflowY:"auto",border:"1px solid var(--line)",borderRadius:9,padding:8}}>
+            {newsResults.map((a,i)=>{
+              const on = articles.some(x=>x.link===a.link);
+              return (
+                <div key={i} role="checkbox" aria-checked={on} tabIndex={0}
+                  onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleArticle(a); } }}
+                  onClick={()=>toggleArticle(a)}
+                  style={{padding:"9px 10px",borderRadius:8,cursor:"pointer",marginBottom:6,
+                    background:on?"var(--accent-soft)":"#FFFFFF",border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
+                  <div style={{fontSize:13.5,fontWeight:700}}>{on?"✓ ":""}{a.title}</div>
+                  <div style={{fontSize:11,color:"var(--muted)",margin:"2px 0"}}>{a.source}{a.date?` · ${a.date}`:""}</div>
+                  <div style={{fontSize:12.5,color:"var(--ink)"}}>{a.desc}</div>
+                </div>
+              );
+            })}
+          </div>}
+
+        {articles.length>0 &&
+          <div className="note info" style={{marginTop:10}}>
+            선택한 실생활 자료 <b>{articles.length}건</b>이 제시문 근거로 반영됩니다.
+            <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setArticles([]);}}>모두 해제</a>
+          </div>}
+
+        <div className="hint">
+          네이버 뉴스/블로그를 검색해 <b>기사를 선택하면 그 내용이 발문의 제시문 근거</b>로 들어갑니다(최소 한 문항이 그 자료를 분석하도록 설계).
+          이 기능은 <b>배포된 사이트에서만</b> 동작하며, 관리자가 Vercel에 <code>NAVER_CLIENT_ID</code>·<code>NAVER_CLIENT_SECRET</code>를 설정해야 합니다.
+        </div>
+        </React.Fragment>}
+      </div>
+
+      {/* 5. 형식·스타일·그림자료 */}
+      <div className="card">
+        <h2><span className="num">5</span> 형식 · 스타일 · 그림자료</h2>
+        <div className="row">
+          <div>
+            <label className="fld">문항 형식</label>
+            <select value={format} onChange={e=>setFormat(e.target.value)}>
+              {FORMATS.map(f=><option key={f} value={f}>{f}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="fld">그림자료</label>
+            <select value={visual} onChange={e=>setVisual(e.target.value)}>
+              {VISUALS.map(v=><option key={v.v} value={v.v}>{v.t}</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="fld">문항 수 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>(최소 1개 ~ 최대 4개)</span></label>
+            <input type="number" min="1" max="4" step="1" inputMode="numeric" value={countStr}
+              onChange={e=>{
+                const v = e.target.value;
+                setCountStr(v);                       // 타이핑 그대로 반영(키보드 입력 허용)
+                const n = parseInt(v, 10);
+                if (n >= 1 && n <= 4) setCount(n);    // 유효할 때만 실제 값 갱신
+              }}
+              onBlur={()=>{
+                let n = parseInt(countStr, 10);
+                if (!Number.isFinite(n) || n < 1) n = 1;
+                if (n > 4) n = 4;                     // 4 초과는 4로 정리
+                setCount(n); setCountStr(String(n));
+              }} />
+          </div>
+        </div>
+        {visual!=="none" &&
+          <div style={{marginTop:10,display:"flex",gap:18,flexWrap:"wrap",alignItems:"center"}}>
+            <label style={{fontSize:13,cursor:"pointer",fontWeight:mono?700:400,color:mono?"var(--accent)":"var(--ink)"}}>
+              <input type="checkbox" checked={mono} onChange={()=>setMono(!mono)} style={{verticalAlign:-2,marginRight:5}}/>
+              흑백 인쇄용 도식
+            </label>
+            <label style={{fontSize:13,cursor:"pointer",fontWeight:blankVer?700:400,color:blankVer?"var(--accent)":"var(--ink)"}}>
+              <input type="checkbox" checked={blankVer} onChange={()=>setBlankVer(!blankVer)} style={{verticalAlign:-2,marginRight:5}}/>
+              ㉠㉡ 빈칸 변형 함께 생성 (도식 완성형)
+            </label>
+          </div>}
+        {visual!=="none" && blankVer &&
+          <div className="hint" style={{marginTop:4}}>도식의 핵심 용어 2~4개가 ㉠㉡㉢ 빈칸으로 바뀐 버전이 함께 만들어집니다. <b>학생 배부본에는 빈칸 도식</b>, 교사용에는 완성 도식과 빈칸 정답이 실리고, 빈칸을 채우고 근거를 서술하는 문항이 출제됩니다.</div>}
+        <div style={{marginTop:12}}>
+          <label className="fld">스타일 자유 지정</label>
+          <input type="text" value={style} onChange={e=>setStyle(e.target.value)}
+            placeholder='예: 실생활 맥락 강조, 그래프 해석 포함, 600자 분량' />
+        </div>
+        <div className="hint"><b>문항 수는 최소 1개 ~ 최대 4개까지</b> 지정할 수 있습니다. 키보드로 숫자를 직접 입력하거나 화살표로 조절하세요. 완결된 평가도구 문서(정보표~피드백 사례)가 생성되므로 1~2개를 권장하며, 하위 문항 (1)·(2)는 자동 구성됩니다.</div>
+      </div>
+
+      {runMode==="api" &&
+        <button className="btn" onClick={generate} disabled={loading} style={{width:"100%",fontSize:16}}>
+          {loading ? <><span className="spin"></span>생성 중… {loadSec}초 경과</> : "평가도구 문서 생성"}
+        </button>}
+      {runMode==="api" && loading &&
+        <div className="hint" style={{textAlign:"center",marginTop:8}}>
+          완결된 평가도구 문서(9개 섹션)를 작성하고 있습니다. 보통 30~60초, 서버 혼잡 시 자동 재시도로 2~3분까지 걸릴 수 있어요. 창을 닫지 말고 기다려 주세요.
+        </div>}
+
+      {runMode==="paste" &&
+        <div className="card">
+          <h2>claude.ai로 생성하기 (API 불필요)</h2>
+          <button className="btn" onClick={copyPromptForClaude} style={{width:"100%",fontSize:15}}>
+            {promptCopied ? "복사됨 ✓" : "① claude.ai용 프롬프트 복사"}
+          </button>
+          {promptCopied &&
+            <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer"
+              style={{display:"block",textAlign:"center",marginTop:8,fontSize:13,fontWeight:700,color:"var(--accent)"}}>
+              복사되었습니다 — claude.ai 새 대화 열기 ↗
+            </a>}
+          <ol style={{fontSize:13,color:"var(--muted)",margin:"12px 0 0",paddingLeft:20,lineHeight:1.8}}>
+            <li><b>claude.ai</b>에 로그인해 새 대화를 엽니다(Pro/Max 구독).</li>
+            <li>방금 복사한 프롬프트를 붙여넣습니다{`. `}{<span>사진·PDF를 넣었다면 그 대화에 파일도 함께 첨부하세요(claude.ai는 PDF 첨부를 지원합니다).</span>}</li>
+            <li>Claude가 출력한 <b>결과 전체(중괄호 {`{ }`} 포함)</b>를 복사합니다.</li>
+            <li>아래 칸에 붙여넣으면 <b>자동으로 문서가 표시</b>됩니다. (안 되면 ③ 결과 표시 클릭)</li>
+          </ol>
+          <label className="fld" style={{marginTop:14}}>② Claude의 답변 전체 붙여넣기</label>
+          <textarea value={pasteText} onChange={e=>onPasteChange(e.target.value)}
+            placeholder="Claude가 준 답변을 통째로 붙여넣으세요 (중괄호 {부터 }까지 전체)" style={{minHeight:120,fontFamily:"monospace",fontSize:12}} />
+          <button className="btn sec" onClick={showPasted} style={{marginTop:10}}>③ 결과 표시</button>
+        </div>}
+
+      {error && <div className="err" style={{whiteSpace:"pre-wrap"}}>⚠ {error}</div>}
+
+      {/* 최근 생성 결과 (브라우저 자동 저장) */}
+      {historyList.length>0 &&
+        <div className="card">
+          <h2>최근 생성 결과
+            <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span>
+            <label className="btn ghost" style={{marginLeft:"auto",padding:"4px 12px",fontSize:12,cursor:"pointer"}}>
+              JSON 불러오기
+              <input type="file" accept="application/json,.json" onChange={importHistoryFile} style={{display:"none"}}/>
+            </label>
+          </h2>
+          <div className="hint" style={{margin:"0 0 8px"}}>공용 컴퓨터라면 사용 후 삭제하세요. 「백업」으로 내려받은 JSON은 다른 컴퓨터에서 「JSON 불러오기」로 복원할 수 있습니다.</div>
+          {historyList.map((h,i)=>(
+            <div key={h.ts} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",
+              borderBottom: i<historyList.length-1 ? "1px dashed var(--line)" : "none",fontSize:13}}>
+              <b style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.name}</b>
+              <span style={{color:"var(--muted)",fontSize:11,whiteSpace:"nowrap"}}>{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+              <button className="btn sec" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); }}>열기</button>
+              <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}}
+                onClick={()=>downloadDataUrl("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(h)), (h.name||"평가도구").replace(/[\\/:*?"<>|]/g,"_")+".json")}>백업</button>
+              <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>deleteHistory(i)}>삭제</button>
+            </div>
+          ))}
+        </div>}
+      </aside>
+
+      <main className="paperpane">
+        {loading && runMode==="api"
+          ? <SkeletonDoc sec={loadSec}/>
+          : (result
+              ? <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={nr=>setResult({...nr})}
+                        onSave={()=>{ if(result) saveToHistory(result); }}
+                        copyMd={copyMd} copied={copied} />
+              : <EmptyDoc/>)}
+      </main>
+      </div>
+
+      <p className="noprint" style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:40}}>
+        생성 결과는 출제 전 성취기준·성취수준·위계·자료 적합성을 한 번 더 검토하세요.
+      </p>
+    </div>
+  );
+}
+
+/* ── KICE 문서 구성 요소 ────────────────────────────────────── */
+function KCallout({label, items}) {
+  if (!(items||[]).length) return null;
+  return (
+    <div className="kcall">
+      <span className="lb">{label}</span>
+      <ul>{(items||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+    </div>
+  );
+}
+
+function KCond({cond}) {
+  const c = cond || {};
+  if (!((c.content||[]).length || (c.form||[]).length)) return null;
+  return (
+    <div className="kcond">
+      <span className="t">〈조건〉</span>
+      {(c.form||[]).length>0 ? <React.Fragment>
+        <b className="axis">[내용적 측면]</b>
+        <ul>{(c.content||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+        <b className="axis">[형식적 측면]</b>
+        <ul>{(c.form||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+      </React.Fragment> :
+        <ul>{(c.content||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>}
+    </div>
+  );
+}
+
+/* 채점 기준 표 — awarded가 있으면 ✓ 열 추가(채점 결과 예시) */
+function ScoringTable({items, forItem, awarded, editing, onEdited}) {
+  const list = forItem ? [forItem] : (items||[]);
+  return (
+    <table className="ktbl">
+      <thead>
+        <tr>
+          <th style={{width:56}}>문항</th><th style={{width:150}}>채점 요소</th>
+          <th style={{width:52}}>점수</th>
+          {awarded ? <th style={{width:30}}></th> : null}
+          <th>수행 특성</th>
+        </tr>
+      </thead>
+      <tbody>
+        {list.map(it=>{
+          const groups = (it.scoring||[]);
+          const totalRows = groups.reduce((n,g)=>n+((g.levels||[]).length||0),0) || 1;
+          let firstOfItem = true;
+          return groups.map((g,gi)=>(g.levels||[]).map((lv,li)=>{
+            const cells = [];
+            if (firstOfItem) {
+              cells.push(<td key="n" className="c" rowSpan={totalRows}>{it.number}</td>);
+              firstOfItem = false;
+            }
+            if (li===0) {
+              cells.push(
+                <td key="e" className="kel" rowSpan={(g.levels||[]).length}>
+                  {g.question ? <span>{g.question}<br/></span> : null}{g.element}
+                </td>);
+            }
+            cells.push(<td key="p" className="c">{lv.points}점</td>);
+            if (awarded) {
+              const hit = (awarded||[]).some(a=>
+                (a.element ? a.element===g.element : (a.question && g.question && a.question===g.question))
+                && a.points===lv.points);
+              cells.push(<td key="k" className="kchk">{hit?"✓":""}</td>);
+            }
+            cells.push(
+              <td key="d">
+                <Ed v={lv.criteria} editing={editing && !awarded} onC={nv=>{ lv.criteria=nv; onEdited&&onEdited(); }}/>
+                {lv.example ? <div className="kex"><b>예시 답안</b> {lv.example}</div> : null}
+              </td>);
+            return <tr key={gi+"-"+li}>{cells}</tr>;
+          }));
+        })}
+      </tbody>
+    </table>
+  );
+}
+
+/* 도식 빈칸 편집기 — 교사가 용어를 체크해 ㉠㉡ 빈칸 지정 */
+function BlankEditor({m, onChange}) {
+  const [open, setOpen] = useState(false);
+  const texts = extractSvgTexts(m.svg);
+  const sel = m.blankSel || [];
+  function toggle(i){
+    if (m.aiBlank === undefined) m.aiBlank = m.svgBlank || null; // AI 제안본 백업
+    const next = sel.includes(i) ? sel.filter(x=>x!==i) : [...sel, i];
+    m.blankSel = next;
+    m.svgBlank = next.length ? buildBlankSvg(m.svg, next) : m.aiBlank;
+    if (onChange) onChange();
+  }
+  if (!texts.length) return null;
+  return (
+    <div className="noprint" style={{textAlign:"left",marginTop:6}}>
+      <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}} onClick={()=>setOpen(!open)}>
+        {open ? "빈칸 편집 닫기" : ("빈칸 직접 선택" + (sel.length ? ` (${sel.length}개 지정됨)` : ""))}
+      </button>
+      {open &&
+        <div style={{border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",marginTop:6,fontSize:12.5,background:"#FFFFFF"}}>
+          <b>빈칸으로 바꿀 용어를 체크하세요.</b> 체크한 용어가 학생 배부본 도식에서 ㉠㉡㉢…으로 바뀝니다(도식 순서대로 기호 부여). 모두 해제하면 AI 제안 빈칸(있는 경우)으로 돌아갑니다.
+          <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
+            {texts.map((t,i)=> t ?
+              <label key={i} style={{cursor:"pointer",whiteSpace:"nowrap",fontWeight:sel.includes(i)?700:400,color:sel.includes(i)?"var(--accent)":"var(--ink)"}}>
+                <input type="checkbox" checked={sel.includes(i)} onChange={()=>toggle(i)} style={{verticalAlign:-2,marginRight:3}}/>{t}
+              </label> : null)}
+          </div>
+        </div>}
+    </div>
+  );
+}
+
+/* 평가 문항 블록 */
+function ItemBlock({it, showTeacher, onEdited, editing}) {
+  const qs = normQuestions(it);
+  return (
+    <div>
+      <div className="kpillrow">
+        <span className="kpill">평가 문항 {it.number}({it.type||"논술형"})</span>
+        <span className="kline"></span>
+      </div>
+      <div className="tags noprint">
+        {it.format && <span className="tag fmt">{it.format}</span>}
+        {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
+        {it.targetLevel && <span className="tag lvl">타겟 {it.targetLevel}</span>}
+      </div>
+      {it.intro && <p className="kintro"><Ed v={it.intro} editing={editing} onC={nv=>{ it.intro=nv; onEdited&&onEdited(); }}/>{it.points?` (${it.points}점)`:""}</p>}
+
+      {(it.materials||[]).map((m,i)=>(
+        <div className="kmat" key={i}>
+          {m.body
+            ? <div style={{whiteSpace:"pre-wrap"}}><span className="lbl">{m.label} </span><Ed v={m.body} editing={editing} onC={nv=>{ m.body=nv; onEdited&&onEdited(); }}/></div>
+            : (m.label ? <span className="lbl">{m.label}</span> : null)}
+          {m.imageData &&
+            <div className="kvis">
+              <img src={m.imageData} alt={m.caption||m.label||"자료 그림"} style={{maxWidth:"100%",borderRadius:4}}/>
+              {m.caption && <div className="cap">{m.caption}</div>}
+              <div className="noprint" style={{marginTop:4}}>
+                <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                  onClick={()=>downloadDataUrl(m.imageData, ("자료그림_"+(m.label||"").replace(/[()\\/:*?"<>|]/g,"")||"자료그림")+".png")}>
+                  그림 저장
+                </button>
+              </div>
+            </div>}
+          {!m.imageData && (m.svg || m.svgBlank) &&
+            <div className="kvis">
+              <div role="img" aria-label={(m.label||"자료 그림")+(m.caption?": "+m.caption:"")}
+                dangerouslySetInnerHTML={{__html: sanitizeSvg((!showTeacher && m.svgBlank) ? m.svgBlank : (m.svg || m.svgBlank))}} />
+              {m.caption && <div className="cap">{m.caption}</div>}
+              {showTeacher && (m.blankSel||[]).length>0 && (()=>{
+                const texts = extractSvgTexts(m.svg);
+                const key = [...(m.blankSel||[])].sort((a,b)=>a-b)
+                  .map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join("  ·  ");
+                return <div className="cap" style={{color:"var(--kred-dk)",fontWeight:700}}>빈칸 정답: {key}</div>;
+              })()}
+              {showTeacher && m.svgBlank &&
+                <div className="cap noprint" style={{color:"var(--accent)",fontWeight:600}}>※ 학생 배부본에는 ㉠㉡ 빈칸 도식이 실립니다. (위는 완성본)</div>}
+              <div className="noprint" style={{marginTop:4,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+                {m.svg &&
+                  <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                    onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svg,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_완성본.png"); }catch(e){ alert(e.message); } }}>
+                    완성 도식 PNG 저장
+                  </button>}
+                {m.svgBlank &&
+                  <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                    onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svgBlank,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_빈칸.png"); }catch(e){ alert(e.message); } }}>
+                    빈칸 도식 PNG 저장
+                  </button>}
+              </div>
+              {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
+            </div>}
+        </div>
+      ))}
+
+      {qs.map((q,i)=>(
+        <div key={i}>
+          <p className="kq">{q.label?`${q.label} `:""}<Ed v={q.stem} editing={editing} onC={nv=>{ q.stem=nv; onEdited&&onEdited(); }}/>{q.points?` (${q.points}점)`:""}</p>
+          <KCond cond={q.conditions}/>
+          {!showTeacher &&
+            <div className="kans">
+              <div className="kans-t">[답안 작성란]</div>
+              {Array.from({length: Math.min(14, Math.max(5, (q.points||3)*2))}).map((_,k)=><div className="ln" key={k}></div>)}
+            </div>}
+        </div>
+      ))}
+
+      {showTeacher && <KCallout label="활용 Tip !" items={it.tips}/>}
+
+      {showTeacher && it.levelAnalysis &&
+        (it.levelAnalysis.rationale || it.levelAnalysis.levelElements || it.levelAnalysis.standardElements) &&
+        <div className="box blue noprint">
+          <h4>수준 설계 해설 (타겟 {it.targetLevel||"-"}) — 화면 전용</h4>
+          <div style={{fontSize:13}}>
+            {it.levelAnalysis.standardElements && <p style={{margin:"4px 0"}}><b>성취기준 내용요소</b> · {it.levelAnalysis.standardElements}</p>}
+            {it.levelAnalysis.levelElements && <p style={{margin:"4px 0"}}><b>해당 수준 내용요소</b> · {it.levelAnalysis.levelElements}</p>}
+            {it.levelAnalysis.rationale && <p style={{margin:"4px 0"}}><b>수준 적합성</b> · {it.levelAnalysis.rationale}</p>}
+          </div>
+        </div>}
+    </div>
+  );
+}
+
+const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate, onSave }) {
+  const info = r.info || {};
+  const items = r.items || [];
+  const ce = r.contentElements || {};
+  const ap = r.applicationTip;
+  const caseItem = n => items.find(x=>x.number===n) || items[0];
+  const [editing, setEditing] = useState(false);
+  const audit = auditResult(r);
+
+  // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
+  const [docErr, setDocErr] = useState("");
+  function onDownloadDoc(teacher){
+    setDocErr("");
+    downloadDocx(r, teacher).catch(e=>setDocErr(e.message||String(e)));
+  }
+  function printAs(teacher){
+    if (teacher === showTeacher) { window.print(); return; }
+    setShowTeacher(teacher);
+    setTimeout(()=>window.print(), 450);
+  }
+
+  return (
+    <div style={{marginTop:24}}>
+      <div className="toolbar noprint">
+        <span className={"badge "+(r.curriculum==="2015"?"b15":"b22")}>
+          {r.curriculum==="2015"?"2015 개정":"2022 개정"}
+        </span>
+        {r.standardCode && <span className="tag">{r.standardCode}</span>}
+        <span style={{flex:1}}></span>
+        <button className="btn sec" onClick={()=>setShowTeacher(!showTeacher)}>
+          {showTeacher?"학생 배부본 보기":"교사용 보기"}
+        </button>
+        <button className="btn sec" onClick={()=>{ if(editing && onSave) onSave(); setEditing(!editing); }}
+          style={editing?{background:"var(--accent)",color:"#fff"}:null}>
+          {editing?"수정 완료":"직접 수정"}
+        </button>
+        <button className="btn sec" onClick={()=>printAs(true)}>인쇄 · 교사용</button>
+        <button className="btn sec" onClick={()=>printAs(false)}>인쇄 · 학생용</button>
+        <button className="btn sec" onClick={()=>onDownloadDoc(true)}>Word · 교사용</button>
+        <button className="btn sec" onClick={()=>onDownloadDoc(false)}>Word · 학생용</button>
+        <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
+      </div>
+      {editing &&
+        <div className="note info noprint">수정 모드: 점선이 나타나는 문구(발문·제시문·예시답안·채점기준·피드백·도구명)를 클릭해 고치세요. 수정은 <b>문서 데이터에 저장</b>되어 인쇄·Word·학생 배부본에 모두 반영되고, 「수정 완료」를 누르면 히스토리에도 저장됩니다.</div>}
+      {docErr && <div className="err noprint">⚠ {docErr}</div>}
+
+      {showTeacher && audit.length>0 &&
+        <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
+          <b>자동 검증 — 확인이 필요한 항목 {audit.length}건</b> (배점 산수·채점 단계·지시어를 기계적으로 대조한 결과입니다. 인쇄 전 직접 수정하거나 다시 생성하세요.)
+          <ul style={{margin:"6px 0 0",paddingLeft:18}}>{audit.map((x,i)=><li key={i}>{x}</li>)}</ul>
+        </div>}
+      {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
+      {r.hierarchyBlock && <div className="note info noprint">위계 점검: {r.hierarchyBlock}</div>}
+
+      {/* 내용요소·평가요소 — 화면 전용 참고 카드 */}
+      {showTeacher && ((ce.knowledge||[]).length || (ce.process||[]).length || (ce.value||[]).length) > 0 &&
+        <div className="card noprint">
+          <h2>내용요소 · 평가요소 (화면 전용 참고)</h2>
+          <div className="elems">
+            <div className="e"><b>지식·이해</b><ul>{(ce.knowledge||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>
+            <div className="e"><b>과정·기능</b><ul>{(ce.process||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>
+            <div className="e"><b>가치·태도</b><ul>{(ce.value||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>
+          </div>
+          {(r.evaluationElements||[]).length>0 &&
+            <div style={{marginTop:12}}>
+              <b style={{fontSize:13,color:"var(--accent)"}}>평가요소</b>
+              <div className="tags" style={{marginTop:6}}>
+                {(r.evaluationElements||[]).map((x,i)=><span key={i} className="tag fmt">{x}</span>)}
+              </div>
+            </div>}
+        </div>}
+
+      {/* ───────── KICE 평가도구 자료 문서 ───────── */}
+      <div className={"kdoc"+(editing?" editing":"")} id="printArea">
+        <div className="keyebrow">
+          서·논술형 평가도구 자료
+          <span className="chip">과학과</span>
+          {info.subject && <span className="chip" style={{background:"#fff",color:"var(--kred-dk)",border:"1px solid var(--kred)"}}>{info.subject}</span>}
+        </div>
+        <div className="khead"><Ed v={info.toolName || "서·논술형 평가 문항"} editing={editing} onC={nv=>{ r.info=r.info||{}; r.info.toolName=nv; onUpdate&&onUpdate(r); }}/></div>
+        {!showTeacher &&
+          <div style={{display:"flex",justifyContent:"flex-end",gap:20,margin:"12px 2px 2px",fontSize:13.5}}>
+            <span>(&nbsp;&nbsp;&nbsp;)학년 (&nbsp;&nbsp;&nbsp;)반 (&nbsp;&nbsp;&nbsp;)번</span>
+            <span>이름: ________________</span>
+          </div>}
+
+        {/* 1. 평가 도구 정보표 */}
+        {showTeacher && <React.Fragment>
+          <div className="kban">1. 평가 도구 정보표</div>
+          <table className="ktbl">
+            <tbody>
+              <tr>
+                <th style={{width:100}}>학교급</th><td>{info.schoolLevel||""}</td>
+                <th style={{width:100}}>과목</th><td>{info.subject||""}</td>
+              </tr>
+              <tr>
+                <th>학년</th><td>{info.grade||""}</td>
+                <th>영역(단원)</th><td>{info.domain||""}</td>
+              </tr>
+              <tr>
+                <th>평가 도구명</th><td colSpan={3}><b>{info.toolName||""}</b></td>
+              </tr>
+              {(r.standardText || (info.achievementLevels||[]).length>0) &&
+                <tr>
+                  <th>성취기준 및<br/>성취수준</th>
+                  <td colSpan={3}>
+                    {r.standardText &&
+                      <div style={{marginBottom:(info.achievementLevels||[]).length?8:0}}>
+                        {r.standardCode?`[${r.standardCode}] `:""}{r.standardText}
+                      </div>}
+                    {(info.achievementLevels||[]).length>0 &&
+                      <table className="ktbl" style={{margin:0,borderTop:"1px solid var(--kline)"}}>
+                        <tbody>
+                          {(info.achievementLevels||[]).map((a,i)=>(
+                            <tr key={i}>
+                              <th style={{width:48}}>{a.band}</th>
+                              <td>{a.text}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>}
+                  </td>
+                </tr>}
+              {info.purpose &&
+                <tr>
+                  <th>평가 도구<br/>개발 취지</th>
+                  <td colSpan={3}>{info.purpose}</td>
+                </tr>}
+            </tbody>
+          </table>
+
+          {(info.itemSummary||[]).length>0 &&
+            <table className="ktbl">
+              <thead>
+                <tr><th style={{width:90}}>문항 번호</th><th style={{width:90}}>문항 유형</th><th>성취기준 기반 평가 요소</th></tr>
+              </thead>
+              <tbody>
+                {(info.itemSummary||[]).map((s,i)=>(
+                  <tr key={i}>
+                    <td className="c">{s.item}</td>
+                    <td className="c">{s.type}</td>
+                    <td><ul className="kul" style={{margin:0}}>{(s.elements||[]).map((e,j)=><li key={j}>{e}</li>)}</ul></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>}
+        </React.Fragment>}
+
+        {/* 2. 평가 문항 */}
+        <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
+        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+
+        {showTeacher && <React.Fragment>
+          {/* 예시 답안 */}
+          <div className="khd">예시 답안</div>
+          <table className="ktbl">
+            <thead><tr><th style={{width:70}}>문항</th><th>예시 답안</th></tr></thead>
+            <tbody>
+              {items.map(it=>normQuestions(it).map((q,qi)=>(
+                <tr key={it.number+"-"+qi}>
+                  <td className="c">{it.number}{q.label?`-${q.label}`:""}</td>
+                  <td style={{whiteSpace:"pre-wrap"}}><Ed v={q.modelAnswer||""} editing={editing} onC={nv=>{ q.modelAnswer=nv; onUpdate&&onUpdate(r); }}/></td>
+                </tr>
+              )))}
+            </tbody>
+          </table>
+
+          {/* 채점 기준 */}
+          {items.some(it=>(it.scoring||[]).length>0) && <React.Fragment>
+            <div className="khd">채점 기준</div>
+            <ScoringTable items={items} editing={editing} onEdited={()=>onUpdate&&onUpdate(r)}/>
+          </React.Fragment>}
+
+          {/* 성취수준별 학생 수행 특성 */}
+          {(r.levelCharacteristics||[]).length>0 && <React.Fragment>
+            <div className="khd">성취수준별 학생 수행 특성</div>
+            <table className="ktbl">
+              <tbody>
+                {(r.levelCharacteristics||[]).map((b,i)=>(
+                  <tr key={i}>
+                    <th style={{width:52}}>{b.band}</th>
+                    <td className="c" style={{width:86}}>{b.scoreRange||""}</td>
+                    <td>{b.text}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </React.Fragment>}
+
+          <KCallout label="채점 시 유의점" items={r.scoringNotes}/>
+
+          {/* 채점 및 피드백 사례 */}
+          {(r.feedbackCases||[]).length>0 && <React.Fragment>
+            <div className="khd">채점 및 피드백 사례</div>
+            {(r.feedbackCases||[]).map((cs,i)=>{
+              const it = caseItem(cs.itemNumber);
+              return (
+                <div key={i}>
+                  <div className="kpillrow">
+                    <span className="kpill">{cs.title||`사례 ${i+1}`}</span>
+                    <span className="kline"></span>
+                  </div>
+                  {cs.studentAnswer && <React.Fragment>
+                    <div className="ksq">학생 답안 예시</div>
+                    <div className="kstu" style={{whiteSpace:"pre-wrap"}}>{cs.studentAnswer}</div>
+                  </React.Fragment>}
+                  {it && (it.scoring||[]).length>0 && (cs.awarded||[]).length>0 && <React.Fragment>
+                    <div className="ksq">채점 결과 예시</div>
+                    <ScoringTable items={items} forItem={it} awarded={cs.awarded||[]}/>
+                    <div className="ktotal">
+                      부여 점수 합계: {(cs.awarded||[]).reduce((n,a)=>n+(Number(a.points)||0),0)}점
+                      {it.points?` / ${it.points}점`:""}
+                    </div>
+                  </React.Fragment>}
+                  {cs.feedback && <React.Fragment>
+                    <div className="ksq">학생 개별 피드백 예시</div>
+                    <div className="kfbbox"><Ed v={cs.feedback} editing={editing} onC={nv=>{ cs.feedback=nv; onUpdate&&onUpdate(r); }}/></div>
+                  </React.Fragment>}
+                </div>
+              );
+            })}
+          </React.Fragment>}
+
+          <KCallout label="피드백 제공 시 유의점" items={r.feedbackNotes}/>
+
+          {/* 수행평가 적용을 위한 Tip */}
+          {ap && <React.Fragment>
+            <div className="khd">수행평가 적용을 위한 Tip</div>
+            {(ap.planIntro||[]).length>0 && <React.Fragment>
+              <div className="ksq">교수·학습 및 평가 계획</div>
+              <ul className="kul">{(ap.planIntro||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+            </React.Fragment>}
+            {ap.lessonPlan && (ap.lessonPlan.sessions||[]).length>0 &&
+              <table className="ktbl">
+                <thead>
+                  <tr><th style={{width:64}}>차시</th><th>교수·학습 활동</th><th style={{width:110}}>평가 계획</th></tr>
+                </thead>
+                <tbody>
+                  {ap.lessonPlan.relatedItem &&
+                    <tr><th>관련 문항</th><td colSpan={2}>{ap.lessonPlan.relatedItem}</td></tr>}
+                  {(ap.lessonPlan.sessions||[]).map((s,i)=>(
+                    <tr key={i}>
+                      <td className="c">{s.session}</td>
+                      <td>
+                        <b>{s.topic||""}</b>
+                        {(s.details||[]).length>0 &&
+                          <ul className="kul" style={{marginTop:4}}>{(s.details||[]).map((d,j)=><li key={j}>{d}</li>)}</ul>}
+                      </td>
+                      <td className="c" style={{whiteSpace:"normal"}}>{s.assessment||""}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>}
+            {(ap.variation||[]).length>0 && <React.Fragment>
+              <div className="ksq">문항 변형 방향</div>
+              <ul className="kul">{(ap.variation||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+            </React.Fragment>}
+            {(ap.rubricVariation||[]).length>0 && <React.Fragment>
+              <div className="ksq">채점기준표 변형 방향</div>
+              <ul className="kul">{(ap.rubricVariation||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+            </React.Fragment>}
+          </React.Fragment>}
+        </React.Fragment>}
+      </div>
+    </div>
+  );
+}, (p, n) => p.r === n.r && p.showTeacher === n.showTeacher && p.copied === n.copied);
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
