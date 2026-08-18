@@ -1,5 +1,5 @@
 /*
- * 논술형 평가 문항 스튜디오 — 앱 소스 (JSX)
+ * 논술형 평가 문항 설계 — 앱 소스 (JSX)
  * 이 파일이 소스의 원본이다. 수정 후 아래 명령으로 app.js를 다시 생성해 함께 커밋할 것:
  *   npx esbuild app.jsx --loader:.jsx=jsx --minify --charset=utf8 --outfile=app.js
  * (배포는 컴파일된 app.js를 정적으로 서빙한다 — 브라우저 내 Babel 컴파일 제거됨)
@@ -47,10 +47,10 @@ const FORMATS = ["자동","자료제시형","문제해결형","비교분석형",
 
 // 입력 방식
 const MODES = [
-  { v:"standard",  t:"성취기준 → 문항 생성", d:"성취기준·성취수준을 입력해 새 문항 제작" },
-  { v:"convert",   t:"지필/학력평가 → 논술형 변환", d:"선다형·단답형 등을 논술형으로 변환" },
-  { v:"transform", t:"논술형 → 변형", d:"기존 논술형 문항을 새 소재로 변형" },
-  { v:"idea",      t:"아이디어·주제로 만들기", d:"주제·키워드만으로 문항 제작" },
+  { v:"standard",  t:"성취기준으로 새 문항 만들기", d:"성취기준과 성취수준을 바탕으로 새 문항을 만듭니다." },
+  { v:"convert",   t:"기존 지필 문항을 논술형으로 바꾸기", d:"선택형이나 단답형 문항을 서술 과정이 드러나는 문항으로 바꿉니다." },
+  { v:"transform", t:"기존 논술형 문항 변형하기", d:"기존 문항의 맥락, 자료 또는 질문 방식을 바꿉니다." },
+  { v:"idea",      t:"주제·아이디어로 만들기", d:"수업 주제나 아이디어를 바탕으로 문항을 만듭니다." },
 ];
 
 // 성취수준 (LEVELS A~E)
@@ -58,10 +58,12 @@ const LEVELS = ["A","B","C","D","E"];
 
 // 그림자료 옵션
 const VISUALS = [
-  { v:"auto",   t:"필요하면 생성" },
-  { v:"always", t:"반드시 생성" },
-  { v:"none",   t:"생성 안 함" },
+  { v:"auto",   t:"필요할 때만 포함" },
+  { v:"always", t:"항상 포함" },
+  { v:"none",   t:"포함하지 않음" },
 ];
+
+const formatDisplay = value => value === "자동" ? "내용에 맞게 선택" : value;
 
 // 길라잡이 반응 지시어 17종
 const DIRECTIVES = ["요약","분류","비교","대조","분석","추론","적용","논증","설명",
@@ -234,7 +236,7 @@ async function callGemini({ apiKey, model, system, userText, images, maxTokens }
     else if (res.status === 403) { msg = "API 키가 올바르지 않거나 권한이 없습니다. 키를 다시 확인하세요."; kind = "auth"; }
     else if (res.status === 404) { msg = "이 키로는 '" + model + "' 모델을 사용할 수 없습니다."; kind = "model_unavailable"; }
     else if (res.status === 429) { msg = "요청 한도를 초과했습니다(무료 등급 할당량 부족일 수 있음)."; kind = "quota"; }
-    else if (res.status === 503 || res.status === 500) { msg = "모델이 일시적으로 혼잡합니다(구글 서버 과부하). 여러 번 자동 재시도했지만 실패했습니다. 잠시 후 다시 누르거나 다른 모델(예: gemini-2.5-flash)을 선택하세요."; kind = "overloaded"; }
+    else if (res.status === 503 || res.status === 500) { msg = "Google 모델 서버가 일시적으로 혼잡합니다. 잠시 뒤 다시 시도하거나 다른 Gemini 모델을 선택하세요."; kind = "overloaded"; }
     else                         { msg = "API 오류 (" + res.status + ")."; }
     if (detail) msg += " (구글 응답: " + detail + ")";
     const err = new Error(msg); err.kind = kind; err.status = res.status;
@@ -466,7 +468,7 @@ function toMarkdown(r, showTeacher) {
     }
     const la = it.levelAnalysis||{};
     if (showTeacher && (la.standardElements||la.levelElements||la.rationale)) {
-      L.push(""); L.push(`**수준 설계 해설 (타겟 ${it.targetLevel||"-"})**`);
+      L.push(""); L.push(`**수준 설계 해설 (목표 수준 ${it.targetLevel||"-"})**`);
       if (la.standardElements) L.push(`- 성취기준 내용요소: ${la.standardElements}`);
       if (la.levelElements) L.push(`- 해당 수준 내용요소: ${la.levelElements}`);
       if (la.rationale) L.push(`- 수준 적합성: ${la.rationale}`);
@@ -638,7 +640,7 @@ function buildDocxXml(r, showTeacher){
     if (showTeacher && (it.tips||[]).length){ B.push(dSq("활용 Tip !")); B.push(dBul(it.tips)); }
     const la = it.levelAnalysis||{};
     if (showTeacher && (la.standardElements||la.levelElements||la.rationale)){
-      B.push(dSq("수준 설계 해설 (타겟 "+(it.targetLevel||"-")+")"));
+      B.push(dSq("수준 설계 해설 (목표 수준 "+(it.targetLevel||"-")+")"));
       const rows=[];
       if (la.standardElements) rows.push("성취기준 내용요소: "+la.standardElements);
       if (la.levelElements) rows.push("해당 수준 내용요소: "+la.levelElements);
@@ -797,7 +799,7 @@ const StdList = React.memo(function StdList({subject, filter, selected, onToggle
   const f = filter.trim().toLowerCase();
   const list = f ? all.filter(s=>(s.code + " " + s.text + " " + s.area).toLowerCase().includes(f)) : all;
   return (
-    <div style={{maxHeight:230,overflowY:"auto",border:"1px solid var(--line)",borderRadius:4,padding:6}}>
+    <div className="std-list">
       {list.length===0 && <div className="hint" style={{padding:8}}>검색 결과가 없습니다. 다른 키워드로 시도하세요.</div>}
       {list.map(s=>{
         const on = selected.includes(s.code);
@@ -805,11 +807,9 @@ const StdList = React.memo(function StdList({subject, filter, selected, onToggle
           <div key={s.code} role="checkbox" aria-checked={on} tabIndex={0}
             onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); onToggle(s.code); } }}
             onClick={()=>onToggle(s.code)}
-            style={{padding:"8px 10px",borderRadius:4,cursor:"pointer",marginBottom:5,fontSize:13,
-              background:on?"var(--accent-soft)":"#FFFFFF",
-              border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
+            className={"std-row"+(on?" is-on":"")}>
             <b>{on?"✓ ":""}[{s.code}]</b> {s.text}
-            <span style={{fontSize:11,color:"var(--muted)",marginLeft:6}}>{s.area}</span>
+            <span className="std-area">{s.area}</span>
           </div>
         );
       })}
@@ -836,19 +836,27 @@ function Ed({v, editing, onC}){
 }
 
 function EmptyDoc({subject, targets, hasInput, runMode}){
-  const MSG = "평가 도구가 이 자리에 조판됩니다";
-  const ctaName = runMode==="paste" ? "「① claude.ai용 프롬프트 복사」" : "「평가도구 문서 생성」";
+  const nextTitle = hasInput
+    ? (runMode==="paste" ? "Claude에서 만든 답변을 가져오세요" : "평가 문서를 만들 준비가 되었습니다")
+    : "출제 자료를 입력하세요";
+  const nextText = hasInput
+    ? (runMode==="paste"
+        ? "Claude용 요청문을 복사한 뒤, 받은 답변을 4단계에 붙여넣으세요."
+        : "4단계에서 평가 문서 만들기를 실행하세요.")
+    : "2단계에서 성취기준, 기존 문항 또는 수업 자료를 입력하세요.";
   return (
     <div className="emptydoc noprint">
-      <div className="wongoji" aria-hidden="true">
-        {MSG.split("").map((ch,i)=><span key={i} className="cell">{ch===" "?"":ch}</span>)}
+      <div className="empty-sheet-head" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div className="empty-content">
+        <div className="empty-eyebrow">결과 미리보기</div>
+        <h2 className="empty-title">{nextTitle}</h2>
+        <p className="ed-desc">{nextText}</p>
+        <dl className="ready-grid">
+          <div><dt>과목</dt><dd>{subject!=="자동" ? subject : "지정하지 않음"}</dd></div>
+          <div><dt>목표 성취수준</dt><dd>{targets.length ? targets.join(" · ")+" 수준" : "지정하지 않음"}</dd></div>
+          <div><dt>출제 자료</dt><dd className={hasInput?"ready-ok":"ready-needed"}>{hasInput ? "입력 완료" : "입력 필요"}</dd></div>
+        </dl>
       </div>
-      <ul className="ready">
-        <li className={subject!=="자동"?"ok":"opt"}>{subject!=="자동" ? "✓ 과목 선택 완료 — "+subject : "○ 과목 미선택 — 자료를 보고 자동 판단합니다"}</li>
-        <li className={targets.length?"ok":"opt"}>{targets.length ? "✓ 목표 성취수준 — "+targets.join("·") : "○ 성취수준 미선택 — 자동으로 정합니다"}</li>
-        <li className={hasInput?"ok":"warn"}>{hasInput ? "✓ 평가 자료 입력됨" : "! 2단계에서 평가 자료를 입력해 주세요"}</li>
-      </ul>
-      <p className="ed-desc">준비가 되면 4단계의 {ctaName} 버튼을 누르세요.</p>
     </div>
   );
 }
@@ -865,7 +873,7 @@ function SkeletonDoc({sec}){
       <div className="sk" style={{height:12,width:"92%"}}></div>
       <div className="sk" style={{height:12,width:"84%",marginBottom:24}}></div>
       <div className="sk" style={{height:90,width:"100%"}}></div>
-      <p className="skmsg">문항·채점기준·피드백 사례까지 작성하고 있습니다 — {sec}초 경과</p>
+      <p className="skmsg">평가 문서를 만들고 있습니다. {sec}초 경과</p>
     </div>
   );
 }
@@ -1005,8 +1013,8 @@ function App() {
   // 필수 입력 검증: 인라인 오류 + 해당 입력란으로 스크롤·포커스
   function requireInput(){
     if (text.trim() || images.length) { setInputErr(""); return true; }
-    setInputErr("성취기준·기존 문항·아이디어 등 텍스트를 입력하거나 사진·PDF를 첨부해 주세요.");
-    setError("입력 자료가 필요합니다 — 2단계 「평가 자료 입력」을 확인하세요.");
+    setInputErr("문항 제작에 사용할 내용을 입력하거나 참고 자료를 첨부하세요.");
+    setError("2단계에서 출제 자료를 입력하세요.");
     setMobileTab("form");
     setTimeout(()=>{
       const el = document.getElementById("mainInput");
@@ -1021,7 +1029,7 @@ function App() {
     setTargets(t=>{
       if (t.includes(l)) { setTargetMsg(""); return t.filter(x=>x!==l); }
       if (t.length >= MAX_ITEMS) {
-        setTargetMsg(`문항 수 상한(${MAX_ITEMS}개)과 맞추기 위해 타겟 수준은 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다. 다른 수준을 해제한 뒤 선택하세요.`);
+        setTargetMsg(`목표 성취수준은 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다. 다른 수준을 해제한 뒤 선택하세요.`);
         return t;
       }
       setTargetMsg(""); return [...t, l];
@@ -1061,7 +1069,7 @@ function App() {
       const pr  = n => (/flash-lite/.test(n)?1 : /flash/.test(n)?0 : /pro/.test(n)?2 : 3); // 무료 한도 넉넉한 flash 우선
       names = Array.from(new Set(names)).sort((a, b) => ver(b)-ver(a) || pr(a)-pr(b) || a.localeCompare(b));
 
-      if (!names.length) { setModelMsg("이 키로 쓸 수 있는 생성 모델을 찾지 못했습니다."); }
+      if (!names.length) { setModelMsg("이 키로 사용할 수 있는 모델을 찾지 못했습니다."); }
       else {
         setModelList(names);
         // 자동 조회(키 입력 직후)면 최신 flash 선택, 수동 새로고침이면 유효할 때 현재 선택 유지
@@ -1246,7 +1254,7 @@ function App() {
   async function generate() {
     setError(""); setResult(null);
     if (!apiKey.trim()) {
-      setError("먼저 상단 [실행 방식]에서 Gemini API 키를 입력하세요.");
+      setError("상단 작업 방식에서 Gemini API 키를 입력하세요.");
       setShowRunCfg(true);
       setTimeout(()=>{
         const el = document.getElementById("apiKey");
@@ -1262,7 +1270,7 @@ function App() {
         userText: buildPrompt(), images,
         maxTokens: 32000,
       });
-      const bigTip = "\n\n▶ 해결: ① 문항 수를 1개로 줄이기 ② 그림자료를 '생성 안 함'으로 ③ 출력 한도가 큰 모델(gemini-2.5-flash 또는 gemini-2.5-pro)로 바꾸기 — gemini-2.0-flash는 출력이 짧아 긴 문서가 잘립니다 ④ 그래도 안 되면 «claude.ai 붙여넣기» 모드(긴 문서에 가장 안정적).";
+      const bigTip = "\n\n해결 방법\n1. 문항 수를 1개로 줄입니다.\n2. 도식·그림을 '포함하지 않음'으로 바꿉니다.\n3. 출력 한도가 큰 Gemini 모델을 선택합니다.\n4. 같은 문제가 계속되면 'Claude에 요청문 붙여넣기' 작업 방식을 사용합니다.";
       let parsed = null;
       try { parsed = parseResult(raw); } catch(_){}
       if (parsed) {
@@ -1271,7 +1279,7 @@ function App() {
         saveToHistory(parsed);
         afterResult();
         if (stop === "MAX_TOKENS") {
-          setError("⚠ 출력이 모델의 최대 길이에서 잘려 일부 섹션(예시답안·채점기준·피드백 등)이 빠졌을 수 있습니다. 완전한 문서를 원하면 아래 방법을 쓰세요." + bigTip + "\n(현재 모델: " + model + ")");
+          setError("출력이 모델의 최대 길이에 도달해 예시답안, 채점기준, 피드백 일부가 빠졌을 수 있습니다." + bigTip + "\n\n현재 모델: " + model);
         }
       } else {
         if (stop === "MAX_TOKENS") {
@@ -1281,10 +1289,10 @@ function App() {
       }
     } catch(e) {
       const kind = e.kind;
-      const paste = "\n\n▶ 무료 API 키의 할당량·정책 제한일 가능성이 큽니다. 위 [실행 방식]을 «claude.ai 붙여넣기»로 바꾸면 API 키·한도 없이 바로 생성됩니다(Claude Pro/Max). 또는 aistudio.google.com에서 결제(billing)를 연결하면 한도가 올라갑니다.";
+      const paste = "\n\n무료 API 키의 사용량 또는 정책 제한일 수 있습니다. 상단 [작업 방식]에서 'Claude에 요청문 붙여넣기'를 선택하면 Gemini API 키 없이 작업할 수 있습니다. Gemini를 계속 사용하려면 Google AI Studio에서 결제 설정과 사용 한도를 확인하세요.";
       if (kind === "model_unavailable" && model.trim() !== "gemini-2.0-flash") {
         setModel("gemini-2.0-flash");
-        setError((e.message || "") + "\n\n→ 자동으로 'gemini-2.0-flash' 모델로 바꿨습니다. 「평가도구 문서 생성」을 한 번 더 눌러 주세요.");
+        setError((e.message || "") + "\n\n모델을 gemini-2.0-flash로 변경했습니다. 「평가 문서 만들기」를 다시 눌러 주세요.");
       } else if (kind === "quota" || kind === "model_unavailable") {
         setError((e.message || String(e)) + paste);
       } else {
@@ -1303,7 +1311,7 @@ function App() {
       GUIDE +
       "\n\n========== 작업 지시 ==========\n" +
       buildPrompt() +
-      (images.length ? "\n\n※ 사진·PDF 자료는 이 메시지(claude.ai 대화)에 직접 첨부합니다. 첨부한 사진·PDF 내용을 근거로 작업하세요." : "") +
+      (images.length ? "\n\n※ 사진·PDF 자료는 Claude 대화에 직접 첨부합니다. 첨부한 자료의 내용을 근거로 작업하세요." : "") +
       "\n\n반드시 위 [출력 형식]의 JSON 객체 하나만 출력하세요. 코드블록이나 설명 문장은 넣지 마세요.";
     navigator.clipboard.writeText(full).then(()=>{
       setPromptCopied(true); setTimeout(()=>setPromptCopied(false), 2000);
@@ -1312,12 +1320,12 @@ function App() {
 
   function showPasted() {
     setError("");
-    if (!pasteText.trim()) { setError("claude.ai에서 받은 답변을 붙여넣어 주세요."); return; }
+    if (!pasteText.trim()) { setError("Claude의 답변 전체를 붙여넣으세요."); return; }
     try {
       const p = attachImages(parseResult(pasteText));
       setResult(p); saveToHistory(p); afterResult();
     } catch(e) {
-      setError("붙여넣은 내용을 문서로 해석하지 못했습니다.\n원인: 답변의 일부만 붙여넣었거나(여는 { 또는 닫는 } 누락), JSON 앞뒤에 설명 문장이 섞였을 수 있습니다.\nClaude의 답변 전체를 그대로 복사해 다시 붙여넣어 주세요(코드블록에 싸여 있어도 됩니다). 기존에 표시된 문서는 그대로 유지됩니다.");
+      setError("답변 형식을 읽지 못했습니다. Claude의 답변을 처음부터 끝까지 다시 복사해 붙여넣으세요.\n\n문제 해결: 답변 안에 중괄호로 묶인 결과 데이터가 포함되어 있어야 합니다. 코드 블록은 그대로 붙여넣어도 됩니다. 기존에 표시된 문서는 유지됩니다.");
     }
   }
 
@@ -1346,8 +1354,8 @@ function App() {
       <header className="app noprint">
         <div className="mast">
           <div>
-            <h1>논술형 평가 문항 스튜디오</h1>
-            <p>과학과 서·논술형 평가도구를 조판합니다</p>
+            <h1>논술형 평가 문항 설계</h1>
+            <p>성취기준과 수업 자료를 바탕으로 문항, 채점기준, 피드백 예시를 설계합니다.</p>
           </div>
           <div className="stamp" aria-hidden="true">
             <span className="s1">과학과</span><span>2022 개정</span><span>서·논술형</span>
@@ -1357,23 +1365,23 @@ function App() {
 
       {/* 실행 환경 */}
       <div className="envline noprint">
-        <span className="env-l">실행 방식</span>
-        <b>{runMode==="paste" ? "Claude에서 생성 · API 불필요" : "Gemini API 자동 호출"}</b>
-        <button className="btn ghost" style={{padding:"6px 12px",fontSize:12}}
+        <span className="env-l">작업 방식</span>
+        <b>{runMode==="paste" ? "Claude 새 대화에서 문항 만들기" : "Gemini API로 바로 만들기"}</b>
+        <button className="btn ghost env-change"
           onClick={()=>setShowRunCfg(!showRunCfg)} aria-expanded={showRunCfg}>
-          {showRunCfg ? "닫기" : "실행 방식 변경"}
+          {showRunCfg ? "닫기" : "작업 방식 변경"}
         </button>
       </div>
       {showRunCfg &&
         <div className="envcfg noprint">
           <div className="pills">
-            <Pill on={runMode==="paste"} onClick={()=>setRunMode("paste")}>claude.ai 붙여넣기 (Pro·Max · API 불필요)</Pill>
-            <Pill on={runMode==="api"} onClick={()=>setRunMode("api")}>Gemini API 자동 호출</Pill>
+            <Pill on={runMode==="paste"} onClick={()=>setRunMode("paste")}>Claude에 요청문 붙여넣기</Pill>
+            <Pill on={runMode==="api"} onClick={()=>setRunMode("api")}>Gemini API로 바로 만들기</Pill>
           </div>
           <div className="hint">
             {runMode==="paste"
-              ? "프롬프트를 복사해 claude.ai에 붙여넣고, 답변을 다시 아래에 붙여넣으면 문서로 조판됩니다. API 키 불필요."
-              : "본인 Gemini API 키로 앱에서 바로 생성합니다."}
+              ? "요청문을 Claude에 붙여넣고, 받은 답변을 이 화면으로 가져옵니다. API 키는 필요하지 않습니다."
+              : "개인 Gemini API 키를 사용해 이 화면에서 평가 문서를 만듭니다."}
           </div>
           {runMode==="api" &&
             <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
@@ -1386,7 +1394,7 @@ function App() {
                 </div>
                 <div style={{flex:"0 0 auto"}}>
                   <button className="btn sec" onClick={()=>fetchModels(false)} disabled={modelLoading} style={{whiteSpace:"nowrap"}}>
-                    {modelLoading ? "불러오는 중…" : "이 키로 쓸 수 있는 모델 불러오기"}
+                    {modelLoading ? "불러오는 중…" : "모델 목록 확인"}
                   </button>
                 </div>
               </div>
@@ -1404,9 +1412,9 @@ function App() {
                   <input type="text" value={model} onChange={e=>setModel(e.target.value)}
                     placeholder="모델명 직접 입력 (예: gemini-2.5-flash)" style={{marginTop:8}} />}
               </div>
-              {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--accent)":"var(--warn)", fontWeight:600}}>{modelMsg}</div>}
+              {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--ui-success)":"var(--ui-danger)", fontWeight:600}}>{modelMsg}</div>}
               <div className="hint">
-                키는 이 브라우저에만 저장됩니다. 발급: aistudio.google.com. 「모델 불러오기」를 누르면 이 키로 되는 모델만 표시됩니다.
+                API 키는 이 브라우저에만 저장됩니다. 모델 목록을 불러오거나 문서를 만들 때 Google Gemini API 호출에 사용됩니다. 발급: aistudio.google.com.
                 {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
               </div>
             </div>}
@@ -1421,7 +1429,7 @@ function App() {
         <button type="button" role="tab" id="tab-prev" aria-selected={mobileTab==="preview"} aria-controls="panel-prev"
           tabIndex={mobileTab==="preview"?0:-1}
           onKeyDown={e=>{ if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); setMobileTab("form"); } }}
-          onClick={()=>setMobileTab("preview")}>결과 미리보기{result ? " ●" : ""}</button>
+          onClick={()=>setMobileTab("preview")}>결과 미리보기{result && <><span className="tab-status" aria-hidden="true">결과 있음</span><span className="sr">결과가 있습니다</span></>}</button>
       </div>
 
       <div className={"workbench"+(mobileTab==="preview"?" show-preview":"")}>
@@ -1431,38 +1439,39 @@ function App() {
       <div className="card">
         <h2><span className="num">1</span> 출제 조건</h2>
 
-        <div className="subh">대상 과목 <span className="subh-x">(위계·선행학습 통제)</span></div>
         <label className="fld" htmlFor="subjectSel">과목</label>
         <select id="subjectSel" value={subject} onChange={e=>{ setSubject(e.target.value); setSelectedStds([]); setStdFilter(""); }}>
-          <option value="자동">자동 (위계 통제 안 함)</option>
+          <option value="자동">과목을 지정하지 않음</option>
           {Object.keys(groups).map(g=>(
             <optgroup key={g} label={g}>
               {groups[g].map(s=><option key={s.v} value={s.v}>{s.v}</option>)}
             </optgroup>
           ))}
         </select>
-        <div className="hint">과목을 고르면 상위 학년·심화 개념을 자동 배제합니다.</div>
+        <div className="hint">과목을 선택하면 해당 교육과정 범위를 벗어난 개념은 사용하지 않습니다.</div>
 
         {(STANDARDS[subject]||[]).length > 0 &&
           <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
-            <label className="fld" htmlFor="stdFilterIn">성취기준 선택 <span style={{fontWeight:400,color:"var(--muted)"}}>(복수 선택 가능 · 공식 성취수준 A~E 자동 반영)</span></label>
+            <label className="fld" htmlFor="stdFilterIn">성취기준 선택</label>
+            <div className="hint compact">여러 개를 선택할 수 있습니다. 공식 성취수준은 문항과 채점기준에 함께 적용됩니다.</div>
             <input id="stdFilterIn" type="text" value={stdFilter} onChange={e=>setStdFilter(e.target.value)}
-              placeholder={"키워드·코드로 검색 (전체 " + (STANDARDS[subject]||[]).length + "개 · 예: 광합성, 03-05)"}
+              placeholder="성취기준 코드나 개념어로 검색하세요. 예: 광합성, 03-05"
               style={{marginBottom:8}} />
             <StdList subject={subject} filter={stdFilter} selected={selectedStds} onToggle={toggleStd}/>
             {selectedStds.length>0 &&
               <div className="note info" style={{marginTop:10}}>
-                선택한 성취기준 <b>{selectedStds.length}개</b>{selectedStds.length>1?" — 통합·연계형 문항으로 설계됩니다.":""}
+                성취기준 <b>{selectedStds.length}개</b>를 선택했습니다.{selectedStds.length>1?" 선택한 성취기준을 연결해 문항을 설계합니다.":""}
                 <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setSelectedStds([]);}}>모두 해제</a>
               </div>}
             {selectedStds.map(code=>{
               const std=(STANDARDS[subject]||[]).find(s=>s.code===code); if(!std) return null;
               return (
                 <div className="box blue" key={code} style={{marginTop:10}}>
-                  <h4>[{std.code}] 공식 성취수준 (그대로 문항·채점에 반영)</h4>
-                  <table className="ktbl" style={{margin:"4px 0 0"}}>
+                  <h4>[{std.code}] 공식 성취수준</h4>
+                  <div className="hint compact">문항과 채점기준에 적용됩니다.</div>
+                  <table className="ktbl std-table" style={{margin:"4px 0 0"}}>
                     <tbody>{std.levels.map((lv,i)=>(
-                      <tr key={i}><th style={{width:52}}>{lv.level}</th><td style={{fontSize:12.5}}>{lv.text}</td></tr>
+                      <tr key={i}><th style={{width:52}}>{lv.level}</th><td>{lv.text}</td></tr>
                     ))}</tbody>
                   </table>
                 </div>
@@ -1470,87 +1479,90 @@ function App() {
             })}
           </div>}
         {(STANDARDS[subject]||[]).length === 0 && subject !== "자동" &&
-          <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 2단계 「평가 자료 입력」에 성취기준·성취수준을 직접 붙여넣으면 그대로 반영됩니다.</div>}
+          <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 2단계 출제 자료에 성취기준과 성취수준을 직접 붙여넣으세요.</div>}
 
         <fieldset className="fset">
-          <legend className="subh">목표 성취수준 <span className="subh-x">(최소능력자 변별)</span></legend>
-          <div className="pills">
+          <legend className="subh">목표 성취수준</legend>
+          <div className="pills level-grid">
             {LEVELS.map(l=><Pill key={l} cls="lv" on={targets.includes(l)} onClick={()=>toggleTarget(l)}>{l} 수준</Pill>)}
           </div>
           {targetMsg && <div className="note" style={{marginTop:10}}>⚠ {targetMsg}</div>}
           <div className="hint">
-            여러 수준을 고르면 수준마다 문항이 1개씩 배정됩니다(최대 {MAX_ITEMS}개). 비워 두면 난이도 자동 분포.
-            {targets.length>1 && <b style={{color:"var(--accent)"}}> → 지금 {targets.length}개 수준 선택 → {targets.length}개 문항 생성.</b>}
+            {targets.length
+              ? `여러 수준을 선택하면 수준별 문항을 하나씩 만듭니다. 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다.`
+              : "선택하지 않으면 입력한 자료에 맞춰 난이도를 구성합니다."}
           </div>
         </fieldset>
 
         <fieldset className="fset">
-          <legend className="subh">입력 방식</legend>
-          <div className="pills">
+          <legend className="subh">설계 방식</legend>
+          <div className="pills mode-grid">
             {MODES.map(m=><Pill key={m.v} on={mode===m.v} onClick={()=>setMode(m.v)}>{m.t}</Pill>)}
           </div>
           <div className="hint">{MODES.find(m=>m.v===mode).d}</div>
         </fieldset>
       </div>
 
-      {/* 2단계: 평가 자료 입력 */}
+      {/* 2단계: 출제 자료 */}
       <div className="card">
-        <h2><span className="num">2</span> 평가 자료 입력</h2>
+        <h2><span className="num">2</span> 출제 자료</h2>
 
         <label className="fld" htmlFor="mainInput">
-          {mode==="standard" ? "성취기준·성취수준" :
-           mode==="convert"  ? "변환할 지필·선다형 문항" :
-           mode==="transform"? "변형할 논술형 문항" : "주제·아이디어"}
+          {mode==="standard" ? "성취기준과 성취수준" :
+           mode==="convert"  ? "기존 지필 문항" :
+           mode==="transform"? "기존 논술형 문항" : "수업 주제와 아이디어"}
         </label>
         <textarea id="mainInput" value={text}
           aria-invalid={inputErr?true:undefined} aria-describedby={inputErr?"mainInputErr":undefined}
           onChange={e=>{ setText(e.target.value); if(inputErr && (e.target.value.trim()||images.length)) setInputErr(""); }}
           placeholder={
-            mode==="standard" ? "성취기준(및 성취수준)을 붙여넣으세요. 예: [10통과1-02-01] ..." :
-            mode==="convert"  ? "변환할 지필/선다형 문항을 붙여넣으세요." :
-            mode==="transform"? "변형할 논술형 문항을 붙여넣으세요." :
-                                "주제·아이디어·키워드를 적으세요. 예: 광합성과 세포호흡의 관계"
+            mode==="standard" ? "성취기준과 성취수준을 붙여넣으세요." :
+            mode==="convert"  ? "바꾸려는 문항과 정답 또는 해설을 붙여넣으세요." :
+            mode==="transform"? "변형할 문항과 채점기준을 붙여넣으세요." :
+                                "문항으로 만들 주제, 자료, 수업 맥락을 적어 주세요."
           } />
         {inputErr && <div className="fielderr" id="mainInputErr" role="alert">⚠ {inputErr}</div>}
 
         <div style={{marginTop:10}}>
-          <label className="btn ghost" style={{display:"inline-block",cursor:"pointer"}}>
-            사진 · PDF 올리기
+          <label className="btn ghost upload-btn">
+            참고 자료 첨부
             <input type="file" accept="image/*,application/pdf,.pdf" multiple onChange={onFiles} style={{display:"none"}} />
           </label>
           {images.length>0 &&
             <div className="thumbs">
               {images.map((im,i)=>(
                 im.kind === "pdf"
-                  ? <div className="thumb" key={i} style={{width:"auto"}}>
-                      <div style={{width:120,height:70,border:"1px solid var(--line)",borderRadius:8,
-                        display:"flex",flexDirection:"column",alignItems:"center",justifyContent:"center",
-                        background:"#f6f3eb",padding:"4px 8px",fontSize:11,textAlign:"center",overflow:"hidden"}}>
-                        <span style={{fontSize:22}}>📄</span>
-                        <span style={{whiteSpace:"nowrap",overflow:"hidden",textOverflow:"ellipsis",maxWidth:"100%"}}>{im.name}</span>
+                  ? <div className="thumb pdf-thumb" key={i}>
+                      <div className="pdf-card">
+                        <span className="file-type">PDF</span>
+                        <span className="file-name">{im.name}</span>
                       </div>
                       <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
                     </div>
                   : <div className="thumb" key={i}>
                       <img src={im.url} alt={im.name}/>
                       <button onClick={()=>removeImage(i)} title="삭제" aria-label={"첨부 삭제: "+im.name}>×</button>
-                      <label style={{fontSize:11,display:"block",textAlign:"center",cursor:"pointer",marginTop:2,color:im.asMaterial?"var(--accent)":"var(--muted)",fontWeight:im.asMaterial?700:400}}>
-                        <input type="checkbox" checked={!!im.asMaterial} onChange={()=>toggleAsMaterial(i)} style={{verticalAlign:-2,marginRight:2}}/>자료로 삽입
+                      <label className={"material-check"+(im.asMaterial?" is-on":"")}>
+                        <input type="checkbox" checked={!!im.asMaterial} onChange={()=>toggleAsMaterial(i)} style={{verticalAlign:-2,marginRight:2}}/>제시 자료로 사용
                       </label>
                     </div>
               ))}
             </div>}
         </div>
-        <div className="hint">사진·PDF 속 자료를 읽어 문항에 반영합니다(18MB 이하). 사진의 「자료로 삽입」을 체크하면 그림이 문서에 원본 그대로 들어갑니다.</div>
-        <div className="hint" style={{fontSize:12.5}}>파일은 이 브라우저 안에서만 읽습니다. Gemini 자동 생성 시에만 Google API로 전송되고, claude.ai 모드에서는 앱이 전송하지 않으니 대화에 직접 첨부하세요. 히스토리에는 원본이 저장되지 않습니다.</div>
+        <div className="hint">교과서, 활동지, 보고서의 사진이나 PDF를 첨부할 수 있습니다. 파일당 최대 용량은 18MB입니다.</div>
+        <details className="file-note">
+          <summary>파일 처리 안내</summary>
+          <p>Claude 방식에서는 첨부 파일을 Claude 대화에 직접 넣어야 합니다.</p>
+          <p>파일은 이 브라우저에서 읽습니다. Gemini 방식으로 문서를 만들 때는 선택한 파일이 Google API로 전송됩니다. 원본 파일은 최근 결과에 저장되지 않습니다.</p>
+        </details>
 
-        <div className="subh">실생활 자료 <span className="subh-x">(신문기사·칼럼 · 선택 사항)</span></div>
+        <div className="subh inline-title">기사·칼럼 활용 <span className="optional-badge">선택</span></div>
         <div className="pills">
-          <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용 안 함 (기본)</Pill>
-          <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사·칼럼 넣기</Pill>
+          <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용하지 않음</Pill>
+          <Pill on={useNews} onClick={()=>setUseNews(true)}>기사·칼럼 추가</Pill>
         </div>
         {!useNews &&
-          <div className="hint" style={{marginTop:8}}>필요할 때만 켜세요 — 고른 기사가 제시문 근거로 들어갑니다.</div>}
+          <div className="hint" style={{marginTop:8}}>필요하면 기사나 칼럼을 검색해 제시 자료로 추가할 수 있습니다.</div>}
         {useNews && <React.Fragment>
         <div className="row" style={{alignItems:"flex-end",marginTop:12}}>
           <div style={{flex:2}}>
@@ -1574,37 +1586,36 @@ function App() {
         </div>
         {newsMsg && <div className="hint" style={{color:"var(--warn)",fontWeight:600,marginTop:8}}>{newsMsg}</div>}
         {newsResults.length>0 &&
-          <div style={{marginTop:12,maxHeight:320,overflowY:"auto",border:"1px solid var(--line)",borderRadius:4,padding:8}}>
+          <div className="news-results">
             {newsResults.map((a,i)=>{
               const on = articles.some(x=>x.link===a.link);
               return (
                 <div key={i} role="checkbox" aria-checked={on} tabIndex={0}
                   onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleArticle(a); } }}
                   onClick={()=>toggleArticle(a)}
-                  style={{padding:"9px 10px",borderRadius:4,cursor:"pointer",marginBottom:6,
-                    background:on?"var(--accent-soft)":"#FFFFFF",border:"1px solid "+(on?"var(--accent)":"var(--line)")}}>
-                  <div style={{fontSize:13.5,fontWeight:700}}>{on?"✓ ":""}{a.title}</div>
-                  <div style={{fontSize:11,color:"var(--muted)",margin:"2px 0"}}>{a.source}{a.date?` · ${a.date}`:""}</div>
-                  <div style={{fontSize:12.5,color:"var(--ink)"}}>{a.desc}</div>
+                  className={"news-row"+(on?" is-on":"")}>
+                  <div className="news-title">{on?"✓ ":""}{a.title}</div>
+                  <div className="news-source">{a.source}{a.date?` · ${a.date}`:""}</div>
+                  <div className="news-desc">{a.desc}</div>
                 </div>
               );
             })}
           </div>}
         {articles.length>0 &&
           <div className="note info" style={{marginTop:10}}>
-            선택한 실생활 자료 <b>{articles.length}건</b>이 제시문 근거로 반영됩니다.
+            기사 <b>{articles.length}건</b>을 선택했습니다.
             <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setArticles([]);}}>모두 해제</a>
           </div>}
-        <div className="hint">선택한 기사가 제시문 근거가 되고, 최소 한 문항이 그 자료를 분석하도록 설계됩니다. (배포 사이트에서 관리자 키 설정 후 동작)</div>
+        <div className="hint">선택한 기사를 분석해야 해결할 수 있는 문항을 만듭니다. 검색 기능을 사용하려면 배포 환경에 네이버 검색 API 설정이 필요합니다.</div>
         </React.Fragment>}
       </div>
 
-      {/* 3단계: 문항 상세 설정 */}
+      {/* 3단계: 문항 구성 */}
       <div className="card">
-        <h2><span className="num">3</span> 문항 상세 설정</h2>
+        <h2><span className="num">3</span> 문항 구성</h2>
         <div className="row">
           <div>
-            <label className="fld" htmlFor="cntIn">문항 수 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>(1~4)</span></label>
+            <label className="fld" htmlFor="cntIn">문항 수</label>
             <input id="cntIn" type="number" min="1" max="4" step="1" inputMode="numeric" value={countStr}
               onChange={e=>{
                 const v = e.target.value;
@@ -1622,132 +1633,131 @@ function App() {
           <div>
             <label className="fld" htmlFor="fmtSel">문항 형식</label>
             <select id="fmtSel" value={format} onChange={e=>setFormat(e.target.value)}>
-              {FORMATS.map(f=><option key={f} value={f}>{f}</option>)}
+              {FORMATS.map(f=><option key={f} value={f}>{formatDisplay(f)}</option>)}
             </select>
           </div>
         </div>
-        <div className="hint">완결 문서가 생성되므로 1~2개 권장, 하위 문항 (1)·(2)는 자동 구성.</div>
+        <div className="hint">1개부터 4개까지 만들 수 있습니다. 한 번에 검토하기에는 1~2개가 적절합니다.</div>
 
         <button type="button" className="advtgl" aria-expanded={advOpen} onClick={()=>setAdvOpen(!advOpen)}>
-          고급 문항 설정 {advOpen ? "▲ 접기" : "▼ 펼치기"}
-          <span className="advsum"> — {[
-            visual==="none" ? "도식 없음" : (visual==="always" ? "도식 항상" : "도식 자동"),
-            mono ? "흑백 인쇄" : "컬러",
-            blankVer ? "빈칸 변형" : null,
-            style.trim() ? "스타일 지정" : null
-          ].filter(Boolean).join(" · ")}</span>
+          <span>고급 설정</span>
+          <span className="chevron" aria-hidden="true">{advOpen ? "⌃" : "⌄"}</span>
+          <span className="sr">{advOpen ? "접기" : "펼치기"}</span>
+          <span className="advsum">{[
+            "도식: "+(visual==="none" ? "포함하지 않음" : (visual==="always" ? "항상" : "필요할 때")),
+            "인쇄: "+(mono ? "흑백" : "컬러"),
+            blankVer ? "빈칸 문항: 사용" : null,
+            style.trim() ? "추가 요청: 있음" : null
+          ].filter(Boolean).join(" / ")}</span>
         </button>
         {advOpen && <div style={{paddingTop:12}}>
-          <label className="fld" htmlFor="visSel">그림자료(도식)</label>
+          <label className="fld" htmlFor="visSel">도식·그림</label>
           <select id="visSel" value={visual} onChange={e=>setVisual(e.target.value)}>
             {VISUALS.map(v=><option key={v.v} value={v.v}>{v.t}</option>)}
           </select>
           {visual!=="none" &&
             <div style={{marginTop:10,display:"flex",gap:18,flexWrap:"wrap",alignItems:"center"}}>
-              <label style={{fontSize:13,cursor:"pointer",fontWeight:mono?700:400,color:mono?"var(--accent)":"var(--ink)"}}>
+              <label className={"setting-check"+(mono?" is-on":"")}>
                 <input type="checkbox" checked={mono} onChange={()=>setMono(!mono)} style={{verticalAlign:-2,marginRight:5}}/>
-                흑백 인쇄용 도식
+                 흑백 인쇄에 맞게 만들기
               </label>
-              <label style={{fontSize:13,cursor:"pointer",fontWeight:blankVer?700:400,color:blankVer?"var(--accent)":"var(--ink)"}}>
+              <label className={"setting-check"+(blankVer?" is-on":"")}>
                 <input type="checkbox" checked={blankVer} onChange={()=>setBlankVer(!blankVer)} style={{verticalAlign:-2,marginRight:5}}/>
-                ㉠㉡ 빈칸 변형 함께 생성 (도식 완성형)
+                 빈칸이 있는 도식 문항도 만들기
               </label>
             </div>}
           {visual!=="none" && blankVer &&
-            <div className="hint" style={{marginTop:4}}>학생 배부본에는 ㉠㉡ 빈칸 도식, 교사용에는 완성 도식과 정답이 실립니다.</div>}
+            <div className="hint" style={{marginTop:4}}>학생용에는 빈칸 도식을, 교사용에는 완성 도식과 정답을 넣습니다.</div>}
           <div style={{marginTop:12}}>
-            <label className="fld" htmlFor="styleIn">출제 스타일 자유 지정</label>
+            <label className="fld" htmlFor="styleIn">추가 요청</label>
             <input id="styleIn" type="text" value={style} onChange={e=>setStyle(e.target.value)}
-              placeholder='예: 실생활 맥락 강조, 그래프 해석 포함, 600자 분량' />
+              placeholder='예: 그래프 해석을 포함하고, 600자 안팎으로 답하게 해 주세요.' />
           </div>
         </div>}
       </div>
 
-      {/* 4단계: Claude 생성·결과 가져오기 */}
+      {/* 4단계: 문항 만들기 */}
       <div className="card">
-        <h2><span className="num">4</span> {runMode==="paste" ? "Claude 생성 · 결과 가져오기" : "문서 생성"}</h2>
+        <h2><span className="num">4</span> {runMode==="paste" ? "Claude에서 문항 만들기" : "평가 문서 만들기"}</h2>
 
         {(()=>{ const eff = Math.min(MAX_ITEMS, targets.length ? Math.max(count, targets.length) : count);
           const parts = [
-            subject!=="자동" ? subject : "과목 자동",
-            targets.length ? ("수준 "+targets.join("·")) : "수준 자동",
-            format!=="자동" ? format : "형식 자동",
-            eff + "문항",
-            mono ? "흑백" : "컬러"
+            "과목: "+(subject!=="자동" ? subject : "미지정"),
+            "성취수준: "+(targets.length ? targets.join(" · ") : "미지정"),
+            "문항 유형: "+formatDisplay(format),
+            "문항 수: "+eff+"개",
+            "인쇄: "+(mono ? "흑백" : "컬러")
           ];
-          if (visual==="none") parts.push("도식 없음");
-          if (blankVer) parts.push("빈칸 변형");
-          if (useNews && articles.length) parts.push("기사 "+articles.length+"건");
+          if (visual==="none") parts.push("도식: 포함하지 않음");
+          if (blankVer) parts.push("빈칸 문항: 사용");
+          if (useNews && articles.length) parts.push("기사: "+articles.length+"건");
           const need = (!text.trim() && !images.length);
           return (
             <div className="sumline" aria-live="polite">
-              <span>{parts.join(" · ")}</span>
-              {need && <span className="sum-warn">! 평가 자료 입력 필요</span>}
+              <span>{parts.join(" / ")}</span>
+              {need && <span className="sum-warn">출제 자료를 입력하세요.</span>}
             </div>
           );
         })()}
 
         {error && <div className="err" role="alert" style={{whiteSpace:"pre-wrap"}}>⚠ {error}</div>}
-        <span className="sr" aria-live="polite">{promptCopied ? "프롬프트가 클립보드에 복사되었습니다" : ""}</span>
+        <span className="sr" aria-live="polite">{promptCopied ? "요청문이 클립보드에 복사되었습니다" : ""}</span>
 
         {runMode==="api" && <React.Fragment>
-          <button className="btn" onClick={generate} disabled={loading} style={{width:"100%",fontSize:16}}>
-            {loading ? <><span className="spin"></span>생성 중… {loadSec}초 경과</> : "평가도구 문서 생성"}
+          <button className="btn primary-wide" onClick={generate} disabled={loading}>
+            {loading ? <><span className="spin"></span>평가 문서를 만들고 있습니다. {loadSec}초 경과</> : "평가 문서 만들기"}
           </button>
           {loading &&
             <div className="hint" style={{textAlign:"center",marginTop:8}}>
-              보통 30~60초, 혼잡 시 자동 재시도로 더 걸릴 수 있습니다. 창을 닫지 마세요.
+              보통 30~60초가 걸립니다. 서버가 혼잡하면 더 오래 걸릴 수 있으니 창을 닫지 마세요.
             </div>}
         </React.Fragment>}
 
         {runMode==="paste" && <React.Fragment>
-          <button className="btn" onClick={copyPromptForClaude} style={{width:"100%",fontSize:15}}>
-            {promptCopied ? "복사됨 ✓" : "① claude.ai용 프롬프트 복사"}
+          <button className="btn primary-wide" onClick={copyPromptForClaude}>
+            {promptCopied ? "요청문을 복사했습니다" : "Claude용 요청문 복사"}
           </button>
           {promptCopied &&
-            <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer"
-              style={{display:"block",textAlign:"center",marginTop:8,fontSize:13,fontWeight:700,color:"var(--accent)"}}>
-              복사되었습니다 — claude.ai 새 대화 열기 ↗
+            <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer" className="claude-link">
+              Claude 새 대화 열기
             </a>}
-          <ol style={{fontSize:13,color:"var(--hintc)",margin:"12px 0 0",paddingLeft:20,lineHeight:1.8}}>
-            <li><b>claude.ai</b>에 로그인해 새 대화를 엽니다(Pro/Max 구독).</li>
-            <li>방금 복사한 프롬프트를 붙여넣습니다{`. `}{<span>사진·PDF를 넣었다면 그 대화에 파일도 함께 첨부하세요(claude.ai는 PDF 첨부를 지원합니다).</span>}</li>
-            <li>Claude가 출력한 <b>결과 전체(중괄호 {`{ }`} 포함)</b>를 복사합니다.</li>
-            <li>아래 칸에 붙여넣으면 <b>자동으로 문서가 표시</b>됩니다. (안 되면 ③ 결과 표시 클릭)</li>
+          <ol className="copy-steps">
+            <li>요청문을 복사해 Claude 새 대화에 붙여넣습니다.</li>
+            <li>사진이나 PDF를 사용했다면 같은 대화에 첨부합니다.</li>
+            <li>Claude의 답변 전체를 복사해 아래에 붙여넣습니다.</li>
           </ol>
-          <label className="fld" style={{marginTop:14}} htmlFor="pasteIn">② Claude의 답변 전체 붙여넣기</label>
+          <label className="fld paste-label" htmlFor="pasteIn">Claude 답변</label>
           <textarea id="pasteIn" value={pasteText} onChange={e=>onPasteChange(e.target.value)}
-            placeholder="Claude가 준 답변을 통째로 붙여넣으세요 (중괄호 {부터 }까지 전체)" style={{minHeight:120,fontFamily:"monospace",fontSize:12}} />
-          <div style={{display:"flex",gap:8,marginTop:10,flexWrap:"wrap"}}>
-            <button className="btn sec" onClick={showPasted}>③ 결과 표시</button>
+            placeholder="Claude의 답변 전체를 붙여넣으세요." className="paste-input" />
+          <div className="actions-row">
+            <button className="btn sec" onClick={showPasted}>결과 확인</button>
             <button className="btn ghost" onClick={()=>setShowEx(!showEx)} aria-expanded={showEx}>
-              {showEx ? "예시 닫기" : "올바른 답변 예시 보기"}
+              {showEx ? "입력 예시 닫기" : "입력 예시"}
             </button>
           </div>
           {showEx && <pre className="exbox">{EX_JSON}</pre>}
         </React.Fragment>}
       </div>
 
-      {/* 최근 생성 결과 (브라우저 자동 저장) */}
+      {/* 최근 결과 */}
       {historyList.length>0 &&
-        <div className="card">
-          <h2>최근 생성 결과
-            <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span>
-            <label className="btn ghost" style={{marginLeft:"auto",padding:"4px 12px",fontSize:12,cursor:"pointer"}}>
-              JSON 불러오기
+        <div className="card history-card">
+          <h2>최근 결과
+            <span className="history-meta">이 브라우저에 최근 10건 저장</span>
+            <label className="btn ghost history-import">
+              백업 파일 불러오기
               <input type="file" accept="application/json,.json" onChange={importHistoryFile} style={{display:"none"}}/>
             </label>
           </h2>
-          <div className="hint" style={{margin:"0 0 8px"}}>공용 컴퓨터라면 사용 후 삭제하세요. 「백업」으로 내려받은 JSON은 다른 컴퓨터에서 「JSON 불러오기」로 복원할 수 있습니다.</div>
+          <div className="hint history-help">공용 컴퓨터에서는 작업 후 결과를 삭제하세요. 내려받은 백업 파일은 다른 컴퓨터에서도 불러올 수 있습니다.</div>
           {historyList.map((h,i)=>(
-            <div key={h.ts} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",
-              borderBottom: i<historyList.length-1 ? "1px dashed var(--line)" : "none",fontSize:13}}>
-              <b style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.name}</b>
-              <span style={{color:"var(--muted)",fontSize:11,whiteSpace:"nowrap"}}>{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-              <button className="btn sec" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); afterResult(); }}>열기</button>
-              <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}}
+            <div key={h.ts} className={"history-row"+(i<historyList.length-1?" has-divider":"")}>
+              <b className="history-name">{h.name}</b>
+              <span className="history-date">{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
+              <button className="btn sec mini-action" onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); afterResult(); }}>열기</button>
+              <button className="btn ghost mini-action"
                 onClick={()=>downloadDataUrl("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(h)), (h.name||"평가도구").replace(/[\\/:*?"<>|]/g,"_")+".json")}>백업</button>
-              <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>deleteHistory(i)}>삭제</button>
+              <button className="btn ghost mini-action danger-action" onClick={()=>deleteHistory(i)}>삭제</button>
             </div>
           ))}
         </div>}
@@ -1768,13 +1778,13 @@ function App() {
       {mobileTab==="form" &&
         <div className="mcta noprint">
           {runMode==="paste"
-            ? <button className="btn" onClick={copyPromptForClaude}>{promptCopied?"복사됨 ✓":"① claude.ai용 프롬프트 복사"}</button>
-            : <button className="btn" onClick={generate} disabled={loading}>{loading?("생성 중… "+loadSec+"초"):"평가도구 문서 생성"}</button>}
+            ? <button className="btn" onClick={copyPromptForClaude}>{promptCopied?"요청문을 복사했습니다":"Claude용 요청문 복사"}</button>
+            : <button className="btn" onClick={generate} disabled={loading}>{loading?("평가 문서를 만들고 있습니다. "+loadSec+"초"):"평가 문서 만들기"}</button>}
         </div>}
 
-      <p className="noprint" style={{textAlign:"center",color:"var(--muted)",fontSize:12,marginTop:40}}>
-        생성 결과는 출제 전 성취기준·성취수준·위계·자료 적합성을 한 번 더 검토하세요.<br/>
-        「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론 · KICE 「서·논술형 평가도구 자료」 양식 · 2022 개정 교육과정 기준
+      <p className="noprint footer-note">
+        사용 전에는 성취기준과 성취수준의 일치, 자료 출처, 정답과 채점기준을 확인하세요.<br/>
+        참고 기준: 경기도교육청 「2025 중등 논술형 평가 길라잡이」 / KICE 「서·논술형 평가도구 자료」 / 2022 개정 교육과정
       </p>
     </div>
   );
@@ -1873,15 +1883,15 @@ function BlankEditor({m, onChange}) {
   if (!texts.length) return null;
   return (
     <div className="noprint" style={{textAlign:"left",marginTop:6}}>
-      <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}} onClick={()=>setOpen(!open)}>
+      <button className="btn ghost mini-doc-action" onClick={()=>setOpen(!open)}>
         {open ? "빈칸 편집 닫기" : ("빈칸 직접 선택" + (sel.length ? ` (${sel.length}개 지정됨)` : ""))}
       </button>
       {open &&
-        <div style={{border:"1px solid var(--line)",borderRadius:8,padding:"8px 12px",marginTop:6,fontSize:12.5,background:"#FFFFFF"}}>
-          <b>빈칸으로 바꿀 용어를 체크하세요.</b> 체크한 용어가 학생 배부본 도식에서 ㉠㉡㉢…으로 바뀝니다(도식 순서대로 기호 부여). 모두 해제하면 AI 제안 빈칸(있는 경우)으로 돌아갑니다.
+        <div className="blank-editor-panel">
+          <b>빈칸으로 바꿀 용어를 선택하세요.</b> 선택한 용어는 학생 배부본 도식에서 ㉠㉡㉢…으로 표시됩니다. 모두 해제하면 처음 제안된 빈칸이 적용됩니다.
           <div style={{marginTop:6,display:"flex",flexWrap:"wrap",gap:"4px 14px"}}>
             {texts.map((t,i)=> t ?
-              <label key={i} style={{cursor:"pointer",whiteSpace:"nowrap",fontWeight:sel.includes(i)?700:400,color:sel.includes(i)?"var(--accent)":"var(--ink)"}}>
+              <label key={i} className={"blank-choice"+(sel.includes(i)?" is-on":"")}>
                 <input type="checkbox" checked={sel.includes(i)} onChange={()=>toggle(i)} style={{verticalAlign:-2,marginRight:3}}/>{t}
               </label> : null)}
           </div>
@@ -1902,7 +1912,7 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
       <div className="tags noprint">
         {it.format && <span className="tag fmt">{it.format}</span>}
         {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
-        {it.targetLevel && <span className="tag lvl">타겟 {it.targetLevel}</span>}
+        {it.targetLevel && <span className="tag lvl">목표 수준 {it.targetLevel}</span>}
       </div>
       {it.intro && <p className="kintro"><Ed v={it.intro} editing={editing} onC={nv=>{ it.intro=nv; onEdited&&onEdited(); }}/>{it.points?` (${it.points}점)`:""}</p>}
 
@@ -1916,7 +1926,7 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
               <img src={m.imageData} alt={m.caption||m.label||"자료 그림"} style={{maxWidth:"100%",borderRadius:4}}/>
               {m.caption && <div className="cap">{m.caption}</div>}
               <div className="noprint" style={{marginTop:4}}>
-                <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                <button className="btn ghost mini-doc-action"
                   onClick={()=>downloadDataUrl(m.imageData, ("자료그림_"+(m.label||"").replace(/[()\\/:*?"<>|]/g,"")||"자료그림")+".png")}>
                   그림 저장
                 </button>
@@ -1937,12 +1947,12 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
                 <div className="cap noprint" style={{color:"var(--accent)",fontWeight:600}}>※ 학생 배부본에는 ㉠㉡ 빈칸 도식이 실립니다. (위는 완성본)</div>}
               <div className="noprint" style={{marginTop:4,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
                 {m.svg &&
-                  <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                  <button className="btn ghost mini-doc-action"
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svg,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_완성본.png"); }catch(e){ alert(e.message); } }}>
                     완성 도식 PNG 저장
                   </button>}
                 {m.svgBlank &&
-                  <button className="btn ghost" style={{fontSize:12,padding:"5px 12px"}}
+                  <button className="btn ghost mini-doc-action"
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svgBlank,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_빈칸.png"); }catch(e){ alert(e.message); } }}>
                     빈칸 도식 PNG 저장
                   </button>}
@@ -1969,8 +1979,8 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
       {showTeacher && it.levelAnalysis &&
         (it.levelAnalysis.rationale || it.levelAnalysis.levelElements || it.levelAnalysis.standardElements) &&
         <div className="box blue noprint">
-          <h4>수준 설계 해설 (타겟 {it.targetLevel||"-"}) — 화면 전용</h4>
-          <div style={{fontSize:13}}>
+          <h4>수준 설계 해설 · 목표 수준 {it.targetLevel||"-"} <span className="optional-badge">화면에서만 표시</span></h4>
+          <div className="level-analysis">
             {it.levelAnalysis.standardElements && <p style={{margin:"4px 0"}}><b>성취기준 내용요소</b> · {it.levelAnalysis.standardElements}</p>}
             {it.levelAnalysis.levelElements && <p style={{margin:"4px 0"}}><b>해당 수준 내용요소</b> · {it.levelAnalysis.levelElements}</p>}
             {it.levelAnalysis.rationale && <p style={{margin:"4px 0"}}><b>수준 적합성</b> · {it.levelAnalysis.rationale}</p>}
@@ -2014,7 +2024,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         </button>
         <button className="btn sec" onClick={()=>{ if(editing && onSave) onSave(); setEditing(!editing); }}
           style={editing?{background:"var(--accent)",color:"#fff"}:null}>
-          {editing?"수정 완료":"직접 수정"}
+          {editing?"수정 완료":"문서 내용 수정"}
         </button>
         <span className="outgrp" role="group" aria-label="출력">
           <span className="og-l">인쇄</span>
@@ -2024,15 +2034,15 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" onClick={()=>onDownloadDoc(true)}>교사용</button>
           <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
         </span>
-        <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
+        <button className="btn sec" onClick={copyMd} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
       </div>
       {editing &&
-        <div className="note info noprint">수정 모드: 점선이 나타나는 문구(발문·제시문·예시답안·채점기준·피드백·도구명)를 클릭해 고치세요. 수정은 <b>문서 데이터에 저장</b>되어 인쇄·Word·학생 배부본에 모두 반영되고, 「수정 완료」를 누르면 히스토리에도 저장됩니다.</div>}
+        <div className="note info noprint">점선으로 표시된 문구를 선택해 수정할 수 있습니다. 수정 내용은 인쇄본과 Word 파일에도 적용됩니다.</div>}
       {docErr && <div className="err noprint">⚠ {docErr}</div>}
 
       {showTeacher && audit.length>0 &&
         <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
-          <b>자동 검증 — 확인이 필요한 항목 {audit.length}건</b> (배점 산수·채점 단계·지시어를 기계적으로 대조한 결과입니다. 인쇄 전 직접 수정하거나 다시 생성하세요.)
+          <b>기본 점검 결과 · 확인할 항목 {audit.length}건</b> 배점, 채점 단계와 지시어를 확인한 결과입니다. 인쇄 전에 내용을 직접 검토하세요.
           <ul style={{margin:"6px 0 0",paddingLeft:18}}>{audit.map((x,i)=><li key={i}>{x}</li>)}</ul>
         </div>}
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
@@ -2041,7 +2051,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       {/* 내용요소·평가요소 — 화면 전용 참고 카드 */}
       {showTeacher && ((ce.knowledge||[]).length || (ce.process||[]).length || (ce.value||[]).length) > 0 &&
         <div className="card noprint">
-          <h2>내용요소 · 평가요소 (화면 전용 참고)</h2>
+          <h2>내용요소와 평가요소 <span className="optional-badge">화면에서만 표시</span></h2>
           <div className="elems">
             <div className="e"><b>지식·이해</b><ul>{(ce.knowledge||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>
             <div className="e"><b>과정·기능</b><ul>{(ce.process||[]).map((x,i)=><li key={i}>{x}</li>)}</ul></div>
@@ -2049,7 +2059,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           </div>
           {(r.evaluationElements||[]).length>0 &&
             <div style={{marginTop:12}}>
-              <b style={{fontSize:13,color:"var(--accent)"}}>평가요소</b>
+              <b className="evaluation-label">평가요소</b>
               <div className="tags" style={{marginTop:6}}>
                 {(r.evaluationElements||[]).map((x,i)=><span key={i} className="tag fmt">{x}</span>)}
               </div>
