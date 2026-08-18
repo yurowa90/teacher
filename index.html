@@ -310,9 +310,10 @@
   .emptydoc{background:var(--panel);border:1px solid var(--line);border-radius:4px;
     min-height:clamp(480px,62vh,640px);max-width:840px;margin:0 auto;padding:0;
     display:flex;flex-direction:column;overflow:hidden;}
-  .empty-sheet-head{height:54px;border-bottom:2px solid var(--ink);display:grid;grid-template-columns:1fr 92px 92px;align-items:stretch;padding:0 28px;}
-  .empty-sheet-head span{border-left:1px solid var(--line);}
-  .empty-sheet-head span:first-child{border-left:none;}
+  .empty-sheet-head{height:54px;border-bottom:2px solid var(--ink);display:grid;grid-template-columns:1fr 92px 92px;align-items:stretch;padding:0 28px;
+    font-family:var(--sans);font-size:13px;font-weight:700;color:var(--hintc);letter-spacing:.02em;}
+  .empty-sheet-head span{border-left:1px solid var(--line);display:flex;align-items:center;justify-content:center;}
+  .empty-sheet-head span:first-child{border-left:none;justify-content:flex-start;}
   .empty-content{width:min(100%,520px);margin:auto;padding:44px 36px;text-align:left;}
   .empty-eyebrow{font-family:var(--sans);font-size:13px;font-weight:700;letter-spacing:.03em;color:var(--ui-accent);margin-bottom:10px;}
   .empty-title{font-family:var(--serif);font-size:24px;line-height:1.45;letter-spacing:-.02em;margin:0 0 10px;color:var(--ink);}
