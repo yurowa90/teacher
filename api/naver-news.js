@@ -9,6 +9,28 @@ module.exports = async (req, res) => {
   const display = Math.min(30, Math.max(1, parseInt((req.query && req.query.display) || "10", 10) || 10));
 
   if (!q) { res.status(400).json({ error: "검색어(query)가 필요합니다." }); return; }
+  if (q.length > 100) { res.status(400).json({ error: "검색어는 100자 이하로 입력하세요." }); return; }
+
+  // 같은 사이트에서의 호출만 허용(브라우저 기준 간이 차단 — referer가 있는 경우에만 검사)
+  const ref = req.headers.referer || "";
+  const host = req.headers.host || "";
+  if (ref && host && !ref.includes(host)) {
+    res.status(403).json({ error: "허용되지 않은 출처의 요청입니다." });
+    return;
+  }
+
+  // 간이 레이트리밋: 같은 IP 분당 30회 (서버리스 인스턴스 메모리 기준)
+  global.__nvRate = global.__nvRate || new Map();
+  const ip = ((req.headers["x-forwarded-for"] || "").split(",")[0] || "").trim() || "unknown";
+  const now = Date.now();
+  const recent = (global.__nvRate.get(ip) || []).filter(t => now - t < 60000);
+  if (recent.length >= 30) {
+    res.status(429).json({ error: "요청이 너무 잦습니다. 잠시 후 다시 시도하세요." });
+    return;
+  }
+  recent.push(now);
+  global.__nvRate.set(ip, recent);
+  if (global.__nvRate.size > 5000) global.__nvRate.clear(); // 메모리 보호
 
   const id = process.env.NAVER_CLIENT_ID;
   const secret = process.env.NAVER_CLIENT_SECRET;

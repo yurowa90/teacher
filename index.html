@@ -337,9 +337,9 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [자료-발문 연계 원칙] 자료가 있으면 최소 한 문항 이상이 그 자료를 직접 분석·해석해야만 풀 수 있게 하고, 발문/조건에서 자료를 명시적으로 가리킨다("(나)에 제시된 ~를 근거로", "(가)와 (나)를 비교하여"). 자료에 없는 사실을 묻거나 답의 단서를 자료에서 빠뜨리지 않는다. 자료 없이 일반 지식만으로 풀리는 문항은 배제한다.
 
-[채점 기준] 분석적 채점을 원칙으로 한다. 하위 문항(또는 문항)마다 채점 요소를 정하고, 만점부터 0점까지 모든 점수 단계에 '수행 특성'을 기술한다(예: 3점=3가지를 옳게 제시함 / 2점=2가지 / 1점=1가지 / 0점=옳게 제시하지 못하거나 답안을 작성하지 않음). 단계 간 기준이 서로 중복되지 않게 하고, 도움이 되면 점수 단계별 예시 답안을 덧붙인다. 문항 배점은 그 문항 채점 요소 만점의 합과 일치시킨다.
+[채점 기준] 분석적 채점을 원칙으로 한다. 하위 문항(또는 문항)마다 채점 요소를 정하고, 만점부터 0점까지 모든 점수 단계에 '수행 특성'을 기술한다(예: 3점=3가지를 옳게 제시함 / 2점=2가지 / 1점=1가지 / 0점=옳게 제시하지 못하거나 답안을 작성하지 않음). 단계 간 기준이 서로 중복되지 않게 하고, 도움이 되면 점수 단계별 예시 답안을 덧붙인다. 배점은 3층으로 정합해야 한다: 각 하위 문항 배점 = 그 하위 문항 채점 요소 만점의 합, 문항 배점 = 하위 문항 배점의 합. 논증·평가·해석 요소는 개수가 아니라 수행의 질로 단계를 구분한다(예: 3점=근거와 자료를 연결해 타당하게 논증함 / 2점=근거는 있으나 자료와의 연결이 불완전함 / 1점=근거 없이 주장만 제시함). 점수 단계는 만점부터 0점까지 촘촘히 두는 것을 원칙으로 하되, 건너뛸 경우 그 이유가 수행 특성에서 드러나야 한다.
 
-[성취수준별 학생 수행 특성] 문항 총점을 세 구간으로 나눠 A·B / C / D·E 밴드별로 점수 구간(예: "5점~7점")을 정하고, 그 구간 학생이 무엇을 해냈고 무엇을 보완해야 하는지 '~하였습니다 / ~해야 합니다' 문체로 2~4문장 기술한다.
+[성취수준별 학생 수행 특성] 밴드 구획은 정보표 achievementLevels의 밴드와 동일하게 하고, scoreRange는 전체 문항 배점 합계를 기준으로 0점부터 만점까지 빠짐·겹침 없이 나눈다. 각 밴드별로 그 구간 학생이 무엇을 해냈고 무엇을 보완해야 하는지 '~하였습니다 / ~해야 합니다' 문체로 2~4문장 기술한다.
 
 [채점 및 피드백 사례] 수준이 다른 가상 학생 사례 2개를 만든다. 각 사례는 ① 학생 답안 예시(실제 학생이 쓴 듯한 불완전한 답안), ② 채점 요소별 부여 점수, ③ 'ooo 학생은 ~'으로 시작하는 개별 피드백(잘한 점 → 보완할 점 → 학습 제안 순, '~할 수 있을 것입니다' 문체)으로 구성한다. 부여 점수는 채점 기준의 점수 단계 값 중 하나와 정확히 일치해야 한다.
 
@@ -347,7 +347,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [평가 도구 정보표] 학교급·학년·영역(단원)은 성취기준·과목에서 추론해 채운다. 성취수준은 입력에 있으면 그대로 쓰고, 없으면 성취기준으로부터 A~E 수준 기술을 만들어 2~3개 밴드(예: A·B / C·D / E)로 묶어 작성한다. 평가 도구 개발 취지는 '~하도록 한다 / ~평가한다' 문체 2~3문장으로 쓴다.
 
-[성취수준과 최소능력자 변별] 각 문항의 '타겟 수준'은 그 수준의 최소능력자(borderline) 기준으로 설계한다. 예: 타겟이 C인 문항은 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 갖는다. 근거를 levelAnalysis에 적는다.
+[성취수준과 최소능력자 변별] 각 문항의 '타겟 수준'은 그 수준의 최소능력자(borderline) 기준으로 설계한다. 예: 타겟이 C인 문항은 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 갖는다. 타겟 수준의 최소능력자가 각 채점 요소에서 어느 점수 단계에 도달하는지(예: "C 최소능력자 기대 득점 4점/7점")를 levelAnalysis.rationale에 명시하고, 그 기대 득점이 levelCharacteristics의 해당 밴드 점수 구간과 맞물리게 하라. 채점기준 만점 단계와 성취수준별 수행 특성은 성취수준 기술의 행동 동사·내용요소를 재사용해 일관되게 작성한다(성취수준을 직접 입력받지 않은 모드에서도 동일하게 적용).
 
 [교육과정 정합성] 2022 개정 과학과를 기본으로 한다. 입력된 성취기준 코드가 2015 개정(과목명에 로마숫자 Ⅰ·Ⅱ가 붙거나 통합과학 코드가 [10통과01-..] 형태)이면 curriculum을 "2015"로 판정하고 대응하는 2022 개정 과목·표기를 standardNote에 안내한다. 2022 개정이면 "2022"로 판정한다.
 
@@ -363,6 +363,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 - 텍스트는 모두 <text>로 쓰고(줄바꿈은 tspan), 좌표를 계산해 잘림·겹침이 없게 한다. 상자 밖 주석은 12px.
 - 색은 [인쇄 설정] 지시를 따른다. 컬러 지정 시에도 상자 채움은 연한 톤(예: #f4f1ea·#e8efe6·#e4ecf5), 테두리·글자는 진한 톤으로 대비를 확보한다.
 - viewBox만 지정한다(width/height 속성 금지). viewBox="0 0 900 260"(흐름형)·"0 0 760 480"(분기형) 내외.
+- 접근성: <svg>의 첫 자식으로 <title>도식 한 줄 요약</title>을 넣는다.
 
 [첨부 이미지의 자료 활용] 사용자가 이미지를 첨부하며 자료로 쓰라고 지시한 경우, 그 이미지를 다시 그리지 말고 materials 항목에 "imageIndex": N (첨부 순서, 1부터)을 지정하고 svg는 null, label과 caption만 작성하라. 그 이미지는 앱이 문서에 원본 그대로 삽입한다. 문항은 그 이미지의 내용을 직접 분석·해석해야 풀리도록 설계한다.
 
@@ -610,6 +611,41 @@ function downloadDataUrl(dataUrl, name){
   document.body.appendChild(a); a.click(); document.body.removeChild(a);
 }
 
+/* ── 자동 정합성 검증: 배점 산수·채점 단계·반응지시어 대조 ──── */
+function auditResult(r){
+  const issues = [];
+  const items = r.items||[];
+  const okDirectives = DIRECTIVES.concat(["제시"]);
+  items.forEach(it=>{
+    const qs = normQuestions(it);
+    const qSum = qs.reduce((n,q)=>n+(Number(q.points)||0),0);
+    const sSum = (it.scoring||[]).reduce((n,g)=>{
+      const tops = (g.levels||[]).map(l=>Number(l.points)||0);
+      return n + (tops.length ? Math.max(...tops) : 0);
+    },0);
+    const pts = Number(it.points)||0;
+    if (pts && qSum && pts !== qSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 하위 문항 배점 합 ${qSum}점`);
+    if (pts && sSum && pts !== sSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 채점 요소 만점 합 ${sSum}점`);
+    if (it.directive && !okDirectives.includes(it.directive)) issues.push(`문항 ${it.number}: 반응지시어 '${it.directive}'는 표준 17종 목록에 없음`);
+  });
+  (r.feedbackCases||[]).forEach((cs,ci)=>{
+    const it = items.find(x=>x.number===cs.itemNumber) || items[0];
+    (cs.awarded||[]).forEach(a=>{
+      const g = ((it&&it.scoring)||[]).find(g=> a.element ? g.element===a.element : (a.question && g.question===a.question));
+      if (g && !(g.levels||[]).some(l=>Number(l.points)===Number(a.points)))
+        issues.push(`${cs.title||`사례 ${ci+1}`}: '${g.element}' 부여 점수 ${a.points}점이 채점 기준의 단계에 없음`);
+    });
+  });
+  const total = items.reduce((n,it)=>n+(Number(it.points)||0),0);
+  const bands = r.levelCharacteristics||[];
+  if (bands.length && total){
+    const nums = bands.flatMap(b=>String(b.scoreRange||"").match(/\d+/g)||[]).map(Number);
+    if (nums.length && Math.max(...nums) !== total)
+      issues.push(`성취수준별 점수 구간의 최댓값(${Math.max(...nums)}점)이 문서 총점(${total}점)과 다름`);
+  }
+  return issues;
+}
+
 /* ── 구버전 결과 호환: questions가 없으면 stem으로 구성 ──────── */
 function normQuestions(it) {
   if ((it.questions||[]).length) return it.questions;
@@ -671,6 +707,20 @@ function toMarkdown(r, showTeacher) {
     if (showTeacher && (it.tips||[]).length) {
       L.push(""); L.push("**활용 Tip!**"); (it.tips||[]).forEach(t=>L.push(`- ${t}`));
     }
+    const la = it.levelAnalysis||{};
+    if (showTeacher && (la.standardElements||la.levelElements||la.rationale)) {
+      L.push(""); L.push(`**수준 설계 해설 (타겟 ${it.targetLevel||"-"})**`);
+      if (la.standardElements) L.push(`- 성취기준 내용요소: ${la.standardElements}`);
+      if (la.levelElements) L.push(`- 해당 수준 내용요소: ${la.levelElements}`);
+      if (la.rationale) L.push(`- 수준 적합성: ${la.rationale}`);
+    }
+    if (showTeacher) (it.materials||[]).forEach(m=>{
+      if ((m.blankSel||[]).length && m.svg) {
+        const texts = extractSvgTexts(m.svg);
+        const key = [...m.blankSel].sort((a,b)=>a-b).map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join(" · ");
+        L.push(""); L.push(`**${m.label||"자료"} 빈칸 정답**: ${key}`);
+      }
+    });
   });
 
   if (showTeacher) {
@@ -829,6 +879,24 @@ function buildDocxXml(r, showTeacher){
       }
     });
     if (showTeacher && (it.tips||[]).length){ B.push(dSq("활용 Tip !")); B.push(dBul(it.tips)); }
+    const la = it.levelAnalysis||{};
+    if (showTeacher && (la.standardElements||la.levelElements||la.rationale)){
+      B.push(dSq("수준 설계 해설 (타겟 "+(it.targetLevel||"-")+")"));
+      const rows=[];
+      if (la.standardElements) rows.push("성취기준 내용요소: "+la.standardElements);
+      if (la.levelElements) rows.push("해당 수준 내용요소: "+la.levelElements);
+      if (la.rationale) rows.push("수준 적합성: "+la.rationale);
+      B.push(dBul(rows));
+    }
+    if (showTeacher) (it.materials||[]).forEach(m=>{
+      if ((m.blankSel||[]).length && m.svg){
+        try{
+          const texts = extractSvgTexts(m.svg);
+          const key = [...m.blankSel].sort((a,b)=>a-b).map((idx,k)=>BLANK_SYMS[k]+" "+(texts[idx]||"")).join(" · ");
+          B.push(dP((m.label||"자료")+" 빈칸 정답: "+key,{bold:true,color:"7A1E2B",after:100}));
+        }catch(_){}
+      }
+    });
   });
 
   if (showTeacher){
@@ -1020,6 +1088,7 @@ function App() {
   const [showTeacher, setShowTeacher] = useState(true);
   const [copied, setCopied]   = useState(false);
   const [runMode, setRunMode] = useState(()=>localStorage.getItem("run_mode")||"paste"); // "paste"=claude.ai(Pro/Max) · "api"=Gemini
+  const [showRunCfg, setShowRunCfg] = useState(false); // 실행 방식 설정(기본 접힘)
   const [promptCopied, setPromptCopied] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
@@ -1066,6 +1135,20 @@ function App() {
       localStorage.setItem(HKEY, JSON.stringify(next));
       setHistoryList(next);
     }catch(_){/* 용량 초과 등은 무시 */}
+  }
+  function importHistoryFile(e){
+    const f = e.target.files && e.target.files[0]; if (!f) return;
+    const rd = new FileReader();
+    rd.onload = ()=>{
+      try{
+        const j = JSON.parse(rd.result);
+        const data = j && j.data && j.data.items ? j.data : (j && j.items ? j : null);
+        if (!data) throw new Error();
+        setResult(attachImages(JSON.parse(JSON.stringify(data))));
+        setError(""); saveToHistory(data);
+      }catch(_){ setError("JSON 파일을 해석하지 못했습니다. 이 앱에서 백업한 파일인지 확인하세요."); }
+    };
+    rd.readAsText(f); e.target.value = "";
   }
   function deleteHistory(i){
     const next = historyList.filter((_,x)=>x!==i);
@@ -1281,7 +1364,7 @@ function App() {
         ? "[인쇄 설정] 흑백 인쇄용. 모든 SVG는 무채색만 사용한다(#000000, #333333, #666666, #999999, #cccccc, #f2f2f2, 흰색). 컬러 금지. 구분이 필요하면 명도 차·상자 채움 톤(흰/연회색)·선 굵기·점선으로 표현하라."
         : "[인쇄 설정] 컬러. 상자 채움은 연한 톤(#f4f1ea, #e8efe6, #e4ecf5), 테두리·글자·화살표는 진한 톤(#3a5a40, #333333)으로 3~4색 이내.");
       if (blankVer) {
-        P.push("[빈칸 변형 — 필수] 각 SVG 그림자료마다 완성본(svg)과 함께, 상자 속 핵심 용어 2~4개를 ㉠, ㉡, ㉢ … 빈칸으로 바꾼 빈칸본(svgBlank)을 만들어라. 빈칸은 밑줄 친 기호(예: '㉠' 뒤에 밑줄 공간)나 빈 상자로 표시하고, 빈칸 외의 모든 요소·좌표는 완성본과 동일해야 한다. 최소 한 문항(또는 하위 문항)은 '도식의 ㉠~㉢에 들어갈 내용을 쓰고, 그 근거를 서술'하게 하라. 예시 답안과 채점 기준에 각 빈칸의 정답을 반드시 포함하라.");
+        P.push("[빈칸 변형 — 필수] 각 SVG 그림자료마다 완성본(svg)과 함께, 상자 속 핵심 용어 2~4개를 ㉠, ㉡, ㉢ … 빈칸으로 바꾼 빈칸본(svgBlank)을 만들어라. 빈칸은 밑줄 친 기호(예: '㉠' 뒤에 밑줄 공간)나 빈 상자로 표시하고, 빈칸 외의 모든 요소·좌표는 완성본과 동일해야 한다. 빈칸으로 바꾼 용어의 부연 설명 줄이 정답 힌트가 되면 부연도 함께 가리거나 일반화하라. 최소 한 문항(또는 하위 문항)은 '도식의 ㉠~㉢에 들어갈 내용을 쓰고, 그 근거를 서술'하게 하라. 예시 답안과 채점 기준에 각 빈칸의 정답을 반드시 포함하라.");
       }
     }
 
@@ -1317,9 +1400,12 @@ function App() {
   async function generate() {
     setError(""); setResult(null);
     if (!apiKey.trim()) {
-      setError("먼저 상단에 Gemini API 키를 입력하세요.");
-      const el = document.getElementById("apiKey");
-      if (el) { el.focus(); el.scrollIntoView({block:"center",behavior:"smooth"}); }
+      setError("먼저 상단 [실행 방식]에서 Gemini API 키를 입력하세요.");
+      setShowRunCfg(true);
+      setTimeout(()=>{
+        const el = document.getElementById("apiKey");
+        if (el) { el.focus(); el.scrollIntoView({block:"center",behavior:"smooth"}); }
+      }, 150);
       return;
     }
     if (!text.trim() && !images.length) { setError("성취기준·문항·아이디어 등 입력 내용 또는 사진을 넣어주세요."); return; }
@@ -1419,7 +1505,14 @@ function App() {
       <aside className="tools noprint">
       {/* 0. 실행 방식 */}
       <div className="card">
-        <h2><span className="num">0</span> 실행 방식</h2>
+        <h2><span className="num">0</span> 실행 방식
+          <span style={{fontWeight:400,fontSize:12,color:"var(--hintc)"}}>
+            — {runMode==="paste" ? "claude.ai 붙여넣기 (API 불필요)" : "Gemini API 자동 호출"}
+          </span>
+          <button className="btn ghost" style={{marginLeft:"auto",padding:"4px 12px",fontSize:12}}
+            onClick={()=>setShowRunCfg(!showRunCfg)}>{showRunCfg?"접기":"변경"}</button>
+        </h2>
+        {showRunCfg && <React.Fragment>
         <div className="pills">
           <Pill on={runMode==="paste"} onClick={()=>setRunMode("paste")}>claude.ai 붙여넣기 (Pro·Max · API 불필요)</Pill>
           <Pill on={runMode==="api"} onClick={()=>setRunMode("api")}>Gemini API 자동 호출</Pill>
@@ -1471,6 +1564,7 @@ function App() {
               {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
             </div>
           </div>}
+        </React.Fragment>}
       </div>
 
       {/* 1. 과목 + 성취기준 */}
@@ -1735,17 +1829,22 @@ function App() {
         <div className="card">
           <h2>claude.ai로 생성하기 (API 불필요)</h2>
           <button className="btn" onClick={copyPromptForClaude} style={{width:"100%",fontSize:15}}>
-            {promptCopied ? "프롬프트 복사됨 ✓" : "① claude.ai용 프롬프트 복사"}
+            {promptCopied ? "복사됨 ✓" : "① claude.ai용 프롬프트 복사"}
           </button>
+          {promptCopied &&
+            <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer"
+              style={{display:"block",textAlign:"center",marginTop:8,fontSize:13,fontWeight:700,color:"var(--accent)"}}>
+              복사되었습니다 — claude.ai 새 대화 열기 ↗
+            </a>}
           <ol style={{fontSize:13,color:"var(--muted)",margin:"12px 0 0",paddingLeft:20,lineHeight:1.8}}>
             <li><b>claude.ai</b>에 로그인해 새 대화를 엽니다(Pro/Max 구독).</li>
             <li>방금 복사한 프롬프트를 붙여넣습니다{`. `}{<span>사진·PDF를 넣었다면 그 대화에 파일도 함께 첨부하세요(claude.ai는 PDF 첨부를 지원합니다).</span>}</li>
             <li>Claude가 출력한 <b>결과 전체(중괄호 {`{ }`} 포함)</b>를 복사합니다.</li>
             <li>아래 칸에 붙여넣으면 <b>자동으로 문서가 표시</b>됩니다. (안 되면 ③ 결과 표시 클릭)</li>
           </ol>
-          <label className="fld" style={{marginTop:14}}>② claude.ai 응답(JSON) 붙여넣기</label>
+          <label className="fld" style={{marginTop:14}}>② Claude의 답변 전체 붙여넣기</label>
           <textarea value={pasteText} onChange={e=>onPasteChange(e.target.value)}
-            placeholder='{ "curriculum": "2022", ... }' style={{minHeight:120,fontFamily:"monospace",fontSize:12}} />
+            placeholder="Claude가 준 답변을 통째로 붙여넣으세요 (중괄호 {부터 }까지 전체)" style={{minHeight:120,fontFamily:"monospace",fontSize:12}} />
           <button className="btn sec" onClick={showPasted} style={{marginTop:10}}>③ 결과 표시</button>
         </div>}
 
@@ -1754,13 +1853,22 @@ function App() {
       {/* 최근 생성 결과 (브라우저 자동 저장) */}
       {historyList.length>0 &&
         <div className="card">
-          <h2>최근 생성 결과 <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span></h2>
+          <h2>최근 생성 결과
+            <span style={{fontWeight:400,color:"var(--muted)",fontSize:12}}>이 브라우저에 자동 저장 (최근 10건)</span>
+            <label className="btn ghost" style={{marginLeft:"auto",padding:"4px 12px",fontSize:12,cursor:"pointer"}}>
+              JSON 불러오기
+              <input type="file" accept="application/json,.json" onChange={importHistoryFile} style={{display:"none"}}/>
+            </label>
+          </h2>
+          <div className="hint" style={{margin:"0 0 8px"}}>공용 컴퓨터라면 사용 후 삭제하세요. 「백업」으로 내려받은 JSON은 다른 컴퓨터에서 「JSON 불러오기」로 복원할 수 있습니다.</div>
           {historyList.map((h,i)=>(
             <div key={h.ts} style={{display:"flex",alignItems:"center",gap:10,padding:"7px 4px",
               borderBottom: i<historyList.length-1 ? "1px dashed var(--line)" : "none",fontSize:13}}>
               <b style={{flex:1,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.name}</b>
               <span style={{color:"var(--muted)",fontSize:11,whiteSpace:"nowrap"}}>{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
               <button className="btn sec" style={{padding:"4px 10px",fontSize:12}} onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); }}>열기</button>
+              <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}}
+                onClick={()=>downloadDataUrl("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(h)), (h.name||"평가도구").replace(/[\\/:*?"<>|]/g,"_")+".json")}>백업</button>
               <button className="btn ghost" style={{padding:"4px 10px",fontSize:12}} onClick={()=>deleteHistory(i)}>삭제</button>
             </div>
           ))}
@@ -1845,7 +1953,7 @@ function ScoringTable({items, forItem, awarded}) {
             cells.push(<td key="p" className="c">{lv.points}점</td>);
             if (awarded) {
               const hit = (awarded||[]).some(a=>
-                ((a.element && a.element===g.element) || (a.question && g.question && a.question===g.question))
+                (a.element ? a.element===g.element : (a.question && g.question && a.question===g.question))
                 && a.points===lv.points);
               cells.push(<td key="k" className="kchk">{hit?"✓":""}</td>);
             }
@@ -1991,12 +2099,18 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate }) {
   const ap = r.applicationTip;
   const caseItem = n => items.find(x=>x.number===n) || items[0];
   const [editing, setEditing] = useState(false);
+  const audit = auditResult(r);
 
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
-  function onDownloadDoc(){
+  function onDownloadDoc(teacher){
     setDocErr("");
-    downloadDocx(r, showTeacher).catch(e=>setDocErr(e.message||String(e)));
+    downloadDocx(r, teacher).catch(e=>setDocErr(e.message||String(e)));
+  }
+  function printAs(teacher){
+    if (teacher === showTeacher) { window.print(); return; }
+    setShowTeacher(teacher);
+    setTimeout(()=>window.print(), 450);
   }
 
   return (
@@ -2007,20 +2121,28 @@ function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate }) {
         </span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
         <span style={{flex:1}}></span>
-        <button className="btn sec" onClick={()=>setShowTeacher(!showTeacher)}>
-          {showTeacher?"교사용 숨기기 (학생 배부본)":"교사용 보기"}
+        <button className="btn sec" onClick={()=>setShowTeacher(!showTeacher)} disabled={editing}
+          title={editing?"수정 모드를 먼저 종료하세요":""}>
+          {showTeacher?"학생 배부본 보기":"교사용 보기"}
         </button>
         <button className="btn sec" onClick={()=>setEditing(!editing)} style={editing?{background:"var(--accent)",color:"#fff"}:null}>
           {editing?"수정 완료":"직접 수정"}
         </button>
-        <button className="btn sec" onClick={()=>window.print()}>인쇄 / PDF 저장</button>
-        <button className="btn sec" onClick={onDownloadDoc}>Word(.docx) 저장</button>
+        <button className="btn sec" onClick={()=>printAs(true)} disabled={editing}>인쇄 · 교사용</button>
+        <button className="btn sec" onClick={()=>printAs(false)} disabled={editing}>인쇄 · 학생용</button>
+        <button className="btn sec" onClick={()=>onDownloadDoc(true)}>Word · 교사용</button>
+        <button className="btn sec" onClick={()=>onDownloadDoc(false)}>Word · 학생용</button>
         <button className="btn sec" onClick={copyMd}>{copied?"복사됨 ✓":"Markdown 복사"}</button>
       </div>
       {editing &&
         <div className="note info noprint">수정 모드: 문서의 아무 문구나 클릭해 바로 고칠 수 있습니다. 고친 내용은 <b>인쇄/PDF에 반영</b>됩니다. (Word 저장은 원본 생성 데이터 기준이며, 교사용↔학생 배부본 전환·재생성 시 수정이 사라지니 전환 전에 인쇄하세요.)</div>}
       {docErr && <div className="err noprint">⚠ {docErr}</div>}
 
+      {showTeacher && audit.length>0 &&
+        <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
+          <b>자동 검증 — 확인이 필요한 항목 {audit.length}건</b> (배점 산수·채점 단계·지시어를 기계적으로 대조한 결과입니다. 인쇄 전 직접 수정하거나 다시 생성하세요.)
+          <ul style={{margin:"6px 0 0",paddingLeft:18}}>{audit.map((x,i)=><li key={i}>{x}</li>)}</ul>
+        </div>}
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
       {r.hierarchyBlock && <div className="note info noprint">위계 점검: {r.hierarchyBlock}</div>}
 
