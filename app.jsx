@@ -128,7 +128,7 @@ function recommendPatterns({ mode, text, images, articles, standardsText }) {
   if (mode==="convert") bump("data-claim",2,"기존 문항의 정답 확인을 근거 해석과 판단 과정으로 확장할 수 있습니다.");
   if (hit(/공통|공통점|연상|유추|추론|개념|사례.*적용|전이/)) bump("concept-transfer",7,"입력에서 공통 개념 도출이나 새 사례 적용이 핵심 요구로 확인됩니다.");
   if (hit(/원리|기제|과정|메커니즘|인과|조건.*변|예측|결과.*달라/)) bump("mechanism-predict",7,"입력에서 원리 설명과 조건 변화에 따른 예측이 핵심 요구로 확인됩니다.");
-  if (hit(/그래프|표\b|수치|통계|자료.*해석|증가|감소|상관|경향|데이터|조사 결과|주장.*타당/)) bump("data-claim",9,"표·그래프·수치 또는 주장 검토가 포함되어 자료 해석과 타당성 평가가 적합합니다.");
+  if (hit(/그래프|도표|표(?:\s|[를와의에가]|$)|수치|통계|자료.*해석|증가|감소|상관|경향|데이터|조사 결과|주장.*타당/)) bump("data-claim",9,"표·그래프·수치 또는 주장 검토가 포함되어 자료 해석과 타당성 평가가 적합합니다.");
   if (hit(/문제점|문제 상황|해결|개선안|대안|방안|정책|지속가능|관리 방안/)) bump("problem-design",8,"문제의 원인과 해결 방안을 함께 다루는 입력이 확인됩니다.");
   if (hit(/실험|탐구|변인|대조군|오차|가설|측정|반복 실험|실험군/)) bump("experiment-redesign",10,"실험 절차·변인·오차를 검토할 수 있는 자료가 확인됩니다.");
   if (hit(/비교|대조|차이|관점|서로 다른|찬성|반대|종합/)) bump("compare-argument",7,"복수 자료의 공통점·차이점이나 관점 관계를 다루는 입력이 확인됩니다.");
@@ -251,6 +251,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 [출력 형식] 반드시 아래 JSON 스키마의 객체 하나만 출력한다. 코드펜스나 설명 문장을 절대 포함하지 않는다. 한국어로 작성한다. scoring의 levels는 만점→0점 순서로 나열한다.
 
 {
+  "designVersion": "patterns-grasps-v1",
   "curriculum": "2022" | "2015",
   "standardCode": "감지된 성취기준 코드 또는 ''",
   "standardText": "성취기준 문장(있으면) 또는 ''",
@@ -273,16 +274,16 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
     {
       "number": 1,
       "type": "서술형" | "논술형",
-      "format": "자료제시형",
+      "format": "실제 문항의 자료·응답 형식",
       "directive": "논증",
       "targetLevel": "C",
       "points": 7,
       "design": {
-        "patternId": "data-claim",
-        "patternName": "자료 해석·주장 평가",
-        "sequence": ["자료 경향 해석", "주장과 근거 연결", "타당성 평가"],
-        "sourceStructure": "표·그래프·수치 자료",
-        "cognitiveActions": ["해석", "분석", "평가"],
+        "patternId": "사용자가 선택한 패턴 ID",
+        "patternName": "사용자가 선택한 패턴명",
+        "sequence": ["선택 패턴을 실제 문항에 적용한 사고 단계"],
+        "sourceStructure": "실제 자료 구성",
+        "cognitiveActions": ["문항에서 평가하는 핵심 사고행위"],
         "rationale": "이 패턴을 적용한 이유"
       },
       "grasps": {
@@ -513,6 +514,8 @@ function auditResult(r){
   const issues = [];
   const items = r.items||[];
   const okDirectives = DIRECTIVES.concat(["제시"]);
+  const modernDesign = r.designVersion==="patterns-grasps-v1";
+  const requestedGrasps = ((r.designContext||{}).requestedGrasps)||[];
   items.forEach(it=>{
     const qs = normQuestions(it);
     const qSum = qs.reduce((n,q)=>n+(Number(q.points)||0),0);
@@ -524,13 +527,22 @@ function auditResult(r){
     if (pts && qSum && pts !== qSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 하위 문항 배점 합 ${qSum}점`);
     if (pts && sSum && pts !== sSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 채점 요소 만점 합 ${sSum}점`);
     if (it.directive && !okDirectives.includes(it.directive)) issues.push(`문항 ${it.number}: 반응지시어 '${it.directive}'는 표준 17종 목록에 없음`);
-    const d = it.design||{};
-    if (!d.patternName || !(d.sequence||[]).length) issues.push(`문항 ${it.number}: 출제 패턴명 또는 사고 단계가 기록되지 않음`);
-    const ge = graspsEntries(it.grasps);
-    if (ge.length < 3) issues.push(`문항 ${it.number}: GRASPS가 ${ge.length}개만 구체화됨(최소 3개 필요)`);
-    const g = it.grasps||{};
-    if (!String(g.goal||"").trim() || !String(g.product||"").trim() || !(Array.isArray(g.standards)?g.standards.length:String(g.standards||"").trim()))
-      issues.push(`문항 ${it.number}: GRASPS 기본 요소인 목표·산출물·평가기준 중 누락된 항목이 있음`);
+    if (modernDesign){
+      const d = it.design||{};
+      if (!d.patternName || !(d.sequence||[]).length) issues.push(`문항 ${it.number}: 출제 패턴명 또는 사고 단계가 기록되지 않음`);
+      const ge = graspsEntries(it.grasps);
+      if (ge.length < 3) issues.push(`문항 ${it.number}: GRASPS가 ${ge.length}개만 구체화됨(최소 3개 필요)`);
+      const g = it.grasps||{};
+      const hasStandards = Array.isArray(g.standards) ? g.standards.some(x=>String(x||"").trim()) : !!String(g.standards||"").trim();
+      if (!String(g.goal||"").trim() || !String(g.product||"").trim() || !hasStandards)
+        issues.push(`문항 ${it.number}: GRASPS 기본 요소인 목표·산출물·평가기준 중 누락된 항목이 있음`);
+      requestedGrasps.filter(k=>!["goal","product","standards"].includes(k)).forEach(k=>{
+        if (!String(g[k]||"").trim()) {
+          const label={situation:"상황",role:"역할",audience:"독자"}[k]||k;
+          issues.push(`문항 ${it.number}: 선택한 GRASPS 요소 '${label}'가 문항에 구체화되지 않음`);
+        }
+      });
+    }
   });
   (r.feedbackCases||[]).forEach((cs,ci)=>{
     const it = items.find(x=>x.number===cs.itemNumber) || items[0];
@@ -560,7 +572,7 @@ function normQuestions(it) {
 
 function graspsEntries(grasps){
   const g = grasps||{};
-  const standards = Array.isArray(g.standards) ? g.standards.join(" · ") : (g.standards||"");
+  const standards = Array.isArray(g.standards) ? g.standards.filter(x=>String(x||"").trim()).join(" · ") : (g.standards||"");
   return [
     ["목표(G)",g.goal],["역할(R)",g.role],["독자(A)",g.audience],
     ["상황(S)",g.situation],["산출물(P)",g.product],["평가기준(S)",standards]
@@ -971,7 +983,7 @@ function Pill({on, onClick, children, cls}) {
 }
 
 /* 올바른 Claude 답변 예시(붙여넣기 안내용) */
-const EX_JSON = '{\n  "curriculum": "2022",\n  "info": { "toolName": "…", "subject": "통합과학1", "grade": "1학년", … },\n  "items": [ { "number": 1, "type": "논술형",\n      "design": { "patternName": "자료 해석·주장 평가", "sequence": [ … ] },\n      "grasps": { "goal": "…", "product": "…", "standards": [ … ] },\n      "intro": "…", "questions": [ … ], "scoring": [ … ] } ],\n  "levelCharacteristics": [ … ],\n  "feedbackCases": [ … ]\n}\n\n※ 위처럼 여는 { 부터 닫는 } 까지 전체가 있어야 합니다.\n※ 코드블록(```)에 싸여 있어도 자동으로 추출합니다.';
+const EX_JSON = '{\n  "designVersion": "patterns-grasps-v1",\n  "curriculum": "2022",\n  "info": { "toolName": "…", "subject": "통합과학1", "grade": "1학년", … },\n  "items": [ { "number": 1, "type": "논술형",\n      "design": { "patternName": "자료 해석·주장 평가", "sequence": [ … ] },\n      "grasps": { "goal": "…", "product": "…", "standards": [ … ] },\n      "intro": "…", "questions": [ … ], "scoring": [ … ] } ],\n  "levelCharacteristics": [ … ],\n  "feedbackCases": [ … ]\n}\n\n※ 위처럼 여는 { 부터 닫는 } 까지 전체가 있어야 합니다.\n※ 코드블록(```)에 싸여 있어도 자동으로 추출합니다.';
 
 /* 성취기준 선택 목록 — 본문 타이핑 시 재렌더 차단(memo) */
 const StdList = React.memo(function StdList({subject, filter, selected, onToggle}){
@@ -1351,6 +1363,42 @@ function App() {
     return r;
   }
 
+  // 생성 모델이 설계 메타데이터 일부를 빠뜨려도 사용자가 선택한 패턴은 결과와 어긋나지 않게 고정한다.
+  // GRASPS 기본 3요소는 발문·채점 요소에서 복구하고, 추가로 요청한 요소는 임의로 꾸며 넣지 않아 점검에서 확인하게 한다.
+  function applyDesignContext(r){
+    r.designVersion = "patterns-grasps-v1";
+    const requestedGrasps = ["goal","product","standards",...graspsExtras];
+    r.designContext = {
+      selectedPatternId:selectedPattern.id,
+      selectedPatternName:selectedPattern.name,
+      requestedGrasps,
+      sourceStructure:selectedSource.t,
+    };
+    (r.items||[]).forEach(it=>{
+      const d=it.design||{};
+      it.design = {
+        ...d,
+        patternId:selectedPattern.id,
+        patternName:selectedPattern.name,
+        sequence:(d.sequence||[]).length ? d.sequence : selectedPattern.sequence,
+        sourceStructure:d.sourceStructure || (sourceStructure==="auto" ? selectedPattern.source : selectedSource.t),
+        cognitiveActions:(d.cognitiveActions||[]).length ? d.cognitiveActions : selectedPattern.actions,
+        rationale:d.rationale || selectedPattern.fit,
+      };
+      const g=it.grasps||{};
+      const qs=normQuestions(it);
+      const scoringElements=(it.scoring||[]).map(x=>x.element).filter(Boolean);
+      it.grasps = {
+        ...g,
+        goal:String(g.goal||"").trim() || (qs[0]&&qs[0].stem) || it.intro || "제시 자료를 바탕으로 평가 과제를 해결하기",
+        product:String(g.product||"").trim() || `${it.type||"논술형"} 답안`,
+        standards:(Array.isArray(g.standards) ? g.standards.filter(x=>String(x||"").trim()) : (String(g.standards||"").trim() ? [g.standards] : [])),
+      };
+      if (!it.grasps.standards.length) it.grasps.standards = scoringElements.length ? scoringElements : ["제시 자료와 과학 개념을 근거로 답안을 구성하기"];
+    });
+    return r;
+  }
+
   function buildPrompt() {
     const P = [];
     const modeText = {
@@ -1496,7 +1544,7 @@ function App() {
       let parsed = null;
       try { parsed = parseResult(raw); } catch(_){}
       if (parsed) {
-        attachImages(parsed);
+        parsed = attachImages(applyDesignContext(parsed));
         setResult(parsed);
         saveToHistory(parsed);
         afterResult();
@@ -1544,7 +1592,7 @@ function App() {
     setError("");
     if (!pasteText.trim()) { setError("Claude의 답변 전체를 붙여넣으세요."); return; }
     try {
-      const p = attachImages(parseResult(pasteText));
+      const p = attachImages(applyDesignContext(parseResult(pasteText)));
       setResult(p); saveToHistory(p); afterResult();
     } catch(e) {
       setError("답변 형식을 읽지 못했습니다. Claude의 답변을 처음부터 끝까지 다시 복사해 붙여넣으세요.\n\n문제 해결: 답변 안에 중괄호로 묶인 결과 데이터가 포함되어 있어야 합니다. 코드 블록은 그대로 붙여넣어도 됩니다. 기존에 표시된 문서는 유지됩니다.");
@@ -1556,7 +1604,7 @@ function App() {
     setPasteText(v);
     if (v.trim().length > 80 && v.includes('"items"')) {
       try {
-        const p = attachImages(parseResult(v));
+        const p = attachImages(applyDesignContext(parseResult(v)));
         setResult(p); setError(""); saveToHistory(p); afterResult();
       } catch(_){/* 아직 불완전하면 무시 — ③ 버튼으로 수동 시도 가능 */}
     }
