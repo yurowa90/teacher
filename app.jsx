@@ -198,6 +198,39 @@ const VISUALS = [
   { v:"none",   t:"포함하지 않음" },
 ];
 
+// 공공 자료 정보원 — 검색 결과는 서버에서 공통 형식으로 정규화한다.
+const PUBLIC_SOURCES = [
+  { id:"policy", name:"정책브리핑", kind:"정책·사례", provider:"대한민국 정책브리핑",
+    desc:"정부 부처가 공개한 정책뉴스와 전문자료입니다. 실제 사회 문제, 정책 대안, 이해관계자 관점을 다루는 문항에 적합합니다.",
+    placeholder:"예: 기후위기 적응, 감염병 대응, 탄소중립" },
+  { id:"law", name:"국가법령정보센터", kind:"법령·제도", provider:"법제처 국가법령정보센터",
+    desc:"현행 법령의 명칭과 기본 정보를 찾습니다. 과학기술·환경·안전 문제를 법적 기준과 연결해 판단하게 할 때 적합합니다.",
+    placeholder:"예: 기후위기 대응, 생명윤리, 연구실 안전" },
+  { id:"kosis", name:"KOSIS", kind:"통계·수치", provider:"국가통계포털 KOSIS",
+    desc:"국가승인통계의 통계표와 조사 정보를 찾습니다. 추세 해석, 집단 비교, 근거 기반 주장을 요구하는 문항에 적합합니다.",
+    placeholder:"예: 온실가스 배출량, 고령인구, 에너지 소비" },
+  { id:"scienceon", name:"ScienceON", kind:"연구·과학", provider:"한국과학기술정보연구원 ScienceON",
+    desc:"논문과 연구보고서의 서지·초록 정보를 찾습니다. 과학적 근거, 연구 결과, 방법의 한계를 평가하는 문항에 적합합니다.",
+    placeholder:"예: 미세플라스틱 생태 영향, 유전자 편집" },
+  { id:"nanet", name:"국회도서관", kind:"학술·도서", provider:"대한민국 국회도서관",
+    desc:"도서, 학위논문, 학술기사 등 국회전자도서관의 목록 정보를 찾습니다. 배경지식과 상반된 관점을 보완할 때 적합합니다.",
+    placeholder:"예: 기후정의, 과학기술 윤리, 환경 정책" },
+];
+
+function safeHttpUrl(value){
+  try{
+    const u = new URL(String(value||""));
+    return (u.protocol === "http:" || u.protocol === "https:") ? u.href : "";
+  }catch(_){ return ""; }
+}
+
+function sourceCitation(source){
+  if (!source) return { text:"", url:"" };
+  if (typeof source === "string") return { text:source, url:"" };
+  const text = [source.provider, source.title, source.date].filter(Boolean).join(" · ");
+  return { text, url:safeHttpUrl(source.url || source.link) };
+}
+
 // 길라잡이 반응 지시어 17종
 const DIRECTIVES = ["요약","분류","비교","대조","분석","추론","적용","논증","설명",
   "예측","평가","종합","해석","서술","구분","제안","도출"];
@@ -230,7 +263,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
-- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 출처가 있는 듯한 제시문은 "– ○○ 자료, 20XX 변형" 식 표기를 붙일 수 있다.
+- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 외부 자료를 사용하면 출처를 선택사항으로 처리하지 말고 materials.source에 기관명·원자료명·게시일·원문 URL을 기록한다. 요약·재구성한 경우에도 sourceRefId를 유지하고 제시문 아래에 출처가 보이게 한다.
 - 조건: 조건은 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 논술형에서 분량 제한(예: "500~700자로 작성할 것")처럼 발문만으로 통제하기 어려운 것만 조건으로 둔다. 조건을 넣지 않는 문항은 conditions.content·conditions.form을 모두 빈 배열([])로 둔다.
 
 [반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
@@ -322,7 +355,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
         "standards": ["자료를 정확히 사용하기", "과학 개념과 근거를 연결하기"]
       },
       "intro": "(가)와 (나)의 내용을 바탕으로 물음에 답하시오.",
-      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "svgBlank": "빈칸 변형 지시가 있을 때 ㉠㉡㉢ 빈칸본 SVG, 아니면 null", "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
+      "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "svgBlank": "빈칸 변형 지시가 있을 때 ㉠㉡㉢ 빈칸본 SVG, 아니면 null", "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null, "sourceRefId": "선택 자료를 사용하면 SRC-1 같은 ID, 아니면 ''", "source": { "provider": "제공 기관", "title": "원자료명", "date": "게시일 또는 발행연도", "url": "원문 URL" } 또는 null } ],
       "questions": [
         { "label": "(1)" 또는 "",
           "stem": "발문",
@@ -632,6 +665,10 @@ function toMarkdown(r, showTeacher) {
       L.push(""); L.push("| 문항 번호 | 문항 유형 | 성취기준 기반 평가 요소 |"); L.push("|---|---|---|");
       (info.itemSummary||[]).forEach(s=>L.push(`| ${s.item} | ${s.type} | ${(s.elements||[]).join(" / ")} |`));
     }
+    if ((r.sourceReferences||[]).length) {
+      L.push(""); L.push("**사용한 자료 정보원**");
+      (r.sourceReferences||[]).forEach((s,i)=>L.push(`- ${s.refId||`SRC-${i+1}`} · ${s.provider||""} · ${s.title||""}${s.date?` · ${s.date}`:""}${s.url?` · ${s.url}`:""}`));
+    }
   }
 
   L.push(""); L.push("## 2. 평가 문항");
@@ -655,6 +692,8 @@ function toMarkdown(r, showTeacher) {
       L.push("");
       L.push(`> **${m.label||""}** ${(m.body||"").replace(/\n/g,"\n> ")}`);
       if (m.svg) L.push(`> (그림자료: ${m.caption||"SVG 도식"})`);
+      const c=sourceCitation(m.source);
+      if (c.text) L.push(`> 출처: ${c.text}${c.url?` · ${c.url}`:""}`);
     });
     normQuestions(it).forEach(q=>{
       L.push(""); L.push(`**${q.label?q.label+" ":""}${q.stem}${q.points?` (${q.points}점)`:""}**`);
@@ -811,6 +850,15 @@ function buildDocxXml(r, showTeacher){
       (info.itemSummary||[]).forEach(s=>t.push([dCell(s.item||"",{center:true}),dCell(s.type||"",{center:true}),dCell([( (s.elements||[]).map(e=>dP("• "+e,{after:20})).join("") )||dP("",{after:20})])]));
       B.push(dTable(t));
     }
+    if ((r.sourceReferences||[]).length){
+      B.push(dSq("사용한 자료 정보원"));
+      const t=[[dCell("자료 ID",{fill:D_SOFT,bold:true,center:true,w:1300}),dCell("제공 기관",{fill:D_SOFT,bold:true,center:true,w:2500}),dCell("원자료와 원문 URL",{fill:D_SOFT,bold:true,center:true})]];
+      (r.sourceReferences||[]).forEach((s,i)=>{
+        const detail=(s.title||"")+(s.date?" · "+s.date:"")+(s.url?"\n"+s.url:"");
+        t.push([dCell(s.refId||("SRC-"+(i+1)),{center:true}),dCell(s.provider||""),dCell(detail)]);
+      });
+      B.push(dTable(t));
+    }
   }
 
   B.push(dBanner(showTeacher?"2. 평가 문항":"평가 문항"));
@@ -839,6 +887,8 @@ function buildDocxXml(r, showTeacher){
       } else if (m.imageData || m.svg || m.svgBlank) {
         B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림 변환에 실패해 웹 화면의 인쇄/PDF에서 확인하세요〕",{color:"888888",after:100}));
       }
+      const c=sourceCitation(m.source);
+      if (c.text) B.push(dP("출처: "+c.text+(c.url?" · "+c.url:""),{color:"666666",after:100}));
     });
     normQuestions(it).forEach(q=>{
       B.push(dP((q.label?q.label+" ":"")+(q.stem||"")+(q.points?" ("+q.points+"점)":""),{bold:true,before:100,after:60}));
@@ -1140,13 +1190,14 @@ function App() {
   const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
   const [modelLoading, setModelLoading] = useState(false);
   const [modelMsg, setModelMsg]       = useState("");
-  // 실생활 자료(네이버 뉴스) 검색 — 선택형(기본 사용 안 함)
-  const [useNews, setUseNews]         = useState(false);
-  const [newsQuery, setNewsQuery]     = useState("");
-  const [newsLoading, setNewsLoading] = useState(false);
-  const [newsResults, setNewsResults] = useState([]);
-  const [newsMsg, setNewsMsg]         = useState("");
-  const [articles, setArticles]       = useState([]);     // 선택한 실생활 자료
+  // 공공 자료 정보원 검색 — 선택형(기본 사용 안 함)
+  const [useSources, setUseSources]           = useState(false);
+  const [sourceProvider, setSourceProvider]   = useState("policy");
+  const [sourceQuery, setSourceQuery]         = useState("");
+  const [sourceLoading, setSourceLoading]     = useState(false);
+  const [sourceResults, setSourceResults]     = useState([]);
+  const [sourceMsg, setSourceMsg]             = useState("");
+  const [references, setReferences]           = useState([]); // 선택한 공공 자료
   const [loadSec, setLoadSec]         = useState(0);      // 생성 경과 시간(초)
   const HKEY = "eval_history_v1";
   const [historyList, setHistoryList] = useState(()=>{ try{ return JSON.parse(localStorage.getItem(HKEY)||"[]"); }catch(_){ return []; } });
@@ -1221,10 +1272,11 @@ function App() {
 
   const standardsText = (STANDARDS[subject]||[])
     .filter(s=>selectedStds.includes(s.code)).map(s=>s.text).join(" ");
-  const patternRecommendations = recommendPatterns({ mode, text, images, articles, standardsText });
+  const patternRecommendations = recommendPatterns({ mode, text, images, articles:references, standardsText });
   const recommendedPattern = patternRecommendations[0].pattern;
   const selectedPattern = DESIGN_PATTERNS.find(p=>p.id===patternId) || recommendedPattern;
   const selectedSource = SOURCE_STRUCTURES.find(s=>s.v===sourceStructure) || SOURCE_STRUCTURES[0];
+  const selectedProvider = PUBLIC_SOURCES.find(s=>s.id===sourceProvider) || PUBLIC_SOURCES[0];
 
   function toggleGraspsExtra(id){
     setGraspsExtras(xs=>xs.includes(id) ? xs.filter(x=>x!==id) : [...xs,id]);
@@ -1317,43 +1369,45 @@ function App() {
     }
   }
 
-  // HTML 태그·엔티티 제거(네이버 응답은 <b>…</b> 등이 섞여 있음)
+  // 외부 검색 응답에 섞인 HTML 태그·엔티티 제거
   function stripTags(s){
     return (s||"").replace(/<[^>]*>/g,"")
       .replace(/&quot;/g,'"').replace(/&amp;/g,"&").replace(/&lt;/g,"<")
       .replace(/&gt;/g,">").replace(/&#39;/g,"'").replace(/&apos;/g,"'").replace(/&nbsp;/g," ");
   }
 
-  // 실생활 자료 검색 (서버리스 함수 /api/naver-news 경유)
-  async function searchNews(){
-    setNewsMsg("");
-    if(!newsQuery.trim()){ setNewsMsg("검색어를 입력하세요. 예: 기후변화, 감염병, 미세먼지"); return; }
-    setNewsLoading(true);
+  // 공공 자료 검색 (서버리스 함수 /api/source-search 경유)
+  async function searchSources(){
+    setSourceMsg("");
+    if(!sourceQuery.trim()){ setSourceMsg("검색어를 입력하세요. 예: 기후변화, 감염병, 미세플라스틱"); return; }
+    setSourceLoading(true);
     try{
-      const r = await fetch("/api/naver-news?query=" + encodeURIComponent(newsQuery.trim())
-        + "&display=10&sort=sim");
+      const r = await fetch("/api/source-search?source=" + encodeURIComponent(sourceProvider)
+        + "&query=" + encodeURIComponent(sourceQuery.trim()) + "&limit=10");
       let data = {};
       try { data = await r.json(); } catch(_){}
       if(!r.ok){ throw new Error(data.error || ("검색에 실패했습니다 (" + r.status + ").")); }
-      const items = (data.items||[]).map(it=>{
-        const link = it.originallink || it.link || "";
-        return {
-          title: stripTags(it.title),
-          desc: stripTags(it.description),
-          link,
-          source: link.replace(/^https?:\/\//,"").split("/")[0],
-          date: (it.pubDate || it.postdate || "").trim(),
-        };
-      });
-      setNewsResults(items);
-      if(!items.length) setNewsMsg("검색 결과가 없습니다. 다른 검색어로 시도하세요.");
+      const items = (data.items||[]).map((it,i)=>({
+        id:it.id || `${sourceProvider}-${i}-${it.url||it.title||"item"}`,
+        sourceId:sourceProvider,
+        sourceName:it.sourceName || selectedProvider.name,
+        provider:it.provider || selectedProvider.provider,
+        kind:it.kind || selectedProvider.kind,
+        title:stripTags(it.title),
+        desc:stripTags(it.description || it.desc),
+        url:safeHttpUrl(it.url || it.link),
+        date:String(it.date || "").trim(),
+      }));
+      setSourceResults(items);
+      if(!items.length) setSourceMsg("검색 결과가 없습니다. 검색어를 줄이거나 다른 정보원을 선택해 보세요.");
+      else if(data.notice) setSourceMsg(data.notice);
     }catch(e){
-      setNewsResults([]);
-      setNewsMsg((e.message||String(e)) + " (배포된 사이트에서만 동작하며, 관리자가 Vercel에 네이버 API 키를 설정해야 합니다.)");
-    }finally{ setNewsLoading(false); }
+      setSourceResults([]);
+      setSourceMsg((e.message||String(e)) + " 선택한 정보원의 연결 설정을 확인해 주세요.");
+    }finally{ setSourceLoading(false); }
   }
-  function toggleArticle(a){
-    setArticles(prev=> prev.some(x=>x.link===a.link) ? prev.filter(x=>x.link!==a.link) : [...prev, a]);
+  function toggleReference(a){
+    setReferences(prev=> prev.some(x=>x.id===a.id) ? prev.filter(x=>x.id!==a.id) : [...prev, a]);
   }
 
   function onFiles(e){
@@ -1394,6 +1448,15 @@ function App() {
   function applyDesignContext(r){
     r.designVersion = "patterns-grasps-v1";
     const requestedGrasps = ["goal","product","standards",...graspsExtras];
+    const selectedRefs = (useSources ? references : []).map((x,i)=>({
+      refId:`SRC-${i+1}`,
+      provider:x.provider || x.sourceName || "",
+      title:x.title || "",
+      date:x.date || "",
+      url:safeHttpUrl(x.url || x.link),
+      kind:x.kind || "",
+    }));
+    r.sourceReferences = selectedRefs;
     r.designContext = {
       selectedPatternId:selectedPattern.id,
       selectedPatternName:selectedPattern.name,
@@ -1421,6 +1484,10 @@ function App() {
         standards:(Array.isArray(g.standards) ? g.standards.filter(x=>String(x||"").trim()) : (String(g.standards||"").trim() ? [g.standards] : [])),
       };
       if (!it.grasps.standards.length) it.grasps.standards = scoringElements.length ? scoringElements : ["제시 자료와 과학 개념을 근거로 답안을 구성하기"];
+      (it.materials||[]).forEach(m=>{
+        const ref = selectedRefs.find(x=>x.refId===m.sourceRefId);
+        if (ref) m.source = { provider:ref.provider, title:ref.title, date:ref.date, url:ref.url };
+      });
     });
     return r;
   }
@@ -1532,13 +1599,19 @@ function App() {
       }
     }
 
-    if (useNews && articles.length) {
-      const A = articles.map((a,i)=>`(${i+1}) ${a.title}${a.source?` — ${a.source}`:""}${a.date?` · ${a.date}`:""}\n    ${a.desc}\n    출처: ${a.link}`).join("\n");
+    if (useSources && references.length) {
+      const A = references.map((a,i)=>
+        `SRC-${i+1} | [${a.kind||"공공 자료"}] ${a.title}\n`+
+        `    제공기관: ${a.provider||a.sourceName||""}${a.date?` · ${a.date}`:""}\n`+
+        `    내용: ${a.desc||""}\n`+
+        `    원문: ${a.url||""}`
+      ).join("\n\n");
       P.push(
-        `[실생활 자료 (신문기사) — 제시문·발문의 근거로 활용]\n${A}\n` +
-        `→ 위 실생활 자료를 바탕으로 제시문(materials)을 구성하고, 최소 한 문항 이상이 이 자료를 직접 분석·해석해야만 풀리도록 발문·조건을 설계하라. ` +
-        `제시문 말미에 출처를 "– 매체명, 날짜" 형식으로 표기하라. 자료의 사실을 왜곡하지 말고, 학생 수준에 맞게 요약·재구성하되 핵심 내용과 맥락은 유지하라. ` +
-        `제공된 자료가 성취기준·과목 범위와 맞지 않는 부분은 제외하라.`
+        `[선택한 공공 자료 — 제시문·발문의 근거로 활용]\n${A}\n` +
+        `→ 위 자료를 바탕으로 제시문(materials)을 구성하고, 최소 한 문항 이상이 이 자료를 직접 분석·해석해야만 풀리도록 발문·조건을 설계하라. ` +
+        `사용한 자료마다 materials.sourceRefId에 SRC 번호를 정확히 기록하고 source에 제공기관·원자료명·날짜·원문 URL을 그대로 옮겨라. ` +
+        `제시문 아래에는 출처가 표시되어야 한다. 원문을 길게 복제하지 말고 학생 수준에 맞게 요약·재구성하되, 수치·법령명·연구 결과와 맥락을 왜곡하지 말라. ` +
+        `성취기준·과목 범위와 맞지 않는 자료는 사용하지 말라.`
       );
     }
 
@@ -1889,50 +1962,65 @@ function App() {
           <p>파일은 이 브라우저에서 읽습니다. Gemini 방식으로 문서를 만들 때는 선택한 파일이 Google API로 전송됩니다. 원본 파일은 최근 결과에 저장되지 않습니다.</p>
         </details>
 
-        <div className="subh inline-title">신문기사 활용 <span className="optional-badge">선택</span></div>
+        <div className="subh inline-title">공공 자료 찾기 <span className="optional-badge">선택</span></div>
         <div className="pills">
-          <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용하지 않음</Pill>
-          <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사 추가</Pill>
+          <Pill on={!useSources} onClick={()=>setUseSources(false)}>사용하지 않음</Pill>
+          <Pill on={useSources} onClick={()=>setUseSources(true)}>정보원에서 찾기</Pill>
         </div>
-        {!useNews &&
-          <div className="hint" style={{marginTop:8}}>필요하면 최근 신문기사를 검색해 제시 자료로 추가할 수 있습니다.</div>}
-        {useNews && <React.Fragment>
+        {!useSources &&
+          <div className="hint" style={{marginTop:8}}>정책·법령·통계·연구·학술 자료를 검색해 제시 자료의 근거로 사용할 수 있습니다.</div>}
+        {useSources && <React.Fragment>
+        <div style={{marginTop:12}}>
+          <label className="fld" htmlFor="sourceProviderSel">자료 정보원</label>
+          <select id="sourceProviderSel" value={sourceProvider} onChange={e=>{
+            setSourceProvider(e.target.value); setSourceResults([]); setSourceMsg("");
+          }}>
+            {PUBLIC_SOURCES.map(s=><option key={s.id} value={s.id}>{s.name} · {s.kind}</option>)}
+          </select>
+          <div className="source-context" aria-live="polite">
+            <div><span>{selectedProvider.kind}</span><strong>{selectedProvider.name}</strong></div>
+            <p>{selectedProvider.desc}</p>
+            <small>선택한 자료는 기관명·원자료명·게시일·원문 링크와 함께 문서에 기록됩니다.</small>
+          </div>
+        </div>
         <div className="row" style={{alignItems:"flex-end",marginTop:12}}>
           <div style={{flex:2}}>
-            <label className="fld">검색어</label>
-            <input type="text" value={newsQuery} onChange={e=>setNewsQuery(e.target.value)}
-              onKeyDown={e=>{ if(e.key==="Enter") searchNews(); }}
-              placeholder="예: 기후변화 감염병, 미세먼지, 생물다양성" />
+            <label className="fld" htmlFor="sourceQueryIn">검색어</label>
+            <input id="sourceQueryIn" type="text" value={sourceQuery} onChange={e=>setSourceQuery(e.target.value)}
+              onKeyDown={e=>{ if(e.key==="Enter") searchSources(); }}
+              placeholder={selectedProvider.placeholder} />
           </div>
           <div style={{flex:"0 0 auto"}}>
-            <button className="btn sec" onClick={searchNews} disabled={newsLoading} style={{whiteSpace:"nowrap"}}>
-              {newsLoading ? "검색 중…" : "검색"}
+            <button className="btn sec" onClick={searchSources} disabled={sourceLoading} style={{whiteSpace:"nowrap"}}>
+              {sourceLoading ? "검색 중…" : "자료 검색"}
             </button>
           </div>
         </div>
-        {newsMsg && <div className="hint" style={{color:"var(--warn)",fontWeight:600,marginTop:8}}>{newsMsg}</div>}
-        {newsResults.length>0 &&
-          <div className="news-results">
-            {newsResults.map((a,i)=>{
-              const on = articles.some(x=>x.link===a.link);
+        {sourceMsg && <div className="hint" style={{color:"var(--warn)",fontWeight:600,marginTop:8}}>{sourceMsg}</div>}
+        {sourceResults.length>0 &&
+          <div className="source-results">
+            {sourceResults.map((a,i)=>{
+              const on = references.some(x=>x.id===a.id);
               return (
                 <div key={i} role="checkbox" aria-checked={on} tabIndex={0}
-                  onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleArticle(a); } }}
-                  onClick={()=>toggleArticle(a)}
-                  className={"news-row"+(on?" is-on":"")}>
-                  <div className="news-title">{on?"✓ ":""}{a.title}</div>
-                  <div className="news-source">{a.source}{a.date?` · ${a.date}`:""}</div>
-                  <div className="news-desc">{a.desc}</div>
+                  onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleReference(a); } }}
+                  onClick={()=>toggleReference(a)}
+                  className={"source-row"+(on?" is-on":"")}>
+                  <div className="source-title">{on?"✓ ":""}{a.title}</div>
+                  <div className="source-meta">{a.provider}{a.date?` · ${a.date}`:""}</div>
+                  {a.desc && <div className="source-desc">{a.desc}</div>}
+                  {a.url && <a className="source-link" href={a.url} target="_blank" rel="noreferrer"
+                    onClick={e=>e.stopPropagation()}>원문 확인</a>}
                 </div>
               );
             })}
           </div>}
-        {articles.length>0 &&
+        {references.length>0 &&
           <div className="note info" style={{marginTop:10}}>
-            신문기사 <b>{articles.length}건</b>을 선택했습니다.
-            <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setArticles([]);}}>모두 해제</a>
+            출처가 확인된 자료 <b>{references.length}건</b>을 선택했습니다.
+            <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setReferences([]);}}>모두 해제</a>
           </div>}
-        <div className="hint">선택한 기사를 분석해야 해결할 수 있는 문항을 만듭니다. 검색 기능을 사용하려면 배포 환경에 네이버 검색 API 설정이 필요합니다.</div>
+        <div className="hint">검색 결과는 원자료의 요약 정보입니다. 문항을 만들기 전에 제목·기관·원문을 확인하세요.</div>
         </React.Fragment>}
       </div>
 
@@ -2074,7 +2162,7 @@ function App() {
           ];
           if (visual==="none") parts.push("도식: 포함하지 않음");
           if (blankVer) parts.push("빈칸 문항: 사용");
-          if (useNews && articles.length) parts.push("기사: "+articles.length+"건");
+          if (useSources && references.length) parts.push("공공 자료: "+references.length+"건");
           const need = (!text.trim() && !images.length);
           return (
             <div className="sumline" aria-live="polite">
@@ -2363,6 +2451,11 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
               </div>
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
+          {(()=>{ const c=sourceCitation(m.source); return c.text ?
+            <div className="kcite">
+              <b>출처</b> · {c.text}
+              {c.url && <React.Fragment><br/><a href={c.url} target="_blank" rel="noreferrer">{c.url}</a></React.Fragment>}
+            </div> : null; })()}
         </div>
       ))}
 
@@ -2543,6 +2636,21 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
                     <td><ul className="kul" style={{margin:0}}>{(s.elements||[]).map((e,j)=><li key={j}>{e}</li>)}</ul></td>
                   </tr>
                 ))}
+              </tbody>
+            </table>}
+
+          {(r.sourceReferences||[]).length>0 &&
+            <table className="ktbl">
+              <thead><tr><th style={{width:72}}>자료 ID</th><th style={{width:150}}>정보원</th><th>원자료</th></tr></thead>
+              <tbody>
+                {(r.sourceReferences||[]).map((s,i)=>{
+                  const u=safeHttpUrl(s.url);
+                  return <tr key={s.refId||i}>
+                    <td className="c">{s.refId||`SRC-${i+1}`}</td>
+                    <td>{s.provider||""}{s.kind?<React.Fragment><br/><span style={{color:"var(--hintc)",fontSize:11}}>{s.kind}</span></React.Fragment>:null}</td>
+                    <td><b>{s.title||""}</b>{s.date?` · ${s.date}`:""}{u?<React.Fragment><br/><a href={u} target="_blank" rel="noreferrer" style={{color:"var(--accent-dk)",fontSize:11,wordBreak:"break-all"}}>{u}</a></React.Fragment>:null}</td>
+                  </tr>;
+                })}
               </tbody>
             </table>}
         </React.Fragment>}
