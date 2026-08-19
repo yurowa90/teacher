@@ -1130,6 +1130,7 @@ function App() {
   const [showTeacher, setShowTeacher] = useState(true);
   const [copied, setCopied]   = useState(false);
   const [runMode, setRunMode] = useState(()=>localStorage.getItem("run_mode")||"paste"); // "paste"=claude.ai(Pro/Max) · "api"=Gemini
+  const [showGeminiConfig, setShowGeminiConfig] = useState(()=>!apiKey);
   const [promptCopied, setPromptCopied] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [mobileTab, setMobileTab]     = useState("form");  // 모바일: 설정/결과 탭
@@ -1139,10 +1140,9 @@ function App() {
   const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
   const [modelLoading, setModelLoading] = useState(false);
   const [modelMsg, setModelMsg]       = useState("");
-  // 실생활 자료(네이버 뉴스/블로그) 검색 — 선택형(기본 사용 안 함)
+  // 실생활 자료(네이버 뉴스) 검색 — 선택형(기본 사용 안 함)
   const [useNews, setUseNews]         = useState(false);
   const [newsQuery, setNewsQuery]     = useState("");
-  const [newsType, setNewsType]       = useState("news"); // news | blog(칼럼·에세이)
   const [newsLoading, setNewsLoading] = useState(false);
   const [newsResults, setNewsResults] = useState([]);
   const [newsMsg, setNewsMsg]         = useState("");
@@ -1331,7 +1331,7 @@ function App() {
     setNewsLoading(true);
     try{
       const r = await fetch("/api/naver-news?query=" + encodeURIComponent(newsQuery.trim())
-        + "&type=" + newsType + "&display=10&sort=sim");
+        + "&display=10&sort=sim");
       let data = {};
       try { data = await r.json(); } catch(_){}
       if(!r.ok){ throw new Error(data.error || ("검색에 실패했습니다 (" + r.status + ").")); }
@@ -1535,7 +1535,7 @@ function App() {
     if (useNews && articles.length) {
       const A = articles.map((a,i)=>`(${i+1}) ${a.title}${a.source?` — ${a.source}`:""}${a.date?` · ${a.date}`:""}\n    ${a.desc}\n    출처: ${a.link}`).join("\n");
       P.push(
-        `[실생활 자료 (신문기사·칼럼) — 제시문·발문의 근거로 활용]\n${A}\n` +
+        `[실생활 자료 (신문기사) — 제시문·발문의 근거로 활용]\n${A}\n` +
         `→ 위 실생활 자료를 바탕으로 제시문(materials)을 구성하고, 최소 한 문항 이상이 이 자료를 직접 분석·해석해야만 풀리도록 발문·조건을 설계하라. ` +
         `제시문 말미에 출처를 "– 매체명, 날짜" 형식으로 표기하라. 자료의 사실을 왜곡하지 말고, 학생 수준에 맞게 요약·재구성하되 핵심 내용과 맥락은 유지하라. ` +
         `제공된 자료가 성취기준·과목 범위와 맞지 않는 부분은 제외하라.`
@@ -1681,7 +1681,7 @@ function App() {
           </button>
           <button type="button" role="radio" aria-checked={runMode==="api"}
             className={"method-option"+(runMode==="api"?" is-selected":"")}
-            onClick={()=>setRunMode("api")}>
+            onClick={()=>{ if(runMode!=="api") setShowGeminiConfig(true); setRunMode("api"); }}>
             <span className="method-option-check" aria-hidden="true">✓</span>
             <strong>이 앱에서 바로 만들기</strong>
             <span className="method-meta">Gemini API 키 필요</span>
@@ -1696,7 +1696,13 @@ function App() {
         </div>
         {runMode==="api" &&
           <div className="envcfg">
-            <p className="api-config-title">Gemini 연결 설정</p>
+            {showGeminiConfig ? <React.Fragment>
+            <div className="api-config-head">
+              <p className="api-config-title">Gemini 연결 설정</p>
+              <button type="button" className="api-config-toggle" onClick={()=>setShowGeminiConfig(false)} aria-expanded="true">
+                설정 접기 ↑
+              </button>
+            </div>
               <div className="row" style={{alignItems:"flex-end"}}>
                 <div style={{flex:2}}>
                   <label className="fld" htmlFor="apiKey">Gemini API 키 (AIza…)</label>
@@ -1729,6 +1735,19 @@ function App() {
                 API 키는 이 브라우저에만 저장됩니다. 모델 목록을 불러오거나 문서를 만들 때 Google Gemini API 호출에 사용됩니다. 발급: aistudio.google.com.
                 {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
               </div>
+              <button type="button" className="btn sec" onClick={()=>setShowGeminiConfig(false)} style={{marginTop:12}}>
+                설정 완료하고 접기
+              </button>
+            </React.Fragment> :
+            <div className="api-config-summary">
+              <div>
+                <strong>{apiKey ? "Gemini 연결 정보가 준비되었습니다" : "Gemini 연결 설정이 접혀 있습니다"}</strong>
+                <span>{apiKey ? "API 키 설정됨 · "+model : "문서를 만들기 전에 API 키와 모델을 확인하세요."}</span>
+              </div>
+              <button type="button" className="btn sec mini-action" onClick={()=>setShowGeminiConfig(true)} aria-expanded="false">
+                설정 열기
+              </button>
+            </div>}
           </div>}
       </section>
 
@@ -1870,13 +1889,13 @@ function App() {
           <p>파일은 이 브라우저에서 읽습니다. Gemini 방식으로 문서를 만들 때는 선택한 파일이 Google API로 전송됩니다. 원본 파일은 최근 결과에 저장되지 않습니다.</p>
         </details>
 
-        <div className="subh inline-title">기사·칼럼 활용 <span className="optional-badge">선택</span></div>
+        <div className="subh inline-title">신문기사 활용 <span className="optional-badge">선택</span></div>
         <div className="pills">
           <Pill on={!useNews} onClick={()=>setUseNews(false)}>사용하지 않음</Pill>
-          <Pill on={useNews} onClick={()=>setUseNews(true)}>기사·칼럼 추가</Pill>
+          <Pill on={useNews} onClick={()=>setUseNews(true)}>신문기사 추가</Pill>
         </div>
         {!useNews &&
-          <div className="hint" style={{marginTop:8}}>필요하면 기사나 칼럼을 검색해 제시 자료로 추가할 수 있습니다.</div>}
+          <div className="hint" style={{marginTop:8}}>필요하면 최근 신문기사를 검색해 제시 자료로 추가할 수 있습니다.</div>}
         {useNews && <React.Fragment>
         <div className="row" style={{alignItems:"flex-end",marginTop:12}}>
           <div style={{flex:2}}>
@@ -1884,13 +1903,6 @@ function App() {
             <input type="text" value={newsQuery} onChange={e=>setNewsQuery(e.target.value)}
               onKeyDown={e=>{ if(e.key==="Enter") searchNews(); }}
               placeholder="예: 기후변화 감염병, 미세먼지, 생물다양성" />
-          </div>
-          <div style={{flex:"0 0 130px"}}>
-            <label className="fld">종류</label>
-            <select value={newsType} onChange={e=>setNewsType(e.target.value)}>
-              <option value="news">신문기사</option>
-              <option value="blog">칼럼·블로그</option>
-            </select>
           </div>
           <div style={{flex:"0 0 auto"}}>
             <button className="btn sec" onClick={searchNews} disabled={newsLoading} style={{whiteSpace:"nowrap"}}>
@@ -1917,7 +1929,7 @@ function App() {
           </div>}
         {articles.length>0 &&
           <div className="note info" style={{marginTop:10}}>
-            기사 <b>{articles.length}건</b>을 선택했습니다.
+            신문기사 <b>{articles.length}건</b>을 선택했습니다.
             <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setArticles([]);}}>모두 해제</a>
           </div>}
         <div className="hint">선택한 기사를 분석해야 해결할 수 있는 문항을 만듭니다. 검색 기능을 사용하려면 배포 환경에 네이버 검색 API 설정이 필요합니다.</div>
