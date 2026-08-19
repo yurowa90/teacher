@@ -139,43 +139,82 @@ const GRASPS_OPTIONAL = [
   { id:"audience", code:"A", name:"독자", desc:"글을 읽고 판단할 대상" },
 ];
 
-function recommendPatterns({ mode, text, images, articles, standardsText }) {
-  const raw = [text, standardsText, ...(articles||[]).map(a=>(a.title||"")+" "+(a.desc||""))].join(" ").toLowerCase();
-  const rows = DESIGN_PATTERNS.map((pattern,index)=>({ pattern, score:1-index*0.01, reasons:[] }));
+function recommendPatterns({ mode, text, images, articles, standardsText, sourceStructure }) {
+  // 사용자가 직접 입력한 자료를 가장 강하게, 성취기준·외부 자료는 보조 근거로 반영한다.
+  // 서로 다른 입력을 하나로 합치면 성취기준의 단어 하나가 추천 순위를 고정하는 문제가 생긴다.
+  const rows = DESIGN_PATTERNS.map((pattern,index)=>({ pattern, score:-index*0.001, reasons:[] }));
   const bump = (id, score, reason)=>{
     const row = rows.find(x=>x.pattern.id===id); if (!row) return;
     row.score += score; if (reason && !row.reasons.includes(reason)) row.reasons.push(reason);
   };
-  const hit = re=>re.test(raw);
+  const scan = (value, weight, label)=>{
+    const raw = String(value||"").toLowerCase();
+    if (!raw.trim()) return;
+    const add = (re, id, score, reason)=>{
+      if (re.test(raw)) bump(id, score*weight, label+"에서 "+reason);
+    };
+    add(/공통|공통점|연상|유추|추론|핵심 개념|사례.*적용|전이/, "concept-transfer", 7, "공통 개념 도출·새 맥락 적용 요구가 확인됩니다.");
+    add(/원리|기제|과정|메커니즘|인과|조건.*변|예측|결과.*달라|작동/, "mechanism-predict", 7, "원리 설명·조건 변화 예측 요구가 확인됩니다.");
+    add(/그래프|도표|표(?:\s|[를와의에가]|$)|수치|통계|자료.*해석|증가|감소|상관|경향|데이터|조사 결과|주장.*타당/, "data-claim", 8, "자료 해석·근거 판단 요구가 확인됩니다.");
+    add(/문제점|문제 상황|해결|개선안|대안|방안|정책|지속가능|관리 방안|실행 계획/, "problem-design", 7, "문제 진단·해결안 설계 요구가 확인됩니다.");
+    add(/실험|탐구 절차|변인|대조군|오차|가설|측정|반복 실험|실험군|통제/, "experiment-redesign", 8, "실험 설계·변인·오차 검토 요구가 확인됩니다.");
+    add(/비교|대조|차이|관점|서로 다른|찬성|반대|종합|공통점/, "compare-argument", 7, "복수 자료 비교·통합 논증 요구가 확인됩니다.");
+    add(/윤리|쟁점|의사결정|선택|이해관계|위험|편익|비용|형평성|우선순위|딜레마|정당화/, "decision-tradeoff", 8, "가치·위험·대안 판단 요구가 확인됩니다.");
+  };
+
+  scan(text, 1.35, "입력 자료");
+  scan(standardsText, 0.65, "선택한 성취기준");
+  scan((articles||[]).map(a=>(a.title||"")+" "+(a.desc||"")).join(" "), 0.9, "선택한 외부 자료");
+
   if (mode==="interview") {
     bump("concept-transfer",12,"자료 제시형 면접의 연속 질문을 단계형 논술 문항으로 바꾸는 데 가장 직접적인 패턴입니다.");
     bump("compare-argument",5,"면접 제시문 사이의 관계를 비교하고 하나의 글로 종합할 수 있습니다.");
     bump("problem-design",3,"면접 후반의 적용·해결 질문을 논술 과제로 확장할 수 있습니다.");
   }
-  if (mode==="convert") bump("data-claim",2,"기존 문항의 정답 확인을 근거 해석과 판단 과정으로 확장할 수 있습니다.");
-  if (hit(/공통|공통점|연상|유추|추론|개념|사례.*적용|전이/)) bump("concept-transfer",7,"입력에서 공통 개념 도출이나 새 사례 적용이 핵심 요구로 확인됩니다.");
-  if (hit(/원리|기제|과정|메커니즘|인과|조건.*변|예측|결과.*달라/)) bump("mechanism-predict",7,"입력에서 원리 설명과 조건 변화에 따른 예측이 핵심 요구로 확인됩니다.");
-  if (hit(/그래프|도표|표(?:\s|[를와의에가]|$)|수치|통계|자료.*해석|증가|감소|상관|경향|데이터|조사 결과|주장.*타당/)) bump("data-claim",9,"표·그래프·수치 또는 주장 검토가 포함되어 자료 해석과 타당성 평가가 적합합니다.");
-  if (hit(/문제점|문제 상황|해결|개선안|대안|방안|정책|지속가능|관리 방안/)) bump("problem-design",8,"문제의 원인과 해결 방안을 함께 다루는 입력이 확인됩니다.");
-  if (hit(/실험|탐구|변인|대조군|오차|가설|측정|반복 실험|실험군/)) bump("experiment-redesign",10,"실험 절차·변인·오차를 검토할 수 있는 자료가 확인됩니다.");
-  if (hit(/비교|대조|차이|관점|서로 다른|찬성|반대|종합/)) bump("compare-argument",7,"복수 자료의 공통점·차이점이나 관점 관계를 다루는 입력이 확인됩니다.");
-  if (hit(/윤리|쟁점|의사결정|선택|이해관계|위험|편익|비용|형평성|우선순위|딜레마/)) bump("decision-tradeoff",9,"상충하는 가치·위험·편익을 기준에 따라 판단할 필요가 있습니다.");
+  if (mode==="convert") {
+    bump("data-claim",3,"기존 문항의 정답 확인을 근거 해석과 판단 과정으로 확장할 수 있습니다.");
+    bump("mechanism-predict",1.5,"기존 문항의 개념 확인을 원리 설명과 예측으로 확장할 수 있습니다.");
+  }
+  if (mode==="transform") bump("compare-argument",1.5,"기존 문항과 변형 문항의 관점·자료 관계를 재구성하기에 적합합니다.");
+  if (mode==="idea") {
+    bump("problem-design",2,"주제나 아이디어를 실제 문제 해결 과제로 구체화하기에 적합합니다.");
+    bump("mechanism-predict",1,"주제에 포함된 과학 원리를 설명·예측 과제로 구체화할 수 있습니다.");
+  }
+
+  const structureRules = {
+    single:[["mechanism-predict",2.5,"단일 설명 자료는 원리와 인과 관계를 깊게 설명하는 패턴에 적합합니다."]],
+    parallel:[["compare-argument",4,"복수 병렬 자료는 공통점·차이점 비교와 근거 통합에 적합합니다."],["concept-transfer",2,"복수 자료에서 공통 원리를 찾도록 구성할 수 있습니다."]],
+    contrast:[["compare-argument",5,"대립·상보 자료는 관점 비교와 통합 논증에 적합합니다."],["decision-tradeoff",2,"대립하는 대안의 기준과 효과를 판단하게 할 수 있습니다."]],
+    "cross-domain":[["concept-transfer",5,"영역 융합 자료는 공통 개념을 찾아 새 맥락에 적용하는 패턴에 적합합니다."],["compare-argument",2,"서로 다른 영역의 설명 관계를 비교할 수 있습니다."]],
+    data:[["data-claim",7,"표·그래프·수치 자료는 경향 해석과 주장 평가에 직접 연결됩니다."]],
+    experiment:[["experiment-redesign",8,"실험·탐구 자료는 변인·오차·설계 개선을 평가하기에 적합합니다."],["data-claim",2,"실험 결과를 근거로 결론의 타당성을 판단할 수 있습니다."]],
+    case:[["problem-design",5,"실제 사례·정책 자료는 문제 진단과 해결안 설계에 적합합니다."],["decision-tradeoff",4,"실제 사례의 이해관계와 대안을 기준에 따라 판단할 수 있습니다."]],
+    mixed:[["data-claim",3,"복합 자료에 포함된 수치와 근거를 해석할 수 있습니다."],["compare-argument",2,"서로 다른 형식의 자료를 비교·통합할 수 있습니다."],["concept-transfer",1,"여러 자료를 공통 개념으로 연결할 수 있습니다."]],
+  };
+  (structureRules[sourceStructure]||[]).forEach(([id,score,reason])=>bump(id,score,reason));
+
   const pdfCount = (images||[]).filter(x=>x.kind==="pdf").length;
-  if (pdfCount || (articles||[]).length) {
-    bump("data-claim",3,"첨부 자료의 근거를 직접 해석하도록 구성할 수 있습니다.");
-    bump("compare-argument",2,"복수 정보원을 비교·통합하는 문항으로 구성할 수 있습니다.");
+  const imageCount = (images||[]).filter(x=>x.kind!=="pdf").length;
+  if (pdfCount || imageCount) {
+    bump("data-claim",2,"첨부 자료의 근거를 직접 해석하도록 구성할 수 있습니다.");
+    if ((images||[]).length > 1) bump("compare-argument",2,"여러 첨부 자료를 비교·통합하는 문항으로 구성할 수 있습니다.");
   }
   if ((articles||[]).length) {
     bump("problem-design",3,"선택한 실제 사례를 문제 진단과 해결안 설계에 사용할 수 있습니다.");
     bump("decision-tradeoff",2,"실제 사례의 이해관계와 대안을 판단하게 할 수 있습니다.");
+    const sourceIds = new Set((articles||[]).map(a=>a.sourceId));
+    if (sourceIds.has("kosis")) bump("data-claim",4,"KOSIS 통계 자료는 수치 해석과 근거 판단에 적합합니다.");
+    if (sourceIds.has("scienceon")) bump("data-claim",2,"ScienceON 연구 자료는 연구 결과와 주장의 타당성 평가에 적합합니다.");
+    if (sourceIds.has("law")) bump("decision-tradeoff",3,"법령 자료는 판단 기준과 대안의 정당성을 검토하기에 적합합니다.");
+    if (sourceIds.has("policy")) bump("problem-design",3,"정책 자료는 문제 진단과 실행 가능한 해결안 설계에 적합합니다.");
   }
-  if (!raw.trim() && !(images||[]).length) {
+  if (!String(text||"").trim() && !String(standardsText||"").trim() && !(images||[]).length && !(articles||[]).length) {
     bump("mechanism-predict",3,"과학 성취기준에서 원리 이해와 인과 추론을 확인하는 기본 패턴입니다.");
     bump("concept-transfer",2,"서로 다른 사례로 개념 이해와 전이를 함께 확인할 수 있습니다.");
     bump("data-claim",1,"자료가 추가되면 해석과 근거 판단까지 평가할 수 있습니다.");
   }
-  return rows.sort((a,b)=>b.score-a.score).slice(0,3).map((row,index)=>({
-    ...row, rank:index+1, reason:row.reasons[0]||row.pattern.fit
+  return rows.sort((a,b)=>b.score-a.score).map((row,index)=>({
+    ...row, rank:index+1, recommended:index<3, reason:row.reasons[0]||row.pattern.fit
   }));
 }
 
@@ -263,7 +302,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
-- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 외부 자료를 사용하면 출처를 선택사항으로 처리하지 말고 materials.source에 기관명·원자료명·게시일·원문 URL을 기록한다. 요약·재구성한 경우에도 sourceRefId를 유지하고 제시문 아래에 출처가 보이게 한다.
+- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 앱 요청에 [선택한 공공 자료] 블록이 있을 때만 해당 자료의 출처를 materials.source에 기록하고 sourceRefId를 유지한다. 그 블록이 없으면 materials.source는 null, sourceRefId는 빈 문자열로 두며 기관명·원자료명·URL을 추정하거나 만들어 내지 않는다.
 - 조건: 조건은 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 논술형에서 분량 제한(예: "500~700자로 작성할 것")처럼 발문만으로 통제하기 어려운 것만 조건으로 둔다. 조건을 넣지 않는 문항은 conditions.content·conditions.form을 모두 빈 배열([])로 둔다.
 
 [반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
@@ -643,6 +682,7 @@ function graspsEntries(grasps){
 function toMarkdown(r, showTeacher) {
   const L = [];
   const info = r.info || {};
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
   L.push(`# ${info.toolName || "서·논술형 평가 문항"}`);
   L.push("");
   L.push(`- 교육과정: ${r.curriculum === "2015" ? "2015 개정" : "2022 개정"}`);
@@ -692,7 +732,7 @@ function toMarkdown(r, showTeacher) {
       L.push("");
       L.push(`> **${m.label||""}** ${(m.body||"").replace(/\n/g,"\n> ")}`);
       if (m.svg) L.push(`> (그림자료: ${m.caption||"SVG 도식"})`);
-      const c=sourceCitation(m.source);
+      const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
       if (c.text) L.push(`> 출처: ${c.text}${c.url?` · ${c.url}`:""}`);
     });
     normQuestions(it).forEach(q=>{
@@ -826,6 +866,7 @@ function dBul(list){ return (list||[]).map(x=>dP("• "+x,{after:40})).join("");
 
 function buildDocxXml(r, showTeacher){
   const info = r.info||{}; const B=[];
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
   B.push(dP("서·논술형 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
   B.push(dBanner(info.toolName||"서·논술형 평가 문항"));
   if (!showTeacher) B.push(dP("(   )학년 (   )반 (   )번    이름: ________________",{after:120}));
@@ -887,7 +928,7 @@ function buildDocxXml(r, showTeacher){
       } else if (m.imageData || m.svg || m.svgBlank) {
         B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림 변환에 실패해 웹 화면의 인쇄/PDF에서 확인하세요〕",{color:"888888",after:100}));
       }
-      const c=sourceCitation(m.source);
+      const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
       if (c.text) B.push(dP("출처: "+c.text+(c.url?" · "+c.url:""),{color:"666666",after:100}));
     });
     normQuestions(it).forEach(q=>{
@@ -1272,8 +1313,10 @@ function App() {
 
   const standardsText = (STANDARDS[subject]||[])
     .filter(s=>selectedStds.includes(s.code)).map(s=>s.text).join(" ");
-  const patternRecommendations = recommendPatterns({ mode, text, images, articles:references, standardsText });
-  const recommendedPattern = patternRecommendations[0].pattern;
+  const patternRankings = recommendPatterns({ mode, text, images, articles:references, standardsText, sourceStructure });
+  const patternRecommendations = patternRankings.slice(0,3);
+  const alternativePatterns = patternRankings.slice(3);
+  const recommendedPattern = patternRankings[0].pattern;
   const selectedPattern = DESIGN_PATTERNS.find(p=>p.id===patternId) || recommendedPattern;
   const selectedSource = SOURCE_STRUCTURES.find(s=>s.v===sourceStructure) || SOURCE_STRUCTURES[0];
   const selectedProvider = PUBLIC_SOURCES.find(s=>s.id===sourceProvider) || PUBLIC_SOURCES[0];
@@ -1456,6 +1499,7 @@ function App() {
       url:safeHttpUrl(x.url || x.link),
       kind:x.kind || "",
     }));
+    r.publicSourcesUsed = selectedRefs.length > 0;
     r.sourceReferences = selectedRefs;
     r.designContext = {
       selectedPatternId:selectedPattern.id,
@@ -1485,8 +1529,14 @@ function App() {
       };
       if (!it.grasps.standards.length) it.grasps.standards = scoringElements.length ? scoringElements : ["제시 자료와 과학 개념을 근거로 답안을 구성하기"];
       (it.materials||[]).forEach(m=>{
-        const ref = selectedRefs.find(x=>x.refId===m.sourceRefId);
-        if (ref) m.source = { provider:ref.provider, title:ref.title, date:ref.date, url:ref.url };
+        const ref = selectedRefs.find(x=>x.refId===String(m.sourceRefId||"").trim());
+        if (ref) {
+          m.sourceRefId = ref.refId;
+          m.source = { provider:ref.provider, title:ref.title, date:ref.date, url:ref.url };
+        } else {
+          m.sourceRefId = "";
+          m.source = null;
+        }
       });
     });
     return r;
@@ -1612,6 +1662,12 @@ function App() {
         `사용한 자료마다 materials.sourceRefId에 SRC 번호를 정확히 기록하고 source에 제공기관·원자료명·날짜·원문 URL을 그대로 옮겨라. ` +
         `제시문 아래에는 출처가 표시되어야 한다. 원문을 길게 복제하지 말고 학생 수준에 맞게 요약·재구성하되, 수치·법령명·연구 결과와 맥락을 왜곡하지 말라. ` +
         `성취기준·과목 범위와 맞지 않는 자료는 사용하지 말라.`
+      );
+    } else {
+      P.push(
+        `[공공 자료 사용 여부 — 사용 안 함]\n`+
+        `선택한 공공 자료가 없다. materials.source는 모두 null, materials.sourceRefId는 모두 빈 문자열로 두고, `+
+        `기관명·문서명·게시일·URL을 추정하거나 만들어 내지 말라. 사용자 입력과 성취기준을 외부 출처가 있는 자료처럼 꾸미지 말라.`
       );
     }
 
@@ -2050,11 +2106,14 @@ function App() {
         <div className="pattern-heading">
           <div>
             <div className="subh">출제 패턴</div>
-            <p>입력 자료와 설계 방식을 분석한 추천입니다. 패턴은 자료의 모양이 아니라 학생이 답을 구성하는 사고 순서를 뜻합니다.</p>
+            <p>입력 자료·설계 방식·자료 구성이 바뀌면 추천 순위도 다시 계산됩니다. 직접 고른 패턴은 입력을 바꿔도 유지됩니다.</p>
           </div>
           {patternId && <button type="button" className="pattern-reset" onClick={()=>setPatternId("")}>추천 1순위로 되돌리기</button>}
         </div>
-        <div className="pattern-recommendations" aria-label="추천 출제 패턴">
+        <div className="pattern-live sr" aria-live="polite">
+          현재 추천 순위: {patternRecommendations.map(rec=>`${rec.rank}위 ${rec.pattern.name}`).join(", ")}
+        </div>
+        <div className="pattern-recommendations" aria-label="추천 출제 패턴 3개">
           {patternRecommendations.map(rec=>{
             const on = selectedPattern.id===rec.pattern.id;
             return (
@@ -2073,16 +2132,24 @@ function App() {
             );
           })}
         </div>
-
-        <details className="pattern-catalog">
-          <summary>전체 패턴에서 직접 선택</summary>
-          <div className="pattern-catalog-list">
-            {DESIGN_PATTERNS.map(p=><button type="button" key={p.id} aria-pressed={selectedPattern.id===p.id}
-              className={selectedPattern.id===p.id?"is-selected":""} onClick={()=>setPatternId(p.id)}>
-              <strong>{p.name}</strong><span>{p.sequence.join(" → ")}</span>
-            </button>)}
-          </div>
-        </details>
+        <div className="pattern-alternative-heading">
+          <strong>다른 출제 패턴 4개</strong>
+          <span>추천 밖의 패턴도 바로 선택할 수 있습니다.</span>
+        </div>
+        <div className="pattern-catalog-list" aria-label="다른 출제 패턴 4개">
+          {alternativePatterns.map(rec=>{
+            const p=rec.pattern, on=selectedPattern.id===p.id;
+            return <button type="button" key={p.id} aria-pressed={on}
+              className={on?"is-selected":""} onClick={()=>setPatternId(p.id)}>
+              <span className="pattern-card-top">
+                <strong>{p.name}</strong>
+                {on && <span className="pattern-selected">현재 선택</span>}
+              </span>
+              <span>{p.short}</span>
+              <em>{p.sequence.join(" → ")}</em>
+            </button>;
+          })}
+        </div>
 
         <button type="button" className="advtgl" aria-expanded={advOpen} onClick={()=>setAdvOpen(!advOpen)}>
           <span>고급 설정</span>
@@ -2373,7 +2440,7 @@ function BlankEditor({m, onChange}) {
 }
 
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher, onEdited, editing}) {
+function ItemBlock({it, showTeacher, showCitations, onEdited, editing}) {
   const qs = normQuestions(it);
   const design = it.design||{};
   const ge = graspsEntries(it.grasps);
@@ -2383,12 +2450,12 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
         <span className="kpill">평가 문항 {it.number}({it.type||"논술형"})</span>
         <span className="kline"></span>
       </div>
-      <div className="tags noprint">
+      {showTeacher && <div className="tags noprint">
         {it.format && <span className="tag fmt">{it.format}</span>}
         {design.patternName && <span className="tag data">출제 패턴: {design.patternName}</span>}
         {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
         {it.targetLevel && <span className="tag lvl">목표 수준 {it.targetLevel}</span>}
-      </div>
+      </div>}
       {showTeacher && (design.patternName || ge.length>0) &&
         <section className="kdesign" aria-label="출제 설계와 GRASPS 수행 맥락">
           {design.patternName && <div className="kdesign-pattern">
@@ -2451,7 +2518,7 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
               </div>
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
-          {(()=>{ const c=sourceCitation(m.source); return c.text ?
+          {showCitations && (()=>{ const c=sourceCitation(m.source); return c.text ?
             <div className="kcite">
               <b>출처</b> · {c.text}
               {c.url && <React.Fragment><br/><a href={c.url} target="_blank" rel="noreferrer">{c.url}</a></React.Fragment>}
@@ -2495,6 +2562,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   const caseItem = n => items.find(x=>x.number===n) || items[0];
   const [editing, setEditing] = useState(false);
   const audit = auditResult(r);
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
 
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
@@ -2516,9 +2584,13 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         </span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
         <span style={{flex:1}}></span>
-        <button className="btn sec" onClick={()=>setShowTeacher(!showTeacher)}>
-          {showTeacher?"학생 배부본 보기":"교사용 보기"}
-        </button>
+        <span className="view-switch" role="group" aria-label="문서 보기 선택">
+          <span className="view-label">문서 보기</span>
+          <button type="button" className={showTeacher?"is-active":""} aria-pressed={showTeacher}
+            onClick={()=>setShowTeacher(true)}>교사용</button>
+          <button type="button" className={!showTeacher?"is-active":""} aria-pressed={!showTeacher}
+            onClick={()=>setShowTeacher(false)}>학생용</button>
+        </span>
         <button className="btn sec" onClick={()=>{ if(editing && onSave) onSave(); setEditing(!editing); }}
           style={editing?{background:"var(--accent)",color:"#fff"}:null}>
           {editing?"수정 완료":"문서 내용 수정"}
@@ -2532,6 +2604,12 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
         </span>
         <button className="btn sec" onClick={copyMd} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
+      </div>
+      <div className="view-guide noprint" role="status">
+        <b>현재 {showTeacher?"교사용":"학생용"}</b>
+        <span>{showTeacher
+          ? "예시 답안·채점 기준·출제 설계까지 확인합니다. 위의 ‘학생용’을 누르면 배부본을 미리 볼 수 있습니다."
+          : "학생에게 배부할 문항·제시문·답안란만 표시합니다. 출제 설계와 목표 수준은 숨겨집니다."}</span>
       </div>
       {editing &&
         <div className="note info noprint">점선으로 표시된 문구를 선택해 수정할 수 있습니다. 수정 내용은 인쇄본과 Word 파일에도 적용됩니다.</div>}
@@ -2657,7 +2735,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
         {/* 2. 평가 문항 */}
         <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
-        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
 
         {showTeacher && <React.Fragment>
           {/* 예시 답안 */}
