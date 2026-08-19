@@ -302,7 +302,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
-- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 외부 자료를 사용하면 출처를 선택사항으로 처리하지 말고 materials.source에 기관명·원자료명·게시일·원문 URL을 기록한다. 요약·재구성한 경우에도 sourceRefId를 유지하고 제시문 아래에 출처가 보이게 한다.
+- 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 앱 요청에 [선택한 공공 자료] 블록이 있을 때만 해당 자료의 출처를 materials.source에 기록하고 sourceRefId를 유지한다. 그 블록이 없으면 materials.source는 null, sourceRefId는 빈 문자열로 두며 기관명·원자료명·URL을 추정하거나 만들어 내지 않는다.
 - 조건: 조건은 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 논술형에서 분량 제한(예: "500~700자로 작성할 것")처럼 발문만으로 통제하기 어려운 것만 조건으로 둔다. 조건을 넣지 않는 문항은 conditions.content·conditions.form을 모두 빈 배열([])로 둔다.
 
 [반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
@@ -682,6 +682,7 @@ function graspsEntries(grasps){
 function toMarkdown(r, showTeacher) {
   const L = [];
   const info = r.info || {};
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
   L.push(`# ${info.toolName || "서·논술형 평가 문항"}`);
   L.push("");
   L.push(`- 교육과정: ${r.curriculum === "2015" ? "2015 개정" : "2022 개정"}`);
@@ -731,7 +732,7 @@ function toMarkdown(r, showTeacher) {
       L.push("");
       L.push(`> **${m.label||""}** ${(m.body||"").replace(/\n/g,"\n> ")}`);
       if (m.svg) L.push(`> (그림자료: ${m.caption||"SVG 도식"})`);
-      const c=sourceCitation(m.source);
+      const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
       if (c.text) L.push(`> 출처: ${c.text}${c.url?` · ${c.url}`:""}`);
     });
     normQuestions(it).forEach(q=>{
@@ -865,6 +866,7 @@ function dBul(list){ return (list||[]).map(x=>dP("• "+x,{after:40})).join("");
 
 function buildDocxXml(r, showTeacher){
   const info = r.info||{}; const B=[];
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
   B.push(dP("서·논술형 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
   B.push(dBanner(info.toolName||"서·논술형 평가 문항"));
   if (!showTeacher) B.push(dP("(   )학년 (   )반 (   )번    이름: ________________",{after:120}));
@@ -926,7 +928,7 @@ function buildDocxXml(r, showTeacher){
       } else if (m.imageData || m.svg || m.svgBlank) {
         B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림 변환에 실패해 웹 화면의 인쇄/PDF에서 확인하세요〕",{color:"888888",after:100}));
       }
-      const c=sourceCitation(m.source);
+      const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
       if (c.text) B.push(dP("출처: "+c.text+(c.url?" · "+c.url:""),{color:"666666",after:100}));
     });
     normQuestions(it).forEach(q=>{
@@ -1497,6 +1499,7 @@ function App() {
       url:safeHttpUrl(x.url || x.link),
       kind:x.kind || "",
     }));
+    r.publicSourcesUsed = selectedRefs.length > 0;
     r.sourceReferences = selectedRefs;
     r.designContext = {
       selectedPatternId:selectedPattern.id,
@@ -1526,8 +1529,14 @@ function App() {
       };
       if (!it.grasps.standards.length) it.grasps.standards = scoringElements.length ? scoringElements : ["제시 자료와 과학 개념을 근거로 답안을 구성하기"];
       (it.materials||[]).forEach(m=>{
-        const ref = selectedRefs.find(x=>x.refId===m.sourceRefId);
-        if (ref) m.source = { provider:ref.provider, title:ref.title, date:ref.date, url:ref.url };
+        const ref = selectedRefs.find(x=>x.refId===String(m.sourceRefId||"").trim());
+        if (ref) {
+          m.sourceRefId = ref.refId;
+          m.source = { provider:ref.provider, title:ref.title, date:ref.date, url:ref.url };
+        } else {
+          m.sourceRefId = "";
+          m.source = null;
+        }
       });
     });
     return r;
@@ -1653,6 +1662,12 @@ function App() {
         `사용한 자료마다 materials.sourceRefId에 SRC 번호를 정확히 기록하고 source에 제공기관·원자료명·날짜·원문 URL을 그대로 옮겨라. ` +
         `제시문 아래에는 출처가 표시되어야 한다. 원문을 길게 복제하지 말고 학생 수준에 맞게 요약·재구성하되, 수치·법령명·연구 결과와 맥락을 왜곡하지 말라. ` +
         `성취기준·과목 범위와 맞지 않는 자료는 사용하지 말라.`
+      );
+    } else {
+      P.push(
+        `[공공 자료 사용 여부 — 사용 안 함]\n`+
+        `선택한 공공 자료가 없다. materials.source는 모두 null, materials.sourceRefId는 모두 빈 문자열로 두고, `+
+        `기관명·문서명·게시일·URL을 추정하거나 만들어 내지 말라. 사용자 입력과 성취기준을 외부 출처가 있는 자료처럼 꾸미지 말라.`
       );
     }
 
@@ -2425,7 +2440,7 @@ function BlankEditor({m, onChange}) {
 }
 
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher, onEdited, editing}) {
+function ItemBlock({it, showTeacher, showCitations, onEdited, editing}) {
   const qs = normQuestions(it);
   const design = it.design||{};
   const ge = graspsEntries(it.grasps);
@@ -2435,12 +2450,12 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
         <span className="kpill">평가 문항 {it.number}({it.type||"논술형"})</span>
         <span className="kline"></span>
       </div>
-      <div className="tags noprint">
+      {showTeacher && <div className="tags noprint">
         {it.format && <span className="tag fmt">{it.format}</span>}
         {design.patternName && <span className="tag data">출제 패턴: {design.patternName}</span>}
         {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
         {it.targetLevel && <span className="tag lvl">목표 수준 {it.targetLevel}</span>}
-      </div>
+      </div>}
       {showTeacher && (design.patternName || ge.length>0) &&
         <section className="kdesign" aria-label="출제 설계와 GRASPS 수행 맥락">
           {design.patternName && <div className="kdesign-pattern">
@@ -2503,7 +2518,7 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
               </div>
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
-          {(()=>{ const c=sourceCitation(m.source); return c.text ?
+          {showCitations && (()=>{ const c=sourceCitation(m.source); return c.text ?
             <div className="kcite">
               <b>출처</b> · {c.text}
               {c.url && <React.Fragment><br/><a href={c.url} target="_blank" rel="noreferrer">{c.url}</a></React.Fragment>}
@@ -2547,6 +2562,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   const caseItem = n => items.find(x=>x.number===n) || items[0];
   const [editing, setEditing] = useState(false);
   const audit = auditResult(r);
+  const showSourceCitations = (r.sourceReferences||[]).length > 0;
 
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
@@ -2568,9 +2584,13 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         </span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
         <span style={{flex:1}}></span>
-        <button className="btn sec" onClick={()=>setShowTeacher(!showTeacher)}>
-          {showTeacher?"학생 배부본 보기":"교사용 보기"}
-        </button>
+        <span className="view-switch" role="group" aria-label="문서 보기 선택">
+          <span className="view-label">문서 보기</span>
+          <button type="button" className={showTeacher?"is-active":""} aria-pressed={showTeacher}
+            onClick={()=>setShowTeacher(true)}>교사용</button>
+          <button type="button" className={!showTeacher?"is-active":""} aria-pressed={!showTeacher}
+            onClick={()=>setShowTeacher(false)}>학생용</button>
+        </span>
         <button className="btn sec" onClick={()=>{ if(editing && onSave) onSave(); setEditing(!editing); }}
           style={editing?{background:"var(--accent)",color:"#fff"}:null}>
           {editing?"수정 완료":"문서 내용 수정"}
@@ -2584,6 +2604,12 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
         </span>
         <button className="btn sec" onClick={copyMd} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
+      </div>
+      <div className="view-guide noprint" role="status">
+        <b>현재 {showTeacher?"교사용":"학생용"}</b>
+        <span>{showTeacher
+          ? "예시 답안·채점 기준·출제 설계까지 확인합니다. 위의 ‘학생용’을 누르면 배부본을 미리 볼 수 있습니다."
+          : "학생에게 배부할 문항·제시문·답안란만 표시합니다. 출제 설계와 목표 수준은 숨겨집니다."}</span>
       </div>
       {editing &&
         <div className="note info noprint">점선으로 표시된 문구를 선택해 수정할 수 있습니다. 수정 내용은 인쇄본과 Word 파일에도 적용됩니다.</div>}
@@ -2709,7 +2735,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
         {/* 2. 평가 문항 */}
         <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
-        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
 
         {showTeacher && <React.Fragment>
           {/* 예시 답안 */}
