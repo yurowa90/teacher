@@ -42,13 +42,121 @@ const SUBJECTS = [
    ────────────────────────────────────────────────────────────── */
 const STANDARDS = (typeof window !== "undefined" && window.SCIENCE_STANDARDS) || {};
 
-// 문항 형식 (FORMATS 6종 + 자동)
-const FORMATS = ["자동","자료제시형","문제해결형","비교분석형","논증형","실험탐구형","자유서술형"];
+// 출제 패턴: 자료 형식이 아니라 학생이 거치는 사고의 순서로 구분한다.
+// 고려대 자료 제시형 면접 문항과 연세대 과학 서·논술형 문항의 반복 구조를 반영했다.
+const DESIGN_PATTERNS = [
+  {
+    id:"concept-transfer", name:"공통 개념 추론·전이", short:"서로 다른 자료에서 공통 원리를 찾고 새 맥락에 적용합니다.",
+    sequence:["공통 개념 도출","개념 구분·설명","새 맥락 적용","종합 판단"],
+    actions:["추론","구분","적용","종합"], source:"복수 제시문·영역 융합 자료",
+    fit:"자료 제시형 면접의 연속 질문이나 서로 다른 사례를 하나의 원리로 연결하는 평가에 적합합니다."
+  },
+  {
+    id:"mechanism-predict", name:"기제 설명·조건 예측", short:"과학 원리를 설명하고 조건 변화에 따른 결과를 예측합니다.",
+    sequence:["원리·과정 설명","조건 변화 분석","결과 예측","근거 제시"],
+    actions:["설명","분석","예측"], source:"현상·모형·과정 자료",
+    fit:"과학 개념의 작동 원리와 인과 관계를 평가하는 문항에 적합합니다."
+  },
+  {
+    id:"data-claim", name:"자료 해석·주장 평가", short:"자료의 경향을 읽고 그 자료로 주장의 타당성과 한계를 판단합니다.",
+    sequence:["자료 경향 해석","주장과 근거 연결","타당성 평가","한계·보완점 제시"],
+    actions:["해석","분석","평가","논증"], source:"표·그래프·수치·조사 자료",
+    fit:"수치 자료를 근거로 결론의 타당성을 판단하게 하는 평가에 적합합니다."
+  },
+  {
+    id:"problem-design", name:"문제 진단·해결 설계", short:"문제의 원인을 분석하고 제약 조건을 고려한 해결안을 설계합니다.",
+    sequence:["문제 규정","원인·영향 분석","대안 비교","해결안 설계"],
+    actions:["분석","평가","제안"], source:"실제 사례·정책·환경 문제 자료",
+    fit:"과학 지식을 실제 문제 해결로 전이하고 실행 가능한 대안을 평가하는 문항에 적합합니다."
+  },
+  {
+    id:"experiment-redesign", name:"실험 분석·개선 설계", short:"실험 결과와 설계를 검토하고 더 타당한 탐구 절차로 개선합니다.",
+    sequence:["결과 해석","변인·오차 분석","설계의 한계 평가","개선 실험 설계"],
+    actions:["분석","평가","설계"], source:"실험 절차·관찰 기록·결과 자료",
+    fit:"탐구 과정, 변인 통제, 자료의 신뢰도와 실험 설계 역량을 평가하는 문항에 적합합니다."
+  },
+  {
+    id:"compare-argument", name:"비교·통합 논증", short:"복수 자료의 관계를 비교·종합해 근거 있는 주장을 구성합니다.",
+    sequence:["공통점·차이점 비교","자료 간 관계 해석","근거 통합","입장 논증"],
+    actions:["비교","종합","논증"], source:"대립·상보 관계의 복수 자료",
+    fit:"관점이나 설명이 다른 자료를 함께 사용해 논리를 구성하는 평가에 적합합니다."
+  },
+  {
+    id:"decision-tradeoff", name:"쟁점 판단·의사결정", short:"상충하는 가치와 이해관계를 검토해 판단 기준과 선택을 정당화합니다.",
+    sequence:["쟁점·이해관계 분석","판단 기준 설정","대안 비교","선택 정당화"],
+    actions:["분석","평가","논증","의사결정"], source:"과학기술사회 쟁점·정책 대안 자료",
+    fit:"정답이 하나로 고정되지 않은 과학기술사회 쟁점에서 근거 기반 판단을 평가하는 문항에 적합합니다."
+  },
+];
+
+const SOURCE_STRUCTURES = [
+  { v:"auto", t:"내용에 맞게 구성" },
+  { v:"single", t:"단일 설명 자료" },
+  { v:"parallel", t:"복수 병렬 자료" },
+  { v:"contrast", t:"대립·상보 자료" },
+  { v:"cross-domain", t:"영역 융합 자료" },
+  { v:"data", t:"표·그래프·수치 자료" },
+  { v:"experiment", t:"실험·탐구 자료" },
+  { v:"case", t:"실제 사례·정책 자료" },
+  { v:"mixed", t:"복합 자료" },
+];
+
+const GRASPS_CORE = [
+  { id:"goal", code:"G", name:"목표", desc:"학생이 해결해야 할 핵심 과제" },
+  { id:"product", code:"P", name:"산출물", desc:"학생이 제출할 글·제안서·분석 결과" },
+  { id:"standards", code:"S", name:"평가기준", desc:"좋은 수행을 판단할 기준" },
+];
+const GRASPS_OPTIONAL = [
+  { id:"situation", code:"S", name:"상황", desc:"문제가 놓인 실제 맥락과 제약" },
+  { id:"role", code:"R", name:"역할", desc:"판단과 작성의 관점" },
+  { id:"audience", code:"A", name:"독자", desc:"글을 읽고 판단할 대상" },
+];
+
+function recommendPatterns({ mode, text, images, articles, standardsText }) {
+  const raw = [text, standardsText, ...(articles||[]).map(a=>(a.title||"")+" "+(a.desc||""))].join(" ").toLowerCase();
+  const rows = DESIGN_PATTERNS.map((pattern,index)=>({ pattern, score:1-index*0.01, reasons:[] }));
+  const bump = (id, score, reason)=>{
+    const row = rows.find(x=>x.pattern.id===id); if (!row) return;
+    row.score += score; if (reason && !row.reasons.includes(reason)) row.reasons.push(reason);
+  };
+  const hit = re=>re.test(raw);
+  if (mode==="interview") {
+    bump("concept-transfer",12,"자료 제시형 면접의 연속 질문을 단계형 논술 문항으로 바꾸는 데 가장 직접적인 패턴입니다.");
+    bump("compare-argument",5,"면접 제시문 사이의 관계를 비교하고 하나의 글로 종합할 수 있습니다.");
+    bump("problem-design",3,"면접 후반의 적용·해결 질문을 논술 과제로 확장할 수 있습니다.");
+  }
+  if (mode==="convert") bump("data-claim",2,"기존 문항의 정답 확인을 근거 해석과 판단 과정으로 확장할 수 있습니다.");
+  if (hit(/공통|공통점|연상|유추|추론|개념|사례.*적용|전이/)) bump("concept-transfer",7,"입력에서 공통 개념 도출이나 새 사례 적용이 핵심 요구로 확인됩니다.");
+  if (hit(/원리|기제|과정|메커니즘|인과|조건.*변|예측|결과.*달라/)) bump("mechanism-predict",7,"입력에서 원리 설명과 조건 변화에 따른 예측이 핵심 요구로 확인됩니다.");
+  if (hit(/그래프|표\b|수치|통계|자료.*해석|증가|감소|상관|경향|데이터|조사 결과|주장.*타당/)) bump("data-claim",9,"표·그래프·수치 또는 주장 검토가 포함되어 자료 해석과 타당성 평가가 적합합니다.");
+  if (hit(/문제점|문제 상황|해결|개선안|대안|방안|정책|지속가능|관리 방안/)) bump("problem-design",8,"문제의 원인과 해결 방안을 함께 다루는 입력이 확인됩니다.");
+  if (hit(/실험|탐구|변인|대조군|오차|가설|측정|반복 실험|실험군/)) bump("experiment-redesign",10,"실험 절차·변인·오차를 검토할 수 있는 자료가 확인됩니다.");
+  if (hit(/비교|대조|차이|관점|서로 다른|찬성|반대|종합/)) bump("compare-argument",7,"복수 자료의 공통점·차이점이나 관점 관계를 다루는 입력이 확인됩니다.");
+  if (hit(/윤리|쟁점|의사결정|선택|이해관계|위험|편익|비용|형평성|우선순위|딜레마/)) bump("decision-tradeoff",9,"상충하는 가치·위험·편익을 기준에 따라 판단할 필요가 있습니다.");
+  const pdfCount = (images||[]).filter(x=>x.kind==="pdf").length;
+  if (pdfCount || (articles||[]).length) {
+    bump("data-claim",3,"첨부 자료의 근거를 직접 해석하도록 구성할 수 있습니다.");
+    bump("compare-argument",2,"복수 정보원을 비교·통합하는 문항으로 구성할 수 있습니다.");
+  }
+  if ((articles||[]).length) {
+    bump("problem-design",3,"선택한 실제 사례를 문제 진단과 해결안 설계에 사용할 수 있습니다.");
+    bump("decision-tradeoff",2,"실제 사례의 이해관계와 대안을 판단하게 할 수 있습니다.");
+  }
+  if (!raw.trim() && !(images||[]).length) {
+    bump("mechanism-predict",3,"과학 성취기준에서 원리 이해와 인과 추론을 확인하는 기본 패턴입니다.");
+    bump("concept-transfer",2,"서로 다른 사례로 개념 이해와 전이를 함께 확인할 수 있습니다.");
+    bump("data-claim",1,"자료가 추가되면 해석과 근거 판단까지 평가할 수 있습니다.");
+  }
+  return rows.sort((a,b)=>b.score-a.score).slice(0,3).map((row,index)=>({
+    ...row, rank:index+1, reason:row.reasons[0]||row.pattern.fit
+  }));
+}
 
 // 입력 방식
 const MODES = [
   { v:"standard",  t:"성취기준으로 새 문항 만들기", d:"성취기준과 성취수준을 바탕으로 새 문항을 만듭니다." },
-  { v:"convert",   t:"기존 지필 문항을 논술형으로 바꾸기", d:"선택형이나 단답형 문항을 서술 과정이 드러나는 문항으로 바꿉니다." },
+  { v:"convert",   t:"기존 지필 문항을 논술형으로 바꾸기", d:"선택형이나 단답형 문항을 근거와 사고 과정이 드러나는 문항으로 바꿉니다." },
+  { v:"interview", t:"자료 제시형 면접을 논술형으로 바꾸기", d:"제시문과 연속 질문을 단계형 논술 문항 세트로 재구성합니다." },
   { v:"transform", t:"기존 논술형 문항 변형하기", d:"기존 문항의 맥락, 자료 또는 질문 방식을 바꿉니다." },
   { v:"idea",      t:"주제·아이디어로 만들기", d:"수업 주제나 아이디어를 바탕으로 문항을 만듭니다." },
 ];
@@ -63,8 +171,6 @@ const VISUALS = [
   { v:"none",   t:"포함하지 않음" },
 ];
 
-const formatDisplay = value => value === "자동" ? "내용에 맞게 선택" : value;
-
 // 길라잡이 반응 지시어 17종
 const DIRECTIVES = ["요약","분류","비교","대조","분석","추론","적용","논증","설명",
   "예측","평가","종합","해석","서술","구분","제안","도출"];
@@ -78,6 +184,22 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [문항 제작 절차]
 1) 성취기준·성취수준 분석 → 2) 평가요소(내용요소) 도출 → 3) 문항 제작(발문·자료·조건) → 4) 채점기준표 작성 → 5) 예시 답안·성취수준별 수행 특성·피드백 사례 작성. 이 순서를 따른다.
+
+[출제 패턴 설계]
+- 사용자가 지정한 출제 패턴은 단순한 문항 이름이 아니라 학생이 답을 구성하는 사고 순서다. 각 문항의 하위 문항·자료·채점 요소를 지정된 sequence 순서에 맞춰 설계한다.
+- 문항의 design에는 실제 적용한 패턴명, 사고 단계, 자료 구성, 핵심 사고행위, 선택 이유를 기록한다. 발문과 채점 요소에서 그 사고 단계가 실제로 확인되어야 한다.
+- 자료 형식과 사고행위를 혼동하지 않는다. 예를 들어 표·그래프는 자료 구성이고, 해석·평가·논증은 사고행위다.
+
+[자료 제시형 면접의 논술형 전환]
+- 자료 제시형 면접의 여러 질문을 그대로 나열하지 말고, 서로 이어지는 하위 문항 또는 하나의 통합 논술 과제로 재구성한다.
+- 기본 전개는 '공통 개념·핵심 원리 도출 → 자료 간 관계 비교·구분 → 새 사례 적용·예측 → 주장 평가·해결안 제시'다. 입력 질문의 평가 의도에 따라 필요한 단계만 선택한다.
+- 구두 답변을 요구하는 표현은 제거하고, 학생이 자료의 어느 부분을 근거로 어떤 산출물을 작성해야 하는지 명시한다. 앞 문항의 정답을 알아야만 뒤 문항을 풀 수 있는 과도한 종속은 피하되 사고의 심화 순서는 유지한다.
+
+[GRASPS 수행 맥락]
+- 모든 문항은 목표(Goal), 산출물 또는 수행(Product/Performance), 평가기준(Standards)을 반드시 포함한다. 이 세 요소만으로도 최소 구성이 성립한다.
+- 사용자가 상황(Situation), 역할(Role), 독자(Audience)를 추가로 선택하면 해당 요소도 실제 발문과 자료 맥락에 반영한다. 선택하지 않은 요소는 빈 문자열로 둔다.
+- 역할과 독자를 장식처럼 붙이지 않는다. 역할·독자·상황이 자료 선택, 판단 기준, 표현 방식 또는 해결안의 제약을 실제로 바꿀 때만 사용한다.
+- grasps의 standards는 채점 기준과 같은 내용을 가리켜야 하며, '논리적으로 작성' 같은 추상어만 쓰지 말고 자료 사용, 개념 정확성, 인과 연결, 대안의 실행 가능성 등 관찰 가능한 기준으로 작성한다.
 
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
@@ -155,6 +277,22 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
       "directive": "논증",
       "targetLevel": "C",
       "points": 7,
+      "design": {
+        "patternId": "data-claim",
+        "patternName": "자료 해석·주장 평가",
+        "sequence": ["자료 경향 해석", "주장과 근거 연결", "타당성 평가"],
+        "sourceStructure": "표·그래프·수치 자료",
+        "cognitiveActions": ["해석", "분석", "평가"],
+        "rationale": "이 패턴을 적용한 이유"
+      },
+      "grasps": {
+        "goal": "학생이 해결해야 할 핵심 과제",
+        "role": "선택하지 않았으면 ''",
+        "audience": "선택하지 않았으면 ''",
+        "situation": "선택하지 않았으면 ''",
+        "product": "학생이 제출할 구체적인 글·제안서·분석 결과",
+        "standards": ["자료를 정확히 사용하기", "과학 개념과 근거를 연결하기"]
+      },
       "intro": "(가)와 (나)의 내용을 바탕으로 물음에 답하시오.",
       "materials": [ { "label": "(가)", "body": "제시문 본문 또는 ''", "svg": "<svg viewBox=...>...</svg>" 또는 null, "svgBlank": "빈칸 변형 지시가 있을 때 ㉠㉡㉢ 빈칸본 SVG, 아니면 null", "caption": "", "imageIndex": 첨부 이미지를 자료로 쓸 때 그 순번(1부터) 또는 null } ],
       "questions": [
@@ -386,6 +524,13 @@ function auditResult(r){
     if (pts && qSum && pts !== qSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 하위 문항 배점 합 ${qSum}점`);
     if (pts && sSum && pts !== sSum) issues.push(`문항 ${it.number}: 문항 배점 ${pts}점 ≠ 채점 요소 만점 합 ${sSum}점`);
     if (it.directive && !okDirectives.includes(it.directive)) issues.push(`문항 ${it.number}: 반응지시어 '${it.directive}'는 표준 17종 목록에 없음`);
+    const d = it.design||{};
+    if (!d.patternName || !(d.sequence||[]).length) issues.push(`문항 ${it.number}: 출제 패턴명 또는 사고 단계가 기록되지 않음`);
+    const ge = graspsEntries(it.grasps);
+    if (ge.length < 3) issues.push(`문항 ${it.number}: GRASPS가 ${ge.length}개만 구체화됨(최소 3개 필요)`);
+    const g = it.grasps||{};
+    if (!String(g.goal||"").trim() || !String(g.product||"").trim() || !(Array.isArray(g.standards)?g.standards.length:String(g.standards||"").trim()))
+      issues.push(`문항 ${it.number}: GRASPS 기본 요소인 목표·산출물·평가기준 중 누락된 항목이 있음`);
   });
   (r.feedbackCases||[]).forEach((cs,ci)=>{
     const it = items.find(x=>x.number===cs.itemNumber) || items[0];
@@ -411,6 +556,15 @@ function normQuestions(it) {
   if (it.stem) return [{ label:"", stem:it.stem, points:it.points,
     conditions:{ content:it.conditions||[], form:[] }, modelAnswer:it.modelAnswer||"" }];
   return [];
+}
+
+function graspsEntries(grasps){
+  const g = grasps||{};
+  const standards = Array.isArray(g.standards) ? g.standards.join(" · ") : (g.standards||"");
+  return [
+    ["목표(G)",g.goal],["역할(R)",g.role],["독자(A)",g.audience],
+    ["상황(S)",g.situation],["산출물(P)",g.product],["평가기준(S)",standards]
+  ].filter(x=>String(x[1]||"").trim());
 }
 
 /* ── 마크다운 변환 (KICE 평가도구 문서 구조) ───────────────── */
@@ -444,6 +598,19 @@ function toMarkdown(r, showTeacher) {
   L.push(""); L.push("## 2. 평가 문항");
   (r.items||[]).forEach(it=>{
     L.push(""); L.push(`### 평가 문항 ${it.number}(${it.type||"논술형"})`);
+    if (showTeacher && it.design) {
+      const d=it.design;
+      L.push(""); L.push("**출제 설계**");
+      if (d.patternName) L.push(`- 출제 패턴: ${d.patternName}`);
+      if ((d.sequence||[]).length) L.push(`- 사고 단계: ${d.sequence.join(" → ")}`);
+      if (d.sourceStructure) L.push(`- 자료 구성: ${d.sourceStructure}`);
+      if ((d.cognitiveActions||[]).length) L.push(`- 핵심 사고행위: ${d.cognitiveActions.join(" · ")}`);
+      if (d.rationale) L.push(`- 적용 이유: ${d.rationale}`);
+    }
+    if (showTeacher && graspsEntries(it.grasps).length) {
+      L.push(""); L.push("**GRASPS 수행 맥락**");
+      graspsEntries(it.grasps).forEach(([label,value])=>L.push(`- ${label}: ${value}`));
+    }
     if (it.intro) { L.push(""); L.push(`**${it.intro}${it.points?` (${it.points}점)`:""}**`); }
     (it.materials||[]).forEach(m=>{
       L.push("");
@@ -610,6 +777,19 @@ function buildDocxXml(r, showTeacher){
   B.push(dBanner(showTeacher?"2. 평가 문항":"평가 문항"));
   (r.items||[]).forEach(it=>{
     B.push(dHd("평가 문항 "+(it.number||"")+"("+(it.type||"논술형")+")"));
+    if (showTeacher && it.design){
+      const d=it.design; const rows=[];
+      if (d.patternName) rows.push("출제 패턴: "+d.patternName);
+      if ((d.sequence||[]).length) rows.push("사고 단계: "+d.sequence.join(" → "));
+      if (d.sourceStructure) rows.push("자료 구성: "+d.sourceStructure);
+      if ((d.cognitiveActions||[]).length) rows.push("핵심 사고행위: "+d.cognitiveActions.join(" · "));
+      if (d.rationale) rows.push("적용 이유: "+d.rationale);
+      if (rows.length){ B.push(dSq("출제 설계")); B.push(dBul(rows)); }
+    }
+    if (showTeacher && graspsEntries(it.grasps).length){
+      B.push(dSq("GRASPS 수행 맥락"));
+      B.push(dBul(graspsEntries(it.grasps).map(x=>x[0]+": "+x[1])));
+    }
     if (it.intro) B.push(dP(it.intro+(it.points?" ("+it.points+"점)":""),{bold:true,after:100}));
     (it.materials||[]).forEach(m=>{
       if (m.body) B.push(dP((m.label?m.label+" ":"")+m.body,{after:100}));
@@ -791,7 +971,7 @@ function Pill({on, onClick, children, cls}) {
 }
 
 /* 올바른 Claude 답변 예시(붙여넣기 안내용) */
-const EX_JSON = '{\n  "curriculum": "2022",\n  "info": { "toolName": "…", "subject": "통합과학1", "grade": "1학년", … },\n  "items": [ { "number": 1, "type": "논술형", "intro": "…",\n      "questions": [ … ], "scoring": [ … ] } ],\n  "levelCharacteristics": [ … ],\n  "feedbackCases": [ … ]\n}\n\n※ 위처럼 여는 { 부터 닫는 } 까지 전체가 있어야 합니다.\n※ 코드블록(```)에 싸여 있어도 자동으로 추출합니다.';
+const EX_JSON = '{\n  "curriculum": "2022",\n  "info": { "toolName": "…", "subject": "통합과학1", "grade": "1학년", … },\n  "items": [ { "number": 1, "type": "논술형",\n      "design": { "patternName": "자료 해석·주장 평가", "sequence": [ … ] },\n      "grasps": { "goal": "…", "product": "…", "standards": [ … ] },\n      "intro": "…", "questions": [ … ], "scoring": [ … ] } ],\n  "levelCharacteristics": [ … ],\n  "feedbackCases": [ … ]\n}\n\n※ 위처럼 여는 { 부터 닫는 } 까지 전체가 있어야 합니다.\n※ 코드블록(```)에 싸여 있어도 자동으로 추출합니다.';
 
 /* 성취기준 선택 목록 — 본문 타이핑 시 재렌더 차단(memo) */
 const StdList = React.memo(function StdList({subject, filter, selected, onToggle}){
@@ -896,7 +1076,9 @@ function App() {
   const [mode, setMode]       = useState("standard");
   const [text, setText]       = useState("");
   const [images, setImages]   = useState([]);
-  const [format, setFormat]   = useState("자동");
+  const [patternId, setPatternId] = useState(""); // 빈 값이면 추천 1순위를 자동 적용
+  const [sourceStructure, setSourceStructure] = useState("auto");
+  const [graspsExtras, setGraspsExtras] = useState(["situation"]); // G·P·S는 항상 포함
   const [style, setStyle]     = useState("");
   const [visual, setVisual]   = useState("auto");
   const [mono, setMono]       = useState(true);   // 흑백 인쇄용 (기본 켬)
@@ -998,6 +1180,17 @@ function App() {
   }
 
   const MAX_ITEMS = 4; // 문항 수 상한(타겟 수준 선택 상한과 동일)
+
+  const standardsText = (STANDARDS[subject]||[])
+    .filter(s=>selectedStds.includes(s.code)).map(s=>s.text).join(" ");
+  const patternRecommendations = recommendPatterns({ mode, text, images, articles, standardsText });
+  const recommendedPattern = patternRecommendations[0].pattern;
+  const selectedPattern = DESIGN_PATTERNS.find(p=>p.id===patternId) || recommendedPattern;
+  const selectedSource = SOURCE_STRUCTURES.find(s=>s.v===sourceStructure) || SOURCE_STRUCTURES[0];
+
+  function toggleGraspsExtra(id){
+    setGraspsExtras(xs=>xs.includes(id) ? xs.filter(x=>x!==id) : [...xs,id]);
+  }
 
   function reducedMotion(){
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -1163,6 +1356,7 @@ function App() {
     const modeText = {
       standard:"아래에 주어진 성취기준(및 성취수준)을 바탕으로 KICE 서·논술형 평가도구 자료 한 편을 제작하라.",
       convert:"아래에 주어진 지필/선다형/단답형/학력평가 문항을 같은 성취기준·개념을 유지한 채 서·논술형 문항으로 변환하고, KICE 평가도구 자료 한 편으로 완성하라.",
+      interview:"아래에 주어진 자료 제시형 면접의 제시문·질문·해설을 분석해 평가 의도는 유지하고, 구두 문답을 단계형 서·논술형 문항 세트로 변환하여 KICE 평가도구 자료 한 편으로 완성하라.",
       transform:"아래에 주어진 논술형 문항을 평가 의도는 유지하되 소재·맥락을 바꾸어 변형하고, KICE 평가도구 자료 한 편으로 완성하라.",
       idea:"아래에 주어진 아이디어·주제·키워드를 바탕으로 KICE 서·논술형 평가도구 자료 한 편을 제작하라.",
     }[mode];
@@ -1209,7 +1403,33 @@ function App() {
     P.push("발문 작성: 모든 발문을 반응 지시어(요약·분류·구분·비교·대조·제시·설명·분석·평가·논증·서술 등)로 끝맺고, 그 지시어의 인지 활동에 맞게 설계하라. 각 문항 directive에 사용한 지시어를 명시하라.");
     P.push("조건 최소화: 가급적 문항별 조건(conditions)을 넣지 말고 발문만으로 요구가 분명하게 하라. 분량 제한 등 꼭 필요한 경우에만 최소한으로 넣고, 없으면 conditions.content·conditions.form을 빈 배열([])로 둬라.");
 
-    P.push(format==="자동" ? "문항 형식: 내용에 맞게 자동 선택." : `문항 형식: '${format}'으로 고정.`);
+    const rec = patternRecommendations.find(x=>x.pattern.id===selectedPattern.id);
+    P.push(
+      `[선택한 출제 패턴 — 필수 적용]\n`+
+      `패턴 ID: ${selectedPattern.id}\n`+
+      `패턴명: ${selectedPattern.name}\n`+
+      `사고 단계: ${selectedPattern.sequence.join(" → ")}\n`+
+      `핵심 사고행위: ${selectedPattern.actions.join(", ")}\n`+
+      `권장 자료: ${selectedPattern.source}\n`+
+      `선택 근거: ${(rec&&rec.reason)||selectedPattern.fit}\n`+
+      `→ 각 문항의 design.patternId와 design.patternName을 위 값으로 쓰고, sequence를 하위 문항·채점 요소에 실제로 구현하라. 단계 이름만 붙이고 발문에서 평가하지 않는 형식적 적용은 금지한다.`
+    );
+    P.push(sourceStructure==="auto"
+      ? `[자료 구성] 입력 내용과 선택 패턴에 맞게 결정하되 design.sourceStructure에 실제 구성을 명시하라.`
+      : `[자료 구성 — 고정] '${selectedSource.t}'로 구성하고 design.sourceStructure에도 같은 값을 기록하라.`);
+
+    const extraNames = GRASPS_OPTIONAL.filter(x=>graspsExtras.includes(x.id)).map(x=>`${x.name}(${x.id})`);
+    P.push(
+      `[GRASPS 적용 — 필수]\n`+
+      `항상 포함: 목표(goal), 산출물(product), 평가기준(standards).\n`+
+      `추가 포함: ${extraNames.length ? extraNames.join(", ") : "없음"}.\n`+
+      `→ 각 문항의 grasps에 선택된 요소를 구체적으로 작성하고 발문·자료·채점기준에 반영하라. goal·product·standards는 절대 비우지 말라. `+
+      `선택하지 않은 role·audience·situation은 빈 문자열로 둔다. 최소 3개 요소가 실제 문항에 드러나야 한다.`
+    );
+
+    if (mode==="interview") {
+      P.push("[면접 문항 전환 규칙] 면접 질문을 그대로 복사하지 말고, 공통 개념·원리 도출 → 자료 비교·구분 → 새 사례 적용·예측 → 평가·해결안 제시 중 입력의 평가 의도에 필요한 단계를 골라 하나의 논술 문항 또는 서로 연결된 하위 문항으로 재구성하라. 각 답변이 독립적으로 채점 가능하도록 자료 근거와 반응 지시어를 명시하라.");
+    }
 
     if (visual === "none") {
       P.push("그림자료: 생성하지 말라(materials의 svg는 모두 null).");
@@ -1512,6 +1732,7 @@ function App() {
         <label className="fld" htmlFor="mainInput">
           {mode==="standard" ? "성취기준과 성취수준" :
            mode==="convert"  ? "기존 지필 문항" :
+           mode==="interview"? "면접 제시문·질문·해설" :
            mode==="transform"? "기존 논술형 문항" : "수업 주제와 아이디어"}
         </label>
         <textarea id="mainInput" value={text}
@@ -1520,6 +1741,7 @@ function App() {
           placeholder={
             mode==="standard" ? "성취기준과 성취수준을 붙여넣으세요." :
             mode==="convert"  ? "바꾸려는 문항과 정답 또는 해설을 붙여넣으세요." :
+            mode==="interview"? "자료 제시형 면접의 제시문, 연속 질문, 출제 의도 또는 해설을 붙여넣으세요." :
             mode==="transform"? "변형할 문항과 채점기준을 붙여넣으세요." :
                                 "문항으로 만들 주제, 자료, 수업 맥락을 적어 주세요."
           } />
@@ -1615,8 +1837,8 @@ function App() {
       {/* 3단계: 문항 구성 */}
       <div className="card">
         <h2><span className="num">3</span> 문항 구성</h2>
-        <div className="row">
-          <div>
+        <div className="count-setting">
+          <div className="count-input">
             <label className="fld" htmlFor="cntIn">문항 수</label>
             <input id="cntIn" type="number" min="1" max="4" step="1" inputMode="numeric" value={countStr}
               onChange={e=>{
@@ -1632,20 +1854,53 @@ function App() {
                 setCount(n); setCountStr(String(n));
               }} />
           </div>
-          <div>
-            <label className="fld" htmlFor="fmtSel">문항 형식</label>
-            <select id="fmtSel" value={format} onChange={e=>setFormat(e.target.value)}>
-              {FORMATS.map(f=><option key={f} value={f}>{formatDisplay(f)}</option>)}
-            </select>
-          </div>
+          <p>1개부터 4개까지 만들 수 있습니다. 여러 수준을 선택하면 수준 수만큼 자동 조정됩니다.</p>
         </div>
-        <div className="hint">1개부터 4개까지 만들 수 있습니다. 한 번에 검토하기에는 1~2개가 적절합니다.</div>
+
+        <div className="pattern-heading">
+          <div>
+            <div className="subh">출제 패턴</div>
+            <p>입력 자료와 설계 방식을 분석한 추천입니다. 패턴은 자료의 모양이 아니라 학생이 답을 구성하는 사고 순서를 뜻합니다.</p>
+          </div>
+          {patternId && <button type="button" className="pattern-reset" onClick={()=>setPatternId("")}>추천 1순위로 되돌리기</button>}
+        </div>
+        <div className="pattern-recommendations" aria-label="추천 출제 패턴">
+          {patternRecommendations.map(rec=>{
+            const on = selectedPattern.id===rec.pattern.id;
+            return (
+              <button type="button" key={rec.pattern.id} aria-pressed={on}
+                className={"pattern-card"+(on?" is-selected":"")}
+                onClick={()=>setPatternId(rec.pattern.id)}>
+                <span className="pattern-card-top">
+                  <span className="pattern-rank">추천 {rec.rank}</span>
+                  {on && <span className="pattern-selected">현재 선택</span>}
+                </span>
+                <strong>{rec.pattern.name}</strong>
+                <span className="pattern-desc">{rec.pattern.short}</span>
+                <span className="pattern-flow">{rec.pattern.sequence.join(" → ")}</span>
+                <span className="pattern-reason">{rec.reason}</span>
+              </button>
+            );
+          })}
+        </div>
+
+        <details className="pattern-catalog">
+          <summary>전체 패턴에서 직접 선택</summary>
+          <div className="pattern-catalog-list">
+            {DESIGN_PATTERNS.map(p=><button type="button" key={p.id} aria-pressed={selectedPattern.id===p.id}
+              className={selectedPattern.id===p.id?"is-selected":""} onClick={()=>setPatternId(p.id)}>
+              <strong>{p.name}</strong><span>{p.sequence.join(" → ")}</span>
+            </button>)}
+          </div>
+        </details>
 
         <button type="button" className="advtgl" aria-expanded={advOpen} onClick={()=>setAdvOpen(!advOpen)}>
           <span>고급 설정</span>
           <span className="chevron" aria-hidden="true">{advOpen ? "⌃" : "⌄"}</span>
           <span className="sr">{advOpen ? "접기" : "펼치기"}</span>
           <span className="advsum">{[
+            "자료: "+selectedSource.t,
+            "GRASPS: "+(GRASPS_CORE.length+graspsExtras.length)+"요소",
             "도식: "+(visual==="none" ? "포함하지 않음" : (visual==="always" ? "항상" : "필요할 때")),
             "인쇄: "+(mono ? "흑백" : "컬러"),
             blankVer ? "빈칸 문항: 사용" : null,
@@ -1653,6 +1908,30 @@ function App() {
           ].filter(Boolean).join(" / ")}</span>
         </button>
         {advOpen && <div style={{paddingTop:12}}>
+          <label className="fld" htmlFor="sourceStructureSel">자료 구성</label>
+          <select id="sourceStructureSel" value={sourceStructure} onChange={e=>setSourceStructure(e.target.value)}>
+            {SOURCE_STRUCTURES.map(s=><option key={s.v} value={s.v}>{s.t}</option>)}
+          </select>
+          <div className="hint">선택한 출제 패턴과 구분해 설정합니다. 예를 들어 표·그래프 자료로 비교·통합 논증 문항을 만들 수 있습니다.</div>
+
+          <fieldset className="grasps-setting">
+            <legend className="fld">수행 맥락(GRASPS)</legend>
+            <div className="grasps-grid">
+              {GRASPS_CORE.map(g=><div key={g.id} className="grasps-chip is-required">
+                <span>{g.code}</span><strong>{g.name}</strong><small>{g.desc}</small><em>기본 포함</em>
+              </div>)}
+              {GRASPS_OPTIONAL.map(g=>{
+                const on=graspsExtras.includes(g.id);
+                return <button type="button" key={g.id} aria-pressed={on} className={"grasps-chip"+(on?" is-selected":"")}
+                  onClick={()=>toggleGraspsExtra(g.id)}>
+                  <span>{g.code}</span><strong>{g.name}</strong><small>{g.desc}</small><em>{on?"포함":"선택"}</em>
+                </button>;
+              })}
+            </div>
+            <div className="hint">목표·산출물·평가기준은 항상 포함합니다. 역할·독자·상황은 문항의 판단 조건을 실제로 바꿀 때만 사용합니다.</div>
+          </fieldset>
+
+          <div className="advanced-divider"></div>
           <label className="fld" htmlFor="visSel">도식·그림</label>
           <select id="visSel" value={visual} onChange={e=>setVisual(e.target.value)}>
             {VISUALS.map(v=><option key={v.v} value={v.v}>{v.t}</option>)}
@@ -1686,8 +1965,9 @@ function App() {
           const parts = [
             "과목: "+(subject!=="자동" ? subject : "미지정"),
             "성취수준: "+(targets.length ? targets.join(" · ") : "미지정"),
-            "문항 유형: "+formatDisplay(format),
+            "출제 패턴: "+selectedPattern.name,
             "문항 수: "+eff+"개",
+            "GRASPS: "+(GRASPS_CORE.length+graspsExtras.length)+"요소",
             "인쇄: "+(mono ? "흑백" : "컬러")
           ];
           if (visual==="none") parts.push("도식: 포함하지 않음");
@@ -1905,6 +2185,8 @@ function BlankEditor({m, onChange}) {
 /* 평가 문항 블록 */
 function ItemBlock({it, showTeacher, onEdited, editing}) {
   const qs = normQuestions(it);
+  const design = it.design||{};
+  const ge = graspsEntries(it.grasps);
   return (
     <div>
       <div className="kpillrow">
@@ -1913,9 +2195,27 @@ function ItemBlock({it, showTeacher, onEdited, editing}) {
       </div>
       <div className="tags noprint">
         {it.format && <span className="tag fmt">{it.format}</span>}
+        {design.patternName && <span className="tag data">출제 패턴: {design.patternName}</span>}
         {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
         {it.targetLevel && <span className="tag lvl">목표 수준 {it.targetLevel}</span>}
       </div>
+      {showTeacher && (design.patternName || ge.length>0) &&
+        <section className="kdesign" aria-label="출제 설계와 GRASPS 수행 맥락">
+          {design.patternName && <div className="kdesign-pattern">
+            <div className="kdesign-label">출제 설계</div>
+            <strong>{design.patternName}</strong>
+            {(design.sequence||[]).length>0 && <div className="kdesign-flow">{design.sequence.join(" → ")}</div>}
+            <dl>
+              {design.sourceStructure && <div><dt>자료 구성</dt><dd>{design.sourceStructure}</dd></div>}
+              {(design.cognitiveActions||[]).length>0 && <div><dt>핵심 사고</dt><dd>{design.cognitiveActions.join(" · ")}</dd></div>}
+              {design.rationale && <div><dt>적용 이유</dt><dd>{design.rationale}</dd></div>}
+            </dl>
+          </div>}
+          {ge.length>0 && <div className="kdesign-grasps">
+            <div className="kdesign-label">GRASPS 수행 맥락 · {ge.length}요소</div>
+            <dl>{ge.map(([label,value])=><div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>
+          </div>}
+        </section>}
       {it.intro && <p className="kintro"><Ed v={it.intro} editing={editing} onC={nv=>{ it.intro=nv; onEdited&&onEdited(); }}/>{it.points?` (${it.points}점)`:""}</p>}
 
       {(it.materials||[]).map((m,i)=>(
@@ -2044,7 +2344,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
       {showTeacher && audit.length>0 &&
         <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
-          <b>기본 점검 결과 · 확인할 항목 {audit.length}건</b> 배점, 채점 단계와 지시어를 확인한 결과입니다. 인쇄 전에 내용을 직접 검토하세요.
+          <b>기본 점검 결과 · 확인할 항목 {audit.length}건</b> 배점, 채점 단계, 지시어, 출제 패턴과 GRASPS 구성을 확인한 결과입니다. 인쇄 전에 내용을 직접 검토하세요.
           <ul style={{margin:"6px 0 0",paddingLeft:18}}>{audit.map((x,i)=><li key={i}>{x}</li>)}</ul>
         </div>}
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
