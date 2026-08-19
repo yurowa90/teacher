@@ -73,7 +73,7 @@
 ## 주의사항
 
 - **API 키는 절대 코드에 적거나 커밋하지 마세요.** 이 앱은 키를 코드에 저장하지 않고 실행 시 입력받습니다.
-- 공공 자료 API 키도 저장소에 넣지 말고 Vercel 프로젝트의 Environment Variables에만 등록하세요. 사용 변수는 `POLICY_BRIEFING_API_KEY`, `MOLEG_API_KEY`, `KOSIS_API_KEY`, `NANET_API_KEY`, `SCIENCEON_API_KEY`입니다. ScienceON은 `SCIENCEON_CLIENT_ID`, `SCIENCEON_MAC`과 승인된 호출 IP도 필요합니다.
+- 공공 자료 API 키도 저장소에 넣지 말고 Vercel 프로젝트의 Environment Variables에만 등록하세요. 사용 변수는 `POLICY_BRIEFING_API_KEY`, `MOLEG_API_KEY`, `KOSIS_API_KEY`, `NANET_API_KEY`, `SCIENCEON_API_KEY`입니다. ScienceON은 API Gateway 활용신청 후 승인 화면에 표시되는 요청 URL·파라미터 규격을 별도로 연결해야 합니다. 고정 IP 같은 추가 조건은 계정의 승인 내용에 명시된 경우에만 적용됩니다.
 - 공개 페이지로 배포해도 키는 코드에 없으므로, Gemini 모드 방문자는 각자 자기 키를 입력해야 동작합니다.
 - 생성 결과(성취수준 추정·위계·SVG 도식)는 LLM 특성상 편차가 있을 수 있으니 출제 전 한 번 검토하세요.
 - 성취수준 기술을 함께 입력할수록 수준 설계 해설의 정확도가 올라갑니다.
