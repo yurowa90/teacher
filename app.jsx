@@ -1103,7 +1103,6 @@ function App() {
   const [showTeacher, setShowTeacher] = useState(true);
   const [copied, setCopied]   = useState(false);
   const [runMode, setRunMode] = useState(()=>localStorage.getItem("run_mode")||"paste"); // "paste"=claude.ai(Pro/Max) · "api"=Gemini
-  const [showRunCfg, setShowRunCfg] = useState(false); // 실행 방식 설정(기본 접힘)
   const [promptCopied, setPromptCopied] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [mobileTab, setMobileTab]     = useState("form");  // 모바일: 설정/결과 탭
@@ -1524,8 +1523,7 @@ function App() {
   async function generate() {
     setError(""); setResult(null);
     if (!apiKey.trim()) {
-      setError("상단 작업 방식에서 Gemini API 키를 입력하세요.");
-      setShowRunCfg(true);
+      setError("상단의 ‘문항 생성 방식’에서 Gemini API 키를 입력하세요.");
       setTimeout(()=>{
         const el = document.getElementById("apiKey");
         if (el) { el.focus(); el.scrollIntoView({block:"center",behavior:"smooth"}); }
@@ -1559,7 +1557,7 @@ function App() {
       }
     } catch(e) {
       const kind = e.kind;
-      const paste = "\n\n무료 API 키의 사용량 또는 정책 제한일 수 있습니다. 상단 [작업 방식]에서 'Claude에 요청문 붙여넣기'를 선택하면 Gemini API 키 없이 작업할 수 있습니다. Gemini를 계속 사용하려면 Google AI Studio에서 결제 설정과 사용 한도를 확인하세요.";
+      const paste = "\n\n무료 API 키의 사용량 또는 정책 제한일 수 있습니다. 상단 [문항 생성 방식]에서 'Claude에서 만들기'를 선택하면 Gemini API 키 없이 작업할 수 있습니다. Gemini를 계속 사용하려면 Google AI Studio에서 결제 설정과 사용 한도를 확인하세요.";
       if (kind === "model_unavailable" && model.trim() !== "gemini-2.0-flash") {
         setModel("gemini-2.0-flash");
         setError((e.message || "") + "\n\n모델을 gemini-2.0-flash로 변경했습니다. 「평가 문서 만들기」를 다시 눌러 주세요.");
@@ -1633,28 +1631,45 @@ function App() {
         </div>
       </header>
 
-      {/* 실행 환경 */}
-      <div className="envline noprint">
-        <span className="env-l">작업 방식</span>
-        <b>{runMode==="paste" ? "Claude 새 대화에서 문항 만들기" : "Gemini API로 바로 만들기"}</b>
-        <button className="btn ghost env-change"
-          onClick={()=>setShowRunCfg(!showRunCfg)} aria-expanded={showRunCfg}>
-          {showRunCfg ? "닫기" : "작업 방식 변경"}
-        </button>
-      </div>
-      {showRunCfg &&
-        <div className="envcfg noprint">
-          <div className="pills">
-            <Pill on={runMode==="paste"} onClick={()=>setRunMode("paste")}>Claude에 요청문 붙여넣기</Pill>
-            <Pill on={runMode==="api"} onClick={()=>setRunMode("api")}>Gemini API로 바로 만들기</Pill>
+      {/* 문항 생성 방식 — 초보자에게 선택지를 숨기지 않음 */}
+      <section className="run-method noprint" aria-labelledby="run-method-title">
+        <div className="run-method-head">
+          <div>
+            <span className="run-method-kicker">시작 설정</span>
+            <h2 id="run-method-title">문항을 어떻게 만들까요?</h2>
+            <p className="run-method-intro">처음 사용한다면 API 키가 필요 없는 Claude 방식을 권합니다.</p>
           </div>
-          <div className="hint">
-            {runMode==="paste"
-              ? "요청문을 Claude에 붙여넣고, 받은 답변을 이 화면으로 가져옵니다. API 키는 필요하지 않습니다."
-              : "개인 Gemini API 키를 사용해 이 화면에서 평가 문서를 만듭니다."}
-          </div>
-          {runMode==="api" &&
-            <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
+          <span className="current-method">
+            현재: {runMode==="paste" ? "Claude에서 만들기" : "앱에서 바로 만들기"}
+          </span>
+        </div>
+        <div className="method-options" role="radiogroup" aria-label="문항 생성 방식">
+          <button type="button" role="radio" aria-checked={runMode==="paste"}
+            className={"method-option"+(runMode==="paste"?" is-selected":"")}
+            onClick={()=>setRunMode("paste")}>
+            <span className="method-option-check" aria-hidden="true">✓</span>
+            <strong>Claude에서 만들기</strong>
+            <span className="method-meta"><span className="recommended-badge">추천</span> API 키 불필요</span>
+            <small>이 앱이 만든 요청문을 Claude에 붙여넣고, 받은 답변을 다시 가져옵니다.</small>
+          </button>
+          <button type="button" role="radio" aria-checked={runMode==="api"}
+            className={"method-option"+(runMode==="api"?" is-selected":"")}
+            onClick={()=>setRunMode("api")}>
+            <span className="method-option-check" aria-hidden="true">✓</span>
+            <strong>이 앱에서 바로 만들기</strong>
+            <span className="method-meta">Gemini API 키 필요</span>
+            <small>개인 API 키를 연결하면 화면을 벗어나지 않고 평가 문서를 바로 만듭니다.</small>
+          </button>
+        </div>
+        <div className="method-flow" aria-live="polite">
+          <strong>작업 순서</strong>
+          <span>{runMode==="paste"
+            ? "출제 조건 입력 → 요청문 복사 → Claude에서 실행 → 답변 가져오기"
+            : "API 키 입력 → 출제 조건 입력 → 문서 바로 만들기"}</span>
+        </div>
+        {runMode==="api" &&
+          <div className="envcfg">
+            <p className="api-config-title">Gemini 연결 설정</p>
               <div className="row" style={{alignItems:"flex-end"}}>
                 <div style={{flex:2}}>
                   <label className="fld" htmlFor="apiKey">Gemini API 키 (AIza…)</label>
@@ -1687,8 +1702,8 @@ function App() {
                 API 키는 이 브라우저에만 저장됩니다. 모델 목록을 불러오거나 문서를 만들 때 Google Gemini API 호출에 사용됩니다. 발급: aistudio.google.com.
                 {apiKey && <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setApiKey(""); setModelList([]); setModelMsg(""); localStorage.removeItem("gemini_key");}}>키 지우기</a>}
               </div>
-            </div>}
-        </div>}
+          </div>}
+      </section>
 
       {/* 모바일: 설정/결과 탭 */}
       <div className="mtabs noprint" role="tablist" aria-label="설정과 결과 전환">

@@ -58,7 +58,7 @@
 **B. Gemini API 모드**
 1. **Gemini API 키 발급**: [aistudio.google.com](https://aistudio.google.com) → Get API key
    (카드 등록 불필요). `AIza…`로 시작하는 키를 복사합니다.
-2. 앱 상단 **작업 방식 → Gemini API로 바로 만들기**를 고르고 키를 붙여넣습니다.
+2. 앱 상단 **문항 생성 방식 → 이 앱에서 바로 만들기**를 고르고 키를 붙여넣습니다.
    - 키는 본인 브라우저(localStorage)에 저장되며 Google Gemini API 호출에 사용됩니다. 앱 서버에는 저장되지 않습니다.
    - 모델 기본값은 `gemini-2.5-flash`입니다. 더 정교하게는 `gemini-2.5-pro`로 바꾸세요.
 3. **평가 문서 만들기**를 누릅니다.
