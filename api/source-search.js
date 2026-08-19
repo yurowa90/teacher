@@ -6,8 +6,6 @@
 //   KOSIS_API_KEY            KOSIS 공유서비스
 //   NANET_API_KEY            국회도서관 자료검색(공공데이터포털)
 //   SCIENCEON_API_KEY        ScienceON 인증키
-//   SCIENCEON_CLIENT_ID      ScienceON Client ID
-//   SCIENCEON_MAC            ScienceON에 등록한 MAC 주소
 
 const SOURCES = {
   policy: {
@@ -81,7 +79,8 @@ function xmlValue(block, names) {
 
 function xmlBlocks(xml) {
   const source = String(xml || "");
-  const tags = ["item", "record", "result", "doc", "document", "row"];
+  // 실제 레코드 태그를 포괄 루트인 result보다 먼저 찾는다.
+  const tags = ["item", "record", "doc", "document", "row", "law", "result"];
   for (const tag of tags) {
     const re = new RegExp("<(?:[\\w-]+:)?" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w-]+:)?" + tag + ">", "gi");
     const rows = [];
@@ -160,19 +159,75 @@ function upstreamError(body) {
   return "";
 }
 
-async function fetchText(url, init) {
+function safeUpstreamDetail(body) {
+  let detail = upstreamError(body);
+  if (!detail) {
+    try {
+      const data = JSON.parse(String(body || "").replace(/^\uFEFF/, "").trim());
+      detail = cleanText(
+        data && (data.errorMessage || data.error || data.message || data.resultMsg || data.msg),
+        260
+      );
+    } catch (_) {}
+  }
+  if (!detail) {
+    detail = xmlValue(body, [
+      "returnAuthMsg", "resultMsg", "errorMessage", "errMsg", "message", "faultstring",
+    ]) || cleanText(body, 260);
+  }
+  // 상위 서버가 요청 URL이나 키를 오류 본문에 되돌려도 사용자·로그에 노출하지 않는다.
+  return cleanText(detail, 260)
+    .replace(/((?:serviceKey|apiKey)\s*[=:]\s*)[^\s&<]+/gi, "$1[인증정보 숨김]")
+    .replace(/[A-Za-z0-9+/%_-]{40,}={0,2}/g, "[인증정보 숨김]");
+}
+
+function upstreamMessage(name, status, detail) {
+  const d = String(detail || "");
+  if (/SERVICE_ACCESS_DENIED|PERMISSION_DENIED|접근\s*권한|이용\s*권한/i.test(d)) {
+    return name + " 활용 권한이 확인되지 않습니다. 해당 API의 활용신청·승인 상태와 연결한 서비스키를 확인해 주세요.";
+  }
+  if (/SERVICE_KEY_IS_NOT_REGISTERED|등록되지\s*않은.*(?:키|인증)|INVALID.*(?:KEY|AUTH)/i.test(d)) {
+    return name + " 인증키가 등록되지 않았거나 이 서비스에 연결되지 않았습니다. 발급처의 키와 활용신청을 확인해 주세요.";
+  }
+  if (/INVALID_REQUEST_PARAMETER|HTTP_ERROR|허용되지\s*않은\s*HTTP|파라미터/i.test(d)) {
+    return name + " 요청 규격을 상위 API가 거부했습니다" + (d ? " · " + d : "") + ".";
+  }
+  if (status === 403) {
+    return name + " API가 요청을 거부했습니다 (403). 해당 API의 활용신청 승인 여부와 이 신청에 발급된 키인지 확인해 주세요" + (d ? " · " + d : "") + ".";
+  }
+  return name + " 응답 오류 (" + status + ")" + (d ? " · " + d : "");
+}
+
+async function fetchText(url, init, meta) {
   const ctl = new AbortController();
   const timer = setTimeout(() => ctl.abort(), 12000);
   try {
     const r = await fetch(url, { ...(init || {}), signal: ctl.signal });
     const text = await r.text();
     if (!r.ok) {
-      const e = new Error("정보원 응답 오류 (" + r.status + ")");
+      const detail = safeUpstreamDetail(text);
+      console.error("[source-search] upstream rejected", {
+        source: meta && meta.source,
+        host: new URL(url).host,
+        status: r.status,
+        detail,
+      });
+      const e = new Error(upstreamMessage((meta && meta.name) || "정보원", r.status, detail));
       e.status = r.status >= 400 && r.status < 500 ? 502 : r.status;
       throw e;
     }
     const apiError = upstreamError(text);
-    if (apiError) { const e = new Error(apiError); e.status = 502; throw e; }
+    if (apiError) {
+      console.error("[source-search] upstream api error", {
+        source: meta && meta.source,
+        host: new URL(url).host,
+        status: r.status,
+        detail: safeUpstreamDetail(text),
+      });
+      const e = new Error(upstreamMessage((meta && meta.name) || "정보원", r.status, safeUpstreamDetail(text)));
+      e.status = 502;
+      throw e;
+    }
     return text;
   } catch (e) {
     if (e && e.name === "AbortError") { const x = new Error("정보원의 응답 시간이 초과되었습니다."); x.status = 504; throw x; }
@@ -190,12 +245,21 @@ function serviceUrl(base, params) {
 
 async function searchKosis(query, limit, key) {
   const url = serviceUrl("https://kosis.kr/openapi/statisticsSearch.do", {
-    method: "getList", apiKey: key, searchNm: query, sort: "RANK",
-    startCount: 1, resultCount: limit, format: "json",
+    method: "getList", apiKey: String(key || "").trim(), searchNm: query, sort: "RANK",
+    startCount: 1, resultCount: limit, format: "json", content: "json",
   });
-  const body = await fetchText(url);
+  const body = await fetchText(url, null, { source: "kosis", name: SOURCES.kosis.name });
   let data;
-  try { data = JSON.parse(body); } catch (_) { throw Object.assign(new Error("KOSIS 응답을 해석하지 못했습니다."), { status: 502 }); }
+  try { data = JSON.parse(String(body || "").replace(/^\uFEFF/, "").trim()); }
+  catch (_) {
+    const detail = safeUpstreamDetail(body);
+    console.error("[source-search] invalid upstream payload", {
+      source: "kosis", host: "kosis.kr", status: 200, detail,
+    });
+    throw Object.assign(new Error(
+      "KOSIS가 JSON이 아닌 오류 응답을 보냈습니다" + (detail ? " · " + detail : "") + ". 인증키의 앞뒤 공백과 KOSIS 활용신청 상태를 확인해 주세요."
+    ), { status: 502 });
+  }
   const rows = Array.isArray(data) ? data : (data.result || data.data || []);
   const items = rows.map((r, i) => commonItem("kosis", {
     title: r.TBL_NM || r.STAT_NM,
@@ -213,7 +277,7 @@ async function searchPolicy(query, limit, key) {
   const url = serviceUrl("https://apis.data.go.kr/1371000/expDocService/expDocList", {
     serviceKey: decodeOnce(key), pageNo: 1, numOfRows: 100,
   });
-  const body = await fetchText(url);
+  const body = await fetchText(url, null, { source: "policy", name: SOURCES.policy.name });
   const q = query.toLowerCase();
   const all = xmlBlocks(body).map((b, i) => commonItem("policy", {
     title: xmlValue(b, ["title", "articleTitle", "newsTitle", "subject", "sj"]),
@@ -236,10 +300,10 @@ async function searchPolicy(query, limit, key) {
 
 async function searchLaw(query, limit, key) {
   const url = serviceUrl("https://apis.data.go.kr/1170000/law/lawSearchList.do", {
-    serviceKey: decodeOnce(key), target: "law", type: "XML",
-    query, display: limit, page: 1,
+    serviceKey: decodeOnce(key), target: "law", query,
+    numOfRows: limit, pageNo: 1,
   });
-  const body = await fetchText(url);
+  const body = await fetchText(url, null, { source: "law", name: SOURCES.law.name });
   const items = xmlBlocks(body).map((b, i) => commonItem("law", {
     title: xmlValue(b, ["법령명한글", "법령명", "lawNameKor", "lawName", "title"]),
     description: [
@@ -281,7 +345,7 @@ async function searchNanet(query, limit, key) {
   const url = serviceUrl("https://apis.data.go.kr/9720000/searchservice/basic", {
     serviceKey: decodeOnce(key), pageno: 1, displaylines: limit, search: "자료명," + query,
   });
-  const body = await fetchText(url);
+  const body = await fetchText(url, null, { source: "nanet", name: SOURCES.nanet.name });
   const items = nanetRows(body).map((b, i) => {
     const title = xmlValue(b, ["title", "자료명", "value"]) || nanetField(b, /자료명|표제|title/i);
     const author = xmlValue(b, ["author", "저자사항", "creator"]) || nanetField(b, /저자|author|creator/i);
@@ -300,13 +364,8 @@ async function searchNanet(query, limit, key) {
 }
 
 async function searchScienceOn() {
-  // ScienceON은 인증키만으로 호출할 수 없고 Client ID, 등록 MAC/IP, 콘텐츠 승인이 함께 필요하다.
-  // 규격이 계정의 API Gateway 신청 화면에서 제공되므로 불완전한 호출을 추측하지 않는다.
-  if (!process.env.SCIENCEON_CLIENT_ID || !process.env.SCIENCEON_MAC) {
-    const e = new Error("ScienceON은 인증키 외에 Client ID와 등록 MAC/IP가 필요합니다. ScienceON API Gateway 승인 정보를 배포 환경변수에 추가해 주세요.");
-    e.status = 503; throw e;
-  }
-  const e = new Error("ScienceON 검색은 계정별 API Gateway 호출 규격 확인이 필요합니다. 승인 화면의 요청 예시를 확인해 연결을 완료해 주세요.");
+  // 공개 안내만으로 계정별 호출 URL·파라미터를 추측하지 않는다. 고정 IP는 승인 조건에 명시된 경우에만 필요하다.
+  const e = new Error("ScienceON 인증키는 등록됐지만 보고서 검색 호출 규격이 아직 연결되지 않았습니다. API Gateway 승인 화면의 요청 URL·파라미터 예시를 확인해 주세요.");
   e.status = 503; throw e;
 }
 
