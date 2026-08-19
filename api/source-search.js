@@ -243,6 +243,39 @@ function serviceUrl(base, params) {
   return u.href;
 }
 
+function quoteBareJsonKeys(value) {
+  const src = String(value || "");
+  let out = "";
+  let inString = false;
+  let escaped = false;
+  for (let i = 0; i < src.length; i++) {
+    const ch = src[i];
+    out += ch;
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (ch === "\\") escaped = true;
+      else if (ch === '"') inString = false;
+      continue;
+    }
+    if (ch === '"') { inString = true; continue; }
+    if (ch !== "{" && ch !== ",") continue;
+
+    let j = i + 1;
+    let ws = "";
+    while (j < src.length && /\s/.test(src[j])) ws += src[j++];
+    if (!/[A-Za-z_$]/.test(src[j] || "")) continue;
+    const start = j;
+    while (j < src.length && /[A-Za-z0-9_$]/.test(src[j])) j++;
+    const key = src.slice(start, j);
+    let after = "";
+    while (j < src.length && /\s/.test(src[j])) after += src[j++];
+    if (src[j] !== ":") continue;
+    out += ws + JSON.stringify(key) + after + ":";
+    i = j;
+  }
+  return out;
+}
+
 async function searchKosis(query, limit, key) {
   const url = serviceUrl("https://kosis.kr/openapi/statisticsSearch.do", {
     method: "getList", apiKey: String(key || "").trim(), searchNm: query, sort: "RANK",
@@ -250,15 +283,19 @@ async function searchKosis(query, limit, key) {
   });
   const body = await fetchText(url, null, { source: "kosis", name: SOURCES.kosis.name });
   let data;
-  try { data = JSON.parse(String(body || "").replace(/^\uFEFF/, "").trim()); }
+  const normalized = String(body || "").replace(/^\uFEFF/, "").trim();
+  try { data = JSON.parse(normalized); }
   catch (_) {
-    const detail = safeUpstreamDetail(body);
-    console.error("[source-search] invalid upstream payload", {
-      source: "kosis", host: "kosis.kr", status: 200, detail,
-    });
-    throw Object.assign(new Error(
-      "KOSIS가 JSON이 아닌 오류 응답을 보냈습니다" + (detail ? " · " + detail : "") + ". 인증키의 앞뒤 공백과 KOSIS 활용신청 상태를 확인해 주세요."
-    ), { status: 502 });
+    try { data = JSON.parse(quoteBareJsonKeys(normalized)); }
+    catch (_) {
+      const detail = safeUpstreamDetail(body);
+      console.error("[source-search] invalid upstream payload", {
+        source: "kosis", host: "kosis.kr", status: 200, detail,
+      });
+      throw Object.assign(new Error(
+        "KOSIS 응답 형식을 해석하지 못했습니다" + (detail ? " · " + detail : "") + ". KOSIS 활용신청 상태를 확인해 주세요."
+      ), { status: 502 });
+    }
   }
   const rows = Array.isArray(data) ? data : (data.result || data.data || []);
   const items = rows.map((r, i) => commonItem("kosis", {
