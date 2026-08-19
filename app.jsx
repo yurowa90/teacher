@@ -90,15 +90,42 @@ const DESIGN_PATTERNS = [
 ];
 
 const SOURCE_STRUCTURES = [
-  { v:"auto", t:"내용에 맞게 구성" },
-  { v:"single", t:"단일 설명 자료" },
-  { v:"parallel", t:"복수 병렬 자료" },
-  { v:"contrast", t:"대립·상보 자료" },
-  { v:"cross-domain", t:"영역 융합 자료" },
-  { v:"data", t:"표·그래프·수치 자료" },
-  { v:"experiment", t:"실험·탐구 자료" },
-  { v:"case", t:"실제 사례·정책 자료" },
-  { v:"mixed", t:"복합 자료" },
+  {
+    v:"auto", t:"내용에 맞게 구성",
+    d:"입력한 내용과 출제 패턴을 바탕으로 가장 알맞은 자료 구성을 자동으로 정합니다."
+  },
+  {
+    v:"single", t:"단일 설명 자료",
+    d:"하나의 설명문·기사·사례를 읽고 핵심 개념이나 인과 관계를 설명하게 합니다."
+  },
+  {
+    v:"parallel", t:"복수 병렬 자료",
+    d:"둘 이상의 자료를 나란히 제시해 공통점·차이점과 자료 사이의 관계를 찾게 합니다."
+  },
+  {
+    v:"contrast", t:"대립·상보 자료",
+    d:"서로 다른 주장이나 결과를 함께 제시해 비교하고 판단 근거를 세우게 합니다."
+  },
+  {
+    v:"cross-domain", t:"영역 융합 자료",
+    d:"서로 다른 과학 영역의 자료를 연결해 공통 원리를 찾고 새로운 맥락에 적용하게 합니다."
+  },
+  {
+    v:"data", t:"표·그래프·수치 자료",
+    d:"표·그래프·수치의 경향을 해석하고 주장이나 결론의 타당성을 판단하게 합니다."
+  },
+  {
+    v:"experiment", t:"실험·탐구 자료",
+    d:"실험 절차와 결과를 바탕으로 변인·오차를 분석하고 해석이나 개선안을 제시하게 합니다."
+  },
+  {
+    v:"case", t:"실제 사례·정책 자료",
+    d:"생활 문제나 정책 사례를 바탕으로 원인·영향·대안과 판단 근거를 구성하게 합니다."
+  },
+  {
+    v:"mixed", t:"복합 자료",
+    d:"설명문·수치·사례·그림 등 여러 형식의 자료를 함께 사용해 다단계 사고를 평가합니다."
+  },
 ];
 
 const GRASPS_CORE = [
@@ -1975,7 +2002,7 @@ function App() {
           <select id="sourceStructureSel" value={sourceStructure} onChange={e=>setSourceStructure(e.target.value)}>
             {SOURCE_STRUCTURES.map(s=><option key={s.v} value={s.v}>{s.t}</option>)}
           </select>
-          <div className="hint">선택한 출제 패턴과 구분해 설정합니다. 예를 들어 표·그래프 자료로 비교·통합 논증 문항을 만들 수 있습니다.</div>
+          <div className="hint" aria-live="polite">{selectedSource.d}</div>
 
           <fieldset className="grasps-setting">
             <legend className="fld">수행 맥락(GRASPS)</legend>
