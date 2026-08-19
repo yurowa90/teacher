@@ -2324,6 +2324,7 @@ function App() {
       <p className="noprint footer-note">
         사용 전에는 성취기준과 성취수준의 일치, 자료 출처, 정답과 채점기준을 확인하세요.<br/>
         참고 기준: 경기도교육청 「2025 중등 논술형 평가 길라잡이」 / KICE 「서·논술형 평가도구 자료」 / 2022 개정 교육과정
+        <span className="copyright">Copyright © 2026 yurowa · 문의: <a href="mailto:yurowa@goedu.kr">yurowa@goedu.kr</a></span>
       </p>
     </div>
   );
