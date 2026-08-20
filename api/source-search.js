@@ -556,6 +556,23 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
   return { items };
 }
 
+function scienceOnRelevance(item, query) {
+  const phrase = cleanText(query, 100).toLowerCase();
+  const title = String(item.title || "").toLowerCase();
+  const description = String(item.description || "").toLowerCase();
+  const full = title + " " + description;
+  const tokens = phrase.split(/\s+/).filter(token => token.length > 1);
+  let score = 0;
+  if (phrase && title.includes(phrase)) score += 120;
+  else if (phrase && description.includes(phrase)) score += 70;
+  if (tokens.length && tokens.every(token => full.includes(token))) score += 40;
+  tokens.forEach(token => {
+    if (title.includes(token)) score += 14;
+    else if (description.includes(token)) score += 4;
+  });
+  return score;
+}
+
 async function searchScienceOn(query, limit, credentials) {
   const { authKey, clientId, macAddress } = credentials;
   const missing = [];
@@ -567,11 +584,16 @@ async function searchScienceOn(query, limit, credentials) {
   }
 
   const token = await scienceOnAccessToken(authKey, clientId, macAddress);
+  // 상위 API의 후보를 조금 넓게 받은 뒤 검색어 일치도를 다시 계산한다.
+  const candidateLimit = Math.min(30, Math.max(12, limit * 2));
   const settled = await Promise.allSettled([
-    searchScienceOnTarget(query, limit, clientId, token, "ARTI"),
-    searchScienceOnTarget(query, limit, clientId, token, "REPORT"),
+    searchScienceOnTarget(query, candidateLimit, clientId, token, "ARTI"),
+    searchScienceOnTarget(query, candidateLimit, clientId, token, "REPORT"),
   ]);
-  const items = settled.filter(x => x.status === "fulfilled").flatMap(x => x.value.items);
+  const items = settled.filter(x => x.status === "fulfilled").flatMap(x => x.value.items)
+    .map((item, index) => ({ item, index, score: scienceOnRelevance(item, query) }))
+    .sort((a, b) => b.score - a.score || a.index - b.index)
+    .map(entry => entry.item);
   if (!items.length && settled.every(x => x.status === "rejected")) throw settled[0].reason;
   return {
     items: compactItems(items, limit),
