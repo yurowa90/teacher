@@ -529,6 +529,20 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
   const statusCode = xmlValue(body, ["statusCode", "StatusCode"]);
   const totalCount = xmlValue(body, ["TotalCount", "totalCount", "recordCount"]);
   const statusMessage = xmlValue(body, ["statusMessage", "errorMessage", "message"]);
+  const tagNames = [];
+  const tagRe = /<\/?(?:[\w-]+:)?([A-Za-z][\w-]*)\b/g;
+  let tagMatch;
+  while ((tagMatch = tagRe.exec(String(body || ""))) && tagNames.length < 12) {
+    if (!tagNames.includes(tagMatch[1])) tagNames.push(tagMatch[1]);
+  }
+  const diagnostic = {
+    target,
+    statusCode: statusCode || "",
+    totalCount: totalCount || "",
+    recordCount: records.length,
+    format: /^\s*</.test(String(body || "")) ? "xml-or-html" : "other",
+    tags: tagNames,
+  };
   console.info("[source-search] ScienceON response", {
     target, statusCode, totalCount, recordCount: records.length,
   });
@@ -539,7 +553,7 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
     );
     e.status = 502; throw e;
   }
-  return records.map((b, i) => {
+  const items = records.map((b, i) => {
     const doi = scienceOnValue(b, ["DOI", "doi"]);
     const contentUrl = scienceOnValue(b, ["ContentURL", "FulltextURL", "MobileURL", "Link", "url"]);
     return commonItem("scienceon", {
@@ -554,6 +568,7 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
       base: "https://scienceon.kisti.re.kr",
     }, target + "-" + i);
   });
+  return { items, diagnostic };
 }
 
 async function searchScienceOn(query, limit, credentials) {
@@ -567,14 +582,22 @@ async function searchScienceOn(query, limit, credentials) {
   }
 
   const token = await scienceOnAccessToken(authKey, clientId, macAddress);
+  const targets = ["ARTI", "REPORT"];
   const settled = await Promise.allSettled([
     searchScienceOnTarget(query, limit, clientId, token, "ARTI"),
     searchScienceOnTarget(query, limit, clientId, token, "REPORT"),
   ]);
-  const items = settled.filter(x => x.status === "fulfilled").flatMap(x => x.value);
+  const items = settled.filter(x => x.status === "fulfilled").flatMap(x => x.value.items);
+  const diagnostics = settled.map((x, index) => x.status === "fulfilled"
+    ? x.value.diagnostic
+    : {
+        target: targets[index],
+        error: cleanText(x.reason && x.reason.message, 220),
+      });
   if (!items.length && settled.every(x => x.status === "rejected")) throw settled[0].reason;
   return {
     items: compactItems(items, limit),
+    diagnostics,
     notice: settled.some(x => x.status === "rejected")
       ? "승인된 ScienceON 콘텐츠 범위에서 검색 결과를 표시합니다."
       : "",
@@ -638,7 +661,12 @@ module.exports = async (req, res) => {
     else result = await searchScienceOn(query, limit, scienceOnConfig);
 
     res.setHeader("cache-control", "public, s-maxage=900, stale-while-revalidate=86400");
-    res.status(200).json({ source, sourceName: cfg.name, items: result.items || [], notice: result.notice || "" });
+    const payload = { source, sourceName: cfg.name, items: result.items || [], notice: result.notice || "" };
+    // 자격증명·원문 본문은 제외하고 ScienceON 응답 구조만 제한적으로 진단한다.
+    if (source === "scienceon" && req.query && req.query.debug === "shape") {
+      payload.diagnostics = result.diagnostics || [];
+    }
+    res.status(200).json(payload);
   } catch (e) {
     res.setHeader("cache-control", "no-store");
     res.status((e && e.status) || 502).json({ error: (e && e.message) || "자료 검색에 실패했습니다. 잠시 후 다시 시도하세요." });
