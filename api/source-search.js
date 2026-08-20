@@ -316,7 +316,8 @@ async function searchKosis(query, limit, key) {
 async function searchPolicy(query, limit, key) {
   // 정책뉴스 API는 기간 조회 결과를 받은 뒤 제목·부제·본문에서 검색어를 선별한다.
   const end = new Date();
-  const start = new Date(end.getTime() - 366 * 24 * 60 * 60 * 1000);
+  // 상위 API는 한 번에 최대 3개 날짜(오늘 포함)만 허용한다.
+  const start = new Date(end.getTime() - 2 * 24 * 60 * 60 * 1000);
   const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
   const url = serviceUrl("https://apis.data.go.kr/1371000/policyNewsService2/policyNewsList2", {
     serviceKey: decodeOnce(key), startDate: ymd(start), endDate: ymd(end),
