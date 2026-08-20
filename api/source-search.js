@@ -84,7 +84,7 @@ function xmlValue(block, names) {
 function xmlBlocks(xml) {
   const source = String(xml || "");
   // 실제 레코드 태그를 포괄 루트인 result보다 먼저 찾는다.
-  const tags = ["item", "record", "doc", "document", "row", "law", "result"];
+  const tags = ["NewsItem", "item", "record", "doc", "document", "row", "law", "result"];
   for (const tag of tags) {
     const re = new RegExp("<(?:[\\w-]+:)?" + tag + "(?:\\s[^>]*)?>([\\s\\S]*?)<\\/(?:[\\w-]+:)?" + tag + ">", "gi");
     const rows = [];
@@ -113,6 +113,10 @@ function safeUrl(value, base) {
 
 function isoishDate(value) {
   const s = cleanText(value, 80);
+  const monthFirst = s.match(/\b(0?[1-9]|1[0-2])\/([0-2]?\d|3[01])\/((?:19|20)\d{2})\b/);
+  if (monthFirst) {
+    return monthFirst[3] + "-" + monthFirst[1].padStart(2, "0") + "-" + monthFirst[2].padStart(2, "0");
+  }
   const m = s.match(/(19|20)\d{2}[.\/-]?(0?[1-9]|1[0-2])?[.\/-]?(0?[1-9]|[12]\d|3[01])?/);
   if (!m) return s;
   const digits = m[0].replace(/\D/g, "");
@@ -327,11 +331,13 @@ async function searchPolicy(query, limit, key) {
   const all = xmlBlocks(body).map((b, i) => commonItem("policy", {
     title: xmlValue(b, ["title", "articleTitle", "newsTitle", "subject", "sj", "news_title"]),
     description: [
-      xmlValue(b, ["subtitle", "subTitle", "subhead", "sub_title"]),
-      xmlValue(b, ["content", "articleContent", "contents", "description", "summary", "article_content"]),
+      ["SubTitle1", "SubTitle2", "SubTitle3"]
+        .map(name => xmlValue(b, [name])).filter(Boolean).join(" · ") ||
+        xmlValue(b, ["subtitle", "subTitle", "subhead", "sub_title"]),
+      xmlValue(b, ["DataContents", "content", "articleContent", "contents", "description", "summary", "article_content"]),
     ].filter(Boolean).join(" "),
-    provider: xmlValue(b, ["department", "departmentName", "deptName", "organName", "provider", "department_name"]) || SOURCES.policy.provider,
-    date: xmlValue(b, ["approvalDate", "approveDate", "regDate", "date", "createdDate", "approve_date"]),
+    provider: xmlValue(b, ["MinisterCode", "department", "departmentName", "deptName", "organName", "provider", "department_name"]) || SOURCES.policy.provider,
+    date: xmlValue(b, ["ApproveDate", "approvalDate", "regDate", "date", "createdDate", "approve_date"]),
     url: xmlValue(b, ["originalUrl", "originUrl", "articleUrl", "newsUrl", "url", "link", "original_url"]) || firstUrl(b),
     base: "https://www.korea.kr",
   }, i));
