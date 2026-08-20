@@ -51,10 +51,29 @@ function decodeOnce(value) {
 
 function credentialValue(value) {
   let v = String(value || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+  const assignment = v.match(/^SCIENCEON_(?:API_KEY|AUTH_KEY|CLIENT_ID)\s*=\s*([\s\S]+)$/i);
+  if (assignment) v = assignment[1].trim();
   if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
     v = v.slice(1, -1).trim();
   }
   return v;
+}
+
+function scienceOnEnvironment() {
+  const namedClientId = credentialValue(process.env.SCIENCEON_CLIENT_ID);
+  const values = [
+    credentialValue(process.env.SCIENCEON_AUTH_KEY),
+    credentialValue(process.env.SCIENCEON_API_KEY),
+    namedClientId,
+  ].filter(Boolean);
+  const authKey = values.find(value => Buffer.byteLength(value, "utf8") === 32) || values[0] || "";
+  const clientId = values.find(value => value !== authKey && /^[a-f0-9]{64}$/i.test(value))
+    || namedClientId;
+  return {
+    authKey,
+    clientId,
+    macAddress: credentialValue(process.env.SCIENCEON_MAC_ADDRESS || process.env.SCIENCEON_MAC),
+  };
 }
 
 function decodeEntities(value) {
@@ -506,7 +525,21 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
     include: "Publisher,Pubyear,Pubdate,Abstract,Author,JournalName,Keyword,DOI,ContentURL,FulltextURL",
   });
   const body = await fetchText(url, null, { source: "scienceon", name: SOURCES.scienceon.name });
-  return scienceOnRecords(body).map((b, i) => {
+  const records = scienceOnRecords(body);
+  const statusCode = xmlValue(body, ["statusCode", "StatusCode"]);
+  const totalCount = xmlValue(body, ["TotalCount", "totalCount", "recordCount"]);
+  const statusMessage = xmlValue(body, ["statusMessage", "errorMessage", "message"]);
+  console.info("[source-search] ScienceON response", {
+    target, statusCode, totalCount, recordCount: records.length,
+  });
+  if (statusCode && statusCode !== "200") {
+    const e = new Error(
+      "ScienceON 검색 요청 오류 (" + statusCode + ")" +
+      (statusMessage ? " · " + cleanText(statusMessage, 160) : "")
+    );
+    e.status = 502; throw e;
+  }
+  return records.map((b, i) => {
     const doi = scienceOnValue(b, ["DOI", "doi"]);
     const contentUrl = scienceOnValue(b, ["ContentURL", "FulltextURL", "MobileURL", "Link", "url"]);
     return commonItem("scienceon", {
@@ -523,9 +556,8 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
   });
 }
 
-async function searchScienceOn(query, limit, authKey) {
-  const clientId = credentialValue(process.env.SCIENCEON_CLIENT_ID);
-  const macAddress = credentialValue(process.env.SCIENCEON_MAC_ADDRESS || process.env.SCIENCEON_MAC);
+async function searchScienceOn(query, limit, credentials) {
+  const { authKey, clientId, macAddress } = credentials;
   const missing = [];
   if (!clientId) missing.push("SCIENCEON_CLIENT_ID");
   if (!macAddress) missing.push("SCIENCEON_MAC_ADDRESS");
@@ -588,10 +620,9 @@ module.exports = async (req, res) => {
   if (!query) { res.status(400).json({ error: "검색어가 필요합니다." }); return; }
   if (query.length > 100) { res.status(400).json({ error: "검색어는 100자 이하로 입력하세요." }); return; }
 
-  const scienceOnKeys = [process.env.SCIENCEON_AUTH_KEY, process.env.SCIENCEON_API_KEY]
-    .map(credentialValue).filter(Boolean);
+  const scienceOnConfig = source === "scienceon" ? scienceOnEnvironment() : null;
   const key = source === "scienceon"
-    ? (scienceOnKeys.find(value => Buffer.byteLength(value, "utf8") === 32) || scienceOnKeys[0])
+    ? scienceOnConfig.authKey
     : process.env[cfg.key];
   if (!key) {
     res.status(503).json({ error: cfg.name + " API 연결이 아직 설정되지 않았습니다. 배포 환경변수를 확인해 주세요." });
@@ -604,7 +635,7 @@ module.exports = async (req, res) => {
     else if (source === "policy") result = await searchPolicy(query, limit, key);
     else if (source === "law") result = await searchLaw(query, limit, key);
     else if (source === "nanet") result = await searchNanet(query, limit, key);
-    else result = await searchScienceOn(query, limit, key);
+    else result = await searchScienceOn(query, limit, scienceOnConfig);
 
     res.setHeader("cache-control", "public, s-maxage=900, stale-while-revalidate=86400");
     res.status(200).json({ source, sourceName: cfg.name, items: result.items || [], notice: result.notice || "" });
