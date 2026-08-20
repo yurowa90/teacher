@@ -542,6 +542,22 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
     recordCount: records.length,
     format: /^\s*</.test(String(body || "")) ? "xml-or-html" : "other",
     tags: tagNames,
+    recordTags: records[0]
+      ? [...String(records[0]).matchAll(/<\/?(?:[\w-]+:)?([A-Za-z][\w-]*)\b/g)]
+          .map(match => match[1]).filter((name, index, all) => all.indexOf(name) === index).slice(0, 12)
+      : [],
+    metaCodes: records[0]
+      ? [...String(records[0]).matchAll(/\bmetaCode\s*=\s*[\"']([^\"']+)[\"']/gi)]
+          .map(match => cleanText(match[1], 60)).slice(0, 24)
+      : [],
+    itemAttributeNames: records[0]
+      ? (() => {
+          const firstItem = String(records[0]).match(/<(?:[\w-]+:)?item\b([^>]*)>/i);
+          return firstItem
+            ? [...firstItem[1].matchAll(/([A-Za-z_:][\w:.-]*)\s*=/g)].map(match => match[1]).slice(0, 12)
+            : [];
+        })()
+      : [],
   };
   console.info("[source-search] ScienceON response", {
     target, statusCode, totalCount, recordCount: records.length,
