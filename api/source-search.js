@@ -49,6 +49,14 @@ function decodeOnce(value) {
   try { return decodeURIComponent(v); } catch (_) { return v; }
 }
 
+function credentialValue(value) {
+  let v = String(value || "").replace(/[\u200B-\u200D\uFEFF]/g, "").trim();
+  if ((v.startsWith('"') && v.endsWith('"')) || (v.startsWith("'") && v.endsWith("'"))) {
+    v = v.slice(1, -1).trim();
+  }
+  return v;
+}
+
 function decodeEntities(value) {
   return String(value || "")
     .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
@@ -421,7 +429,7 @@ function scienceOnTimestamp() {
 }
 
 function scienceOnAccounts(authKey, macAddress) {
-  const key = Buffer.from(String(authKey || "").trim(), "utf8");
+  const key = Buffer.from(credentialValue(authKey), "utf8");
   if (key.length !== 32) {
     const e = new Error("ScienceON 인증키 형식이 올바르지 않습니다. 인증키는 32바이트여야 합니다.");
     e.status = 503; throw e;
@@ -516,8 +524,8 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
 }
 
 async function searchScienceOn(query, limit, authKey) {
-  const clientId = String(process.env.SCIENCEON_CLIENT_ID || "").trim();
-  const macAddress = String(process.env.SCIENCEON_MAC_ADDRESS || process.env.SCIENCEON_MAC || "").trim();
+  const clientId = credentialValue(process.env.SCIENCEON_CLIENT_ID);
+  const macAddress = credentialValue(process.env.SCIENCEON_MAC_ADDRESS || process.env.SCIENCEON_MAC);
   const missing = [];
   if (!clientId) missing.push("SCIENCEON_CLIENT_ID");
   if (!macAddress) missing.push("SCIENCEON_MAC_ADDRESS");
@@ -580,8 +588,10 @@ module.exports = async (req, res) => {
   if (!query) { res.status(400).json({ error: "검색어가 필요합니다." }); return; }
   if (query.length > 100) { res.status(400).json({ error: "검색어는 100자 이하로 입력하세요." }); return; }
 
+  const scienceOnKeys = [process.env.SCIENCEON_AUTH_KEY, process.env.SCIENCEON_API_KEY]
+    .map(credentialValue).filter(Boolean);
   const key = source === "scienceon"
-    ? (process.env.SCIENCEON_AUTH_KEY || process.env[cfg.key])
+    ? (scienceOnKeys.find(value => Buffer.byteLength(value, "utf8") === 32) || scienceOnKeys[0])
     : process.env[cfg.key];
   if (!key) {
     res.status(503).json({ error: cfg.name + " API 연결이 아직 설정되지 않았습니다. 배포 환경변수를 확인해 주세요." });
