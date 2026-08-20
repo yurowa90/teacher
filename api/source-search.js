@@ -5,7 +5,11 @@
 //   MOLEG_API_KEY            국가법령정보센터(공공데이터포털)
 //   KOSIS_API_KEY            KOSIS 공유서비스
 //   NANET_API_KEY            국회도서관 자료검색(공공데이터포털)
-//   SCIENCEON_API_KEY        ScienceON 인증키
+//   SCIENCEON_API_KEY        ScienceON 인증키(32바이트)
+//   SCIENCEON_CLIENT_ID      ScienceON Client ID
+//   SCIENCEON_MAC_ADDRESS    ScienceON에 등록한 MAC 주소
+
+const crypto = require("crypto");
 
 const SOURCES = {
   policy: {
@@ -310,28 +314,31 @@ async function searchKosis(query, limit, key) {
 }
 
 async function searchPolicy(query, limit, key) {
-  // 전문자료 API는 검색어 파라미터를 제공하지 않아 최근 목록을 받아 제목·내용에서 선별한다.
-  const url = serviceUrl("https://apis.data.go.kr/1371000/expDocService/expDocList", {
-    serviceKey: decodeOnce(key), pageNo: 1, numOfRows: 100,
+  // 정책뉴스 API는 기간 조회 결과를 받은 뒤 제목·부제·본문에서 검색어를 선별한다.
+  const end = new Date();
+  const start = new Date(end.getTime() - 366 * 24 * 60 * 60 * 1000);
+  const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
+  const url = serviceUrl("https://apis.data.go.kr/1371000/policyNewsService2/policyNewsList2", {
+    serviceKey: decodeOnce(key), startDate: ymd(start), endDate: ymd(end),
   });
   const body = await fetchText(url, null, { source: "policy", name: SOURCES.policy.name });
   const q = query.toLowerCase();
   const all = xmlBlocks(body).map((b, i) => commonItem("policy", {
-    title: xmlValue(b, ["title", "articleTitle", "newsTitle", "subject", "sj"]),
+    title: xmlValue(b, ["title", "articleTitle", "newsTitle", "subject", "sj", "news_title"]),
     description: [
-      xmlValue(b, ["subtitle", "subTitle", "subhead"]),
-      xmlValue(b, ["content", "articleContent", "contents", "description", "summary"]),
+      xmlValue(b, ["subtitle", "subTitle", "subhead", "sub_title"]),
+      xmlValue(b, ["content", "articleContent", "contents", "description", "summary", "article_content"]),
     ].filter(Boolean).join(" "),
-    provider: xmlValue(b, ["department", "deptName", "organName", "provider"]) || SOURCES.policy.provider,
-    date: xmlValue(b, ["approvalDate", "approveDate", "regDate", "date", "createdDate"]),
-    url: xmlValue(b, ["originalUrl", "originUrl", "articleUrl", "newsUrl", "url", "link"]) || firstUrl(b),
+    provider: xmlValue(b, ["department", "departmentName", "deptName", "organName", "provider", "department_name"]) || SOURCES.policy.provider,
+    date: xmlValue(b, ["approvalDate", "approveDate", "regDate", "date", "createdDate", "approve_date"]),
+    url: xmlValue(b, ["originalUrl", "originUrl", "articleUrl", "newsUrl", "url", "link", "original_url"]) || firstUrl(b),
     base: "https://www.korea.kr",
   }, i));
   const valid = all.filter(x => x.title);
   const matched = valid.filter(x => (x.title + " " + x.description).toLowerCase().includes(q));
   return {
     items: compactItems(matched.length ? matched : valid, limit),
-    notice: matched.length ? "" : "정확히 일치하는 최근 자료가 없어 정책브리핑 최신 전문자료를 표시합니다.",
+    notice: matched.length ? "" : "정확히 일치하는 최근 자료가 없어 정책브리핑 최신 정책뉴스를 표시합니다.",
   };
 }
 
@@ -400,10 +407,131 @@ async function searchNanet(query, limit, key) {
   return { items: compactItems(items, limit) };
 }
 
-async function searchScienceOn() {
-  // 공개 안내만으로 계정별 호출 URL·파라미터를 추측하지 않는다. 고정 IP는 승인 조건에 명시된 경우에만 필요하다.
-  const e = new Error("ScienceON 인증키는 등록됐지만 보고서 검색 호출 규격이 아직 연결되지 않았습니다. API Gateway 승인 화면의 요청 URL·파라미터 예시를 확인해 주세요.");
-  e.status = 503; throw e;
+function scienceOnTimestamp() {
+  // ScienceON 발급 화면과 같은 한국 표준시 기준 YYYYMMDDHHMMSS.
+  return new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString()
+    .slice(0, 19).replace(/[-:T]/g, "");
+}
+
+function scienceOnAccounts(authKey, macAddress) {
+  const key = Buffer.from(String(authKey || "").trim(), "utf8");
+  if (key.length !== 32) {
+    const e = new Error("ScienceON 인증키 형식이 올바르지 않습니다. 인증키는 32바이트여야 합니다.");
+    e.status = 503; throw e;
+  }
+  const plain = JSON.stringify({ datetime: scienceOnTimestamp(), mac_address: macAddress });
+  const cipher = crypto.createCipheriv(
+    "aes-256-cbc", key, Buffer.from("jvHJ1EFA0IXBrxxz", "utf8")
+  );
+  const encrypted = Buffer.concat([cipher.update(plain, "utf8"), cipher.final()]);
+  return encrypted.toString("base64").replace(/\+/g, "-").replace(/\//g, "_");
+}
+
+async function scienceOnAccessToken(authKey, clientId, macAddress) {
+  const cached = global.__scienceOnAccessToken;
+  if (cached && cached.clientId === clientId && cached.expiresAt > Date.now() + 90000) {
+    return cached.token;
+  }
+  const url = serviceUrl("https://apigateway.kisti.re.kr/tokenrequest.do", {
+    client_id: clientId,
+    accounts: scienceOnAccounts(authKey, macAddress),
+  });
+  const body = await fetchText(url, null, { source: "scienceon", name: SOURCES.scienceon.name });
+  let data;
+  try { data = JSON.parse(String(body || "").replace(/^\uFEFF/, "").trim()); }
+  catch (_) {
+    const e = new Error("ScienceON 토큰 응답 형식을 해석하지 못했습니다.");
+    e.status = 502; throw e;
+  }
+  const token = data && (data.access_token || data.accessToken);
+  if (!token) {
+    const detail = cleanText(data && (
+      data.errorMessage || data.error_message || data.message || data.resultMsg || data.errorCode
+    ), 180);
+    const e = new Error("ScienceON 토큰을 발급받지 못했습니다" + (detail ? " · " + detail : "") + ". 등록 MAC·IP와 승인 상태를 확인해 주세요.");
+    e.status = 502; throw e;
+  }
+  // Access Token의 공식 기본 만료시간은 2시간이며 100분만 캐시해 여유를 둔다.
+  global.__scienceOnAccessToken = { token, clientId, expiresAt: Date.now() + 100 * 60 * 1000 };
+  return token;
+}
+
+function scienceOnRecords(xml) {
+  const rows = [];
+  const re = /<(?:[\w-]+:)?record(?:\s[^>]*)?>([\s\S]*?)<\/(?:[\w-]+:)?record>/gi;
+  let m;
+  while ((m = re.exec(String(xml || "")))) rows.push(m[1]);
+  return rows;
+}
+
+function scienceOnValue(block, names) {
+  for (const name of names) {
+    const n = escRe(name);
+    const re = new RegExp(
+      "<(?:[\\w-]+:)?item\\b[^>]*\\bmetaCode\\s*=\\s*[\\\"']" + n +
+      "[\\\"'][^>]*>([\\s\\S]*?)<\\/(?:[\\w-]+:)?item>", "i"
+    );
+    const m = String(block || "").match(re);
+    if (m && cleanText(m[1])) return cleanText(m[1], 4000);
+  }
+  return "";
+}
+
+async function searchScienceOnTarget(query, limit, clientId, token, target) {
+  const url = serviceUrl("https://apigateway.kisti.re.kr/openapicall.do", {
+    client_id: clientId,
+    token,
+    version: "1.0",
+    action: "search",
+    target,
+    searchQuery: JSON.stringify({ BI: query }),
+    sortField: "pubyear",
+    curPage: 1,
+    rowCount: limit,
+    include: "Publisher,Pubyear,Pubdate,Abstract,Author,JournalName,Keyword,DOI,ContentURL,FulltextURL",
+  });
+  const body = await fetchText(url, null, { source: "scienceon", name: SOURCES.scienceon.name });
+  return scienceOnRecords(body).map((b, i) => {
+    const doi = scienceOnValue(b, ["DOI", "doi"]);
+    const contentUrl = scienceOnValue(b, ["ContentURL", "FulltextURL", "MobileURL", "Link", "url"]);
+    return commonItem("scienceon", {
+      title: scienceOnValue(b, ["Title", "Title2", "TI", "title", "reportTitle", "titleName"]),
+      description: [
+        scienceOnValue(b, ["Abstract", "Abstract2", "AB", "abstract"]),
+        scienceOnValue(b, ["Keyword", "Keyword2", "KW", "keyword"]),
+      ].filter(Boolean).join(" · "),
+      provider: scienceOnValue(b, ["Publisher", "PB", "Organization", "publisherName"]) || SOURCES.scienceon.provider,
+      date: scienceOnValue(b, ["Pubdate", "Pubyear", "PubYear", "PY", "year", "PublishYear"]),
+      url: contentUrl || (doi ? "https://doi.org/" + doi.replace(/^https?:\/\/(?:dx\.)?doi\.org\//i, "") : ""),
+      base: "https://scienceon.kisti.re.kr",
+    }, target + "-" + i);
+  });
+}
+
+async function searchScienceOn(query, limit, authKey) {
+  const clientId = String(process.env.SCIENCEON_CLIENT_ID || "").trim();
+  const macAddress = String(process.env.SCIENCEON_MAC_ADDRESS || process.env.SCIENCEON_MAC || "").trim();
+  const missing = [];
+  if (!clientId) missing.push("SCIENCEON_CLIENT_ID");
+  if (!macAddress) missing.push("SCIENCEON_MAC_ADDRESS");
+  if (missing.length) {
+    const e = new Error("ScienceON 연결에 필요한 환경변수가 없습니다: " + missing.join(", ") + ".");
+    e.status = 503; throw e;
+  }
+
+  const token = await scienceOnAccessToken(authKey, clientId, macAddress);
+  const settled = await Promise.allSettled([
+    searchScienceOnTarget(query, limit, clientId, token, "ARTI"),
+    searchScienceOnTarget(query, limit, clientId, token, "REPORT"),
+  ]);
+  const items = settled.filter(x => x.status === "fulfilled").flatMap(x => x.value);
+  if (!items.length && settled.every(x => x.status === "rejected")) throw settled[0].reason;
+  return {
+    items: compactItems(items, limit),
+    notice: settled.some(x => x.status === "rejected")
+      ? "승인된 ScienceON 콘텐츠 범위에서 검색 결과를 표시합니다."
+      : "",
+  };
 }
 
 function validCaller(req) {
@@ -445,7 +573,9 @@ module.exports = async (req, res) => {
   if (!query) { res.status(400).json({ error: "검색어가 필요합니다." }); return; }
   if (query.length > 100) { res.status(400).json({ error: "검색어는 100자 이하로 입력하세요." }); return; }
 
-  const key = process.env[cfg.key];
+  const key = source === "scienceon"
+    ? (process.env.SCIENCEON_AUTH_KEY || process.env[cfg.key])
+    : process.env[cfg.key];
   if (!key) {
     res.status(503).json({ error: cfg.name + " API 연결이 아직 설정되지 않았습니다. 배포 환경변수를 확인해 주세요." });
     return;
