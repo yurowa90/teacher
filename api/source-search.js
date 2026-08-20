@@ -519,7 +519,6 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
     action: "search",
     target,
     searchQuery: JSON.stringify({ BI: query }),
-    sortField: "pubyear",
     curPage: 1,
     rowCount: limit,
     include: "Title,Title2,Publisher,Pubyear,Pubdate,Abstract,Abstract2,Author,JournalName,Keyword,Keyword2,DOI,ContentURL,FulltextURL",
