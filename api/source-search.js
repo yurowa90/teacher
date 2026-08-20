@@ -522,7 +522,7 @@ async function searchScienceOnTarget(query, limit, clientId, token, target) {
     sortField: "pubyear",
     curPage: 1,
     rowCount: limit,
-    include: "Publisher,Pubyear,Pubdate,Abstract,Author,JournalName,Keyword,DOI,ContentURL,FulltextURL",
+    include: "Title,Title2,Publisher,Pubyear,Pubdate,Abstract,Abstract2,Author,JournalName,Keyword,Keyword2,DOI,ContentURL,FulltextURL",
   });
   const body = await fetchText(url, null, { source: "scienceon", name: SOURCES.scienceon.name });
   const records = scienceOnRecords(body);
