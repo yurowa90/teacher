@@ -185,6 +185,68 @@ function compactItems(items, limit) {
   }).slice(0, limit);
 }
 
+function queryParts(query) {
+  const phrase = cleanText(query, 100).toLowerCase();
+  const tokens = Array.from(new Set(
+    phrase.split(/[\s,./·()\[\]{}:+\-]+/).map(x => x.trim()).filter(x => x.length > 1)
+  ));
+  return { phrase, tokens };
+}
+
+function relevanceScore(item, query) {
+  const { phrase, tokens } = queryParts(query);
+  const title = String(item && item.title || "").toLowerCase();
+  const description = String(item && item.description || "").toLowerCase();
+  const full = title + " " + description;
+  if (!phrase) return 0;
+  if (title.includes(phrase)) return 100;
+  if (description.includes(phrase)) return 88;
+  if (!tokens.length) return 0;
+
+  let matched = 0;
+  let titleMatched = 0;
+  tokens.forEach(token => {
+    if (title.includes(token)) { matched += 1; titleMatched += 1; }
+    else if (description.includes(token)) matched += 1;
+  });
+  if (!matched) return 0;
+  const coverage = matched / tokens.length;
+  const titleCoverage = titleMatched / tokens.length;
+  return Math.min(84, Math.round(coverage * 56 + titleCoverage * 28));
+}
+
+function rankWithRelevance(items, query) {
+  return (items || []).map((item, index) => ({
+    item: { ...item, relevance: relevanceScore(item, query) }, index,
+  })).sort((a, b) => b.item.relevance - a.item.relevance || a.index - b.index)
+    .map(entry => entry.item);
+}
+
+function querySuggestions(query) {
+  const q = cleanText(query, 100);
+  const compact = q.replace(/\s+/g, "");
+  const domain = [
+    [/생태|먹이|생물다양/, ["생태계 변화", "생물다양성", "먹이그물"]],
+    [/기후|탄소|온실/, ["기후변화 적응", "탄소중립", "온실가스 배출"]],
+    [/에너지|전력|재생/, ["에너지 소비", "재생에너지", "전력 수요"]],
+    [/감염|질병|바이러스/, ["감염병 대응", "질병 예방", "백신 정책"]],
+    [/유전|유전자|생명윤리/, ["유전자 편집", "생명윤리", "유전 정보"]],
+  ].find(([re]) => re.test(compact));
+  const candidates = domain ? domain[1] : queryParts(q).tokens;
+  return Array.from(new Set(candidates.filter(x => x && x !== q))).slice(0, 3);
+}
+
+function alternativeSources(source) {
+  const map = {
+    policy: ["scienceon", "kosis", "law"],
+    law: ["policy", "scienceon"],
+    kosis: ["scienceon", "policy"],
+    scienceon: ["kosis", "policy"],
+    nanet: ["scienceon", "policy"],
+  };
+  return (map[source] || []).map(id => ({ id, name: SOURCES[id].name, kind: SOURCES[id].kind }));
+}
+
 function upstreamError(body) {
   const code = xmlValue(body, ["resultCode", "returnReasonCode", "errorCode", "errCode"]);
   const msg = xmlValue(body, ["resultMsg", "returnAuthMsg", "errorMessage", "errMsg", "message"]);
@@ -354,7 +416,6 @@ async function searchPolicy(query, limit, key) {
     serviceKey: decodeOnce(key), startDate: ymd(start), endDate: ymd(end),
   });
   const body = await fetchText(url, null, { source: "policy", name: SOURCES.policy.name });
-  const q = query.toLowerCase();
   const all = xmlBlocks(body).map((b, i) => commonItem("policy", {
     title: xmlValue(b, ["title", "articleTitle", "newsTitle", "subject", "sj", "news_title"]),
     description: [
@@ -369,10 +430,10 @@ async function searchPolicy(query, limit, key) {
     base: "https://www.korea.kr",
   }, i));
   const valid = all.filter(x => x.title);
-  const matched = valid.filter(x => (x.title + " " + x.description).toLowerCase().includes(q));
+  const matched = rankWithRelevance(valid, query).filter(x => x.relevance >= 50);
   return {
-    items: compactItems(matched.length ? matched : valid, limit),
-    notice: matched.length ? "" : "정확히 일치하는 최근 자료가 없어 정책브리핑 최신 정책뉴스를 표시합니다.",
+    items: compactItems(matched, limit),
+    notice: matched.length ? "" : "검색어와 관련된 정책자료를 찾지 못했습니다. 관련 없는 최신 뉴스는 표시하지 않습니다.",
   };
 }
 
@@ -660,7 +721,15 @@ module.exports = async (req, res) => {
     else result = await searchScienceOn(query, limit, scienceOnConfig);
 
     res.setHeader("cache-control", "public, s-maxage=900, stale-while-revalidate=86400");
-    res.status(200).json({ source, sourceName: cfg.name, items: result.items || [], notice: result.notice || "" });
+    const items = rankWithRelevance(result.items || [], query);
+    res.status(200).json({
+      source,
+      sourceName: cfg.name,
+      items,
+      notice: result.notice || "",
+      suggestions: items.length ? [] : querySuggestions(query),
+      recommendedSources: items.length ? [] : alternativeSources(source),
+    });
   } catch (e) {
     res.setHeader("cache-control", "no-store");
     res.status((e && e.status) || 502).json({ error: (e && e.message) || "자료 검색에 실패했습니다. 잠시 후 다시 시도하세요." });
