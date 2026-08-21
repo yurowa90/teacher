@@ -1201,6 +1201,7 @@ function App() {
   const [subject, setSubject] = useState("자동");
   const [selectedStds, setSelectedStds] = useState([]); // 선택한 실제 성취기준 코드(복수)
   const [stdFilter, setStdFilter] = useState("");       // 성취기준 검색 필터
+  const [standardsEntryMode, setStandardsEntryMode] = useState("official");
   const [targets, setTargets] = useState([]);          // 타겟 수준 다중선택
   const [targetMsg, setTargetMsg] = useState("");      // 타겟 선택 상한 안내
   const [mode, setMode]       = useState("standard");
@@ -1225,7 +1226,12 @@ function App() {
   const [promptCopied, setPromptCopied] = useState(false);
   const [pasteText, setPasteText] = useState("");
   const [mobileTab, setMobileTab]     = useState("form");  // 모바일: 설정/결과 탭
+  const mobileScroll = useRef({ form:0, preview:0 });
+  const [statusMsg, setStatusMsg] = useState("");
+  const [activeStep, setActiveStep] = useState(1);
+  const [completedSteps, setCompletedSteps] = useState([]);
   const [advOpen, setAdvOpen]         = useState(false);    // 고급 문항 설정 접기
+  const [showAllPatterns, setShowAllPatterns] = useState(false);
   const [inputErr, setInputErr]       = useState("");       // 입력 자료 인라인 오류
   const [showEx, setShowEx]           = useState(false);    // 올바른 답변 예시
   const [modelList, setModelList]     = useState([]);   // 키로 조회한 사용 가능 모델
@@ -1238,7 +1244,11 @@ function App() {
   const [sourceLoading, setSourceLoading]     = useState(false);
   const [sourceResults, setSourceResults]     = useState([]);
   const [sourceMsg, setSourceMsg]             = useState("");
+  const [sourceSuggestions, setSourceSuggestions] = useState([]);
+  const [sourceAlternatives, setSourceAlternatives] = useState([]);
   const [references, setReferences]           = useState([]); // 선택한 공공 자료
+  const [resultVersions, setResultVersions] = useState([]);
+  const [revisionTarget, setRevisionTarget] = useState("");
   const [loadSec, setLoadSec]         = useState(0);      // 생성 경과 시간(초)
   const HKEY = "eval_history_v1";
   const [historyList, setHistoryList] = useState(()=>{ try{ return JSON.parse(localStorage.getItem(HKEY)||"[]"); }catch(_){ return []; } });
@@ -1281,7 +1291,7 @@ function App() {
         const j = JSON.parse(rd.result);
         const data = j && j.data && j.data.items ? j.data : (j && j.items ? j : null);
         if (!data) throw new Error();
-        setResult(attachImages(JSON.parse(JSON.stringify(data))));
+        setResultVersions([]); setResult(attachImages(JSON.parse(JSON.stringify(data))));
         setError(""); saveToHistory(data);
       }catch(_){ setError("JSON 파일을 해석하지 못했습니다. 이 앱에서 백업한 파일인지 확인하세요."); }
     };
@@ -1293,26 +1303,16 @@ function App() {
     try{ localStorage.setItem(HKEY, JSON.stringify(next)); }catch(_){}
   }
 
-  // 성취기준 복수 선택 토글 — 자동 채움은 사용자가 직접 쓴 입력을 덮어쓰지 않는다
-  const autoTextRef = useRef("");
-  const textRef = useRef(text); textRef.current = text;
+  // 공식 성취기준은 직접 입력 자료와 분리해 유지한다.
   function toggleStd(code){
-    setSelectedStds(prev=>{
-      const next = prev.includes(code) ? prev.filter(c=>c!==code) : [...prev, code];
-      const arr = (STANDARDS[subject]||[]).filter(s=>next.includes(s.code));
-      const auto = arr.map(s=>`[${s.code}] ${s.text}`).join("\n");
-      const cur = textRef.current;
-      if (arr.length && (cur.trim()==="" || cur===autoTextRef.current)) {
-        setMode("standard"); setText(auto); autoTextRef.current = auto;
-      }
-      return next;
-    });
+    setSelectedStds(prev=>prev.includes(code) ? prev.filter(c=>c!==code) : [...prev,code]);
   }
 
   const MAX_ITEMS = 4; // 문항 수 상한(타겟 수준 선택 상한과 동일)
 
-  const standardsText = (STANDARDS[subject]||[])
-    .filter(s=>selectedStds.includes(s.code)).map(s=>s.text).join(" ");
+  const effectiveSelectedStds = standardsEntryMode==="official" ? selectedStds : [];
+  const selectedStandardRows = (STANDARDS[subject]||[]).filter(s=>effectiveSelectedStds.includes(s.code));
+  const standardsText = selectedStandardRows.map(s=>s.text).join(" ");
   const patternRankings = recommendPatterns({ mode, text, images, articles:references, standardsText, sourceStructure });
   const patternRecommendations = patternRankings.slice(0,3);
   const alternativePatterns = patternRankings.slice(3);
@@ -1320,29 +1320,84 @@ function App() {
   const selectedPattern = DESIGN_PATTERNS.find(p=>p.id===patternId) || recommendedPattern;
   const selectedSource = SOURCE_STRUCTURES.find(s=>s.v===sourceStructure) || SOURCE_STRUCTURES[0];
   const selectedProvider = PUBLIC_SOURCES.find(s=>s.id===sourceProvider) || PUBLIC_SOURCES[0];
+  const hasRequiredInput = !!(
+    text.trim() || images.length || (useSources && references.length) ||
+    (mode==="standard" && effectiveSelectedStds.length)
+  );
+  const sourceReferencesComplete = !useSources || references.every(a=>a.title&&a.provider&&a.date&&a.url);
+  const generationMethodReady = runMode==="paste" || !!(apiKey.trim() && model.trim());
+  const canCreateDocument = hasRequiredInput && sourceReferencesComplete && generationMethodReady && !loading;
+  const preflightChecks = [
+    {label:"성취기준 또는 문항 제작 자료가 준비됨",ok:hasRequiredInput},
+    {label:"문항 수와 출제 패턴을 확인함",ok:count>=1&&count<=MAX_ITEMS&&!!selectedPattern},
+    {label:"선택 자료의 기관·제목·날짜·원문 주소가 확인됨",ok:sourceReferencesComplete},
+    {label:runMode==="paste"?"Claude 요청 방식이 선택됨":"Gemini API 키와 모델이 준비됨",ok:generationMethodReady},
+  ];
 
   function toggleGraspsExtra(id){
     setGraspsExtras(xs=>xs.includes(id) ? xs.filter(x=>x!==id) : [...xs,id]);
   }
 
+  function changeRunMode(next){
+    setRunMode(next);
+    setError(""); setInputErr(""); setModelMsg("");
+    setStatusMsg(next==="api" ? "Gemini 방식으로 전환했습니다." : "Claude 방식으로 전환했습니다.");
+    if (next==="api" && !apiKey) setShowGeminiConfig(true);
+  }
+
+  function completeStep(step, next){
+    setCompletedSteps(xs=>xs.includes(step) ? xs : [...xs,step]);
+    setActiveStep(next);
+    setTimeout(()=>{
+      const el=document.getElementById("workflow-step-"+next);
+      if(el) el.scrollIntoView({behavior:reducedMotion()?"auto":"smooth",block:"start"});
+    },80);
+  }
+
   function reducedMotion(){
     return window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   }
-  // 결과 도착 시: 모바일은 결과 탭으로, 데스크톱은 결과 패널로 포커스 이동
-  function afterResult(){
-    setMobileTab("preview");
+  function mobileLayout(){
+    return window.matchMedia && window.matchMedia("(max-width: 1100px)").matches;
+  }
+  function switchMobileTab(next){
+    if (next===mobileTab) return;
+    if (mobileLayout()) mobileScroll.current[mobileTab]=window.scrollY;
+    setMobileTab(next);
     setTimeout(()=>{
-      const el = document.getElementById("panel-prev");
+      if (!mobileLayout()) return;
+      window.scrollTo({top:mobileScroll.current[next]||0,behavior:"auto"});
+      const tab=document.getElementById(next==="form"?"tab-form":"tab-prev");
+      if(tab) tab.focus({preventScroll:true});
+    },80);
+  }
+  // 결과 도착 시 첫 문항으로 이동하고 완료 상태를 보조기기에 알린다.
+  function afterResult(){
+    if (mobileLayout()) mobileScroll.current.form=window.scrollY;
+    setMobileTab("preview");
+    setCompletedSteps(xs=>Array.from(new Set([...xs,1,2,3,4])));
+    setStatusMsg("평가 문서 생성이 완료되었습니다. 첫 번째 문항으로 이동했습니다.");
+    setTimeout(()=>{
+      const el = document.getElementById("first-question-heading") || document.getElementById("panel-prev");
       if (!el) return;
       el.scrollIntoView({ behavior: reducedMotion() ? "auto" : "smooth", block: "start" });
       el.focus({ preventScroll: true });
-    }, 120);
+      if (mobileLayout()) mobileScroll.current.preview=window.scrollY;
+    }, 210);
+  }
+  function goToResultTools(){
+    const el=document.querySelector("#panel-prev .toolbar");
+    if(!el) return;
+    el.scrollIntoView({behavior:reducedMotion()?"auto":"smooth",block:"start"});
+    const first=el.querySelector("button"); if(first) first.focus({preventScroll:true});
   }
   // 필수 입력 검증: 인라인 오류 + 해당 입력란으로 스크롤·포커스
   function requireInput(){
-    if (text.trim() || images.length) { setInputErr(""); return true; }
-    setInputErr("문항 제작에 사용할 내용을 입력하거나 참고 자료를 첨부하세요.");
-    setError("2단계에서 출제 자료를 입력하세요.");
+    if (hasRequiredInput) { setInputErr(""); return true; }
+    setInputErr(mode==="standard" && standardsEntryMode==="official"
+      ? "공식 성취기준을 선택하거나 출제 자료를 입력하세요."
+      : "문항 제작에 사용할 내용을 입력하거나 참고 자료를 첨부하세요.");
+    setError("2단계에서 문항 제작의 근거가 될 자료를 준비하세요.");
     setMobileTab("form");
     setTimeout(()=>{
       const el = document.getElementById("mainInput");
@@ -1420,32 +1475,42 @@ function App() {
   }
 
   // 공공 자료 검색 (서버리스 함수 /api/source-search 경유)
-  async function searchSources(){
+  async function searchSources(providerOverride, queryOverride){
+    const providerId = typeof providerOverride === "string" ? providerOverride : sourceProvider;
+    const queryText = typeof queryOverride === "string" ? queryOverride.trim() : sourceQuery.trim();
+    const providerConfig = PUBLIC_SOURCES.find(s=>s.id===providerId) || selectedProvider;
     setSourceMsg("");
-    if(!sourceQuery.trim()){ setSourceMsg("검색어를 입력하세요. 예: 기후변화, 감염병, 미세플라스틱"); return; }
+    setSourceSuggestions([]); setSourceAlternatives([]);
+    if(!queryText){ setSourceMsg("검색어를 입력하세요. 예: 기후변화, 감염병, 미세플라스틱"); return; }
+    if (providerId !== sourceProvider) setSourceProvider(providerId);
+    if (queryText !== sourceQuery) setSourceQuery(queryText);
     setSourceLoading(true);
     try{
-      const r = await fetch("/api/source-search?source=" + encodeURIComponent(sourceProvider)
-        + "&query=" + encodeURIComponent(sourceQuery.trim()) + "&limit=10");
+      const r = await fetch("/api/source-search?source=" + encodeURIComponent(providerId)
+        + "&query=" + encodeURIComponent(queryText) + "&limit=10");
       let data = {};
       try { data = await r.json(); } catch(_){}
       if(!r.ok){ throw new Error(data.error || ("검색에 실패했습니다 (" + r.status + ").")); }
       const items = (data.items||[]).map((it,i)=>({
-        id:it.id || `${sourceProvider}-${i}-${it.url||it.title||"item"}`,
-        sourceId:sourceProvider,
-        sourceName:it.sourceName || selectedProvider.name,
-        provider:it.provider || selectedProvider.provider,
-        kind:it.kind || selectedProvider.kind,
+        id:it.id || `${providerId}-${i}-${it.url||it.title||"item"}`,
+        sourceId:providerId,
+        sourceName:it.sourceName || providerConfig.name,
+        provider:it.provider || providerConfig.provider,
+        kind:it.kind || providerConfig.kind,
         title:stripTags(it.title),
         desc:stripTags(it.description || it.desc),
         url:safeHttpUrl(it.url || it.link),
         date:String(it.date || "").trim(),
+        relevance:Number.isFinite(Number(it.relevance)) ? Number(it.relevance) : null,
       }));
       setSourceResults(items);
-      if(!items.length) setSourceMsg("검색 결과가 없습니다. 검색어를 줄이거나 다른 정보원을 선택해 보세요.");
+      setSourceSuggestions(Array.isArray(data.suggestions) ? data.suggestions : []);
+      setSourceAlternatives(Array.isArray(data.recommendedSources) ? data.recommendedSources : []);
+      if(!items.length) setSourceMsg(data.notice || "관련 자료를 찾지 못했습니다. 검색어를 넓히거나 다른 정보원에서 다시 검색하세요.");
       else if(data.notice) setSourceMsg(data.notice);
     }catch(e){
       setSourceResults([]);
+      setSourceSuggestions([]); setSourceAlternatives([]);
       setSourceMsg((e.message||String(e)) + " 선택한 정보원의 연결 설정을 확인해 주세요.");
     }finally{ setSourceLoading(false); }
   }
@@ -1565,7 +1630,9 @@ function App() {
     }
 
     // 선택된 실제 성취기준·성취수준(공식 원문)을 그대로 사용하도록 강제 (복수 가능)
-    const stds = (STANDARDS[subject]||[]).filter(s=>selectedStds.includes(s.code));
+    const stds = standardsEntryMode==="official"
+      ? (STANDARDS[subject]||[]).filter(s=>selectedStds.includes(s.code))
+      : [];
     if (stds.length) {
       const blocks = stds.map(std=>{
         const lv = std.levels.map(l=>`  - ${l.level}: ${l.text}`).join("\n");
@@ -1677,7 +1744,7 @@ function App() {
 
   // Gemini API 자동 호출 모드
   async function generate() {
-    setError(""); setResult(null);
+    setError("");
     if (!apiKey.trim()) {
       setError("상단의 ‘문항 생성 방식’에서 Gemini API 키를 입력하세요.");
       setTimeout(()=>{
@@ -1699,7 +1766,7 @@ function App() {
       try { parsed = parseResult(raw); } catch(_){}
       if (parsed) {
         parsed = attachImages(applyDesignContext(parsed));
-        setResult(parsed);
+        setResultVersions([]); setResult(parsed);
         saveToHistory(parsed);
         afterResult();
         if (stop === "MAX_TOKENS") {
@@ -1747,7 +1814,8 @@ function App() {
     if (!pasteText.trim()) { setError("Claude의 답변 전체를 붙여넣으세요."); return; }
     try {
       const p = attachImages(applyDesignContext(parseResult(pasteText)));
-      setResult(p); saveToHistory(p); afterResult();
+      if(!revisionTarget) setResultVersions([]);
+      setResult(p); setRevisionTarget(""); saveToHistory(p); afterResult();
     } catch(e) {
       setError("답변 형식을 읽지 못했습니다. Claude의 답변을 처음부터 끝까지 다시 복사해 붙여넣으세요.\n\n문제 해결: 답변 안에 중괄호로 묶인 결과 데이터가 포함되어 있어야 합니다. 코드 블록은 그대로 붙여넣어도 됩니다. 기존에 표시된 문서는 유지됩니다.");
     }
@@ -1759,9 +1827,71 @@ function App() {
     if (v.trim().length > 80 && v.includes('"items"')) {
       try {
         const p = attachImages(applyDesignContext(parseResult(v)));
-        setResult(p); setError(""); saveToHistory(p); afterResult();
+        if(!revisionTarget) setResultVersions([]);
+        setResult(p); setRevisionTarget(""); setError(""); saveToHistory(p); afterResult();
       } catch(_){/* 아직 불완전하면 무시 — ③ 버튼으로 수동 시도 가능 */}
     }
+  }
+
+  function cloneResultData(value){
+    try { return JSON.parse(JSON.stringify(value)); } catch(_) { return value; }
+  }
+  function snapshotResult(){
+    if(!result) return;
+    const snapshot=cloneResultData(result);
+    setResultVersions(xs=>[snapshot,...xs].slice(0,5));
+  }
+  function restoreResultVersion(){
+    if(!resultVersions.length) return;
+    const [previous,...rest]=resultVersions;
+    if(result) rest.unshift(cloneResultData(result));
+    setResult(cloneResultData(previous));
+    setResultVersions(rest.slice(0,5));
+    setStatusMsg("이전 문서 버전으로 복원했습니다.");
+  }
+  function updateResultState(next){
+    setResult({...next});
+  }
+  function cancelRevisionRequest(){
+    setRevisionTarget("");
+    setResultVersions(xs=>xs.slice(1));
+    setStatusMsg("부분 수정 요청을 취소했습니다.");
+  }
+  async function reviseResultSection(section,label){
+    if(!result || revisionTarget) return;
+    const sectionRules={
+      questions:"items의 intro·materials·questions만 개선하고 예시 답안·채점기준·피드백은 변경하지 말 것",
+      answers:"items.questions의 modelAnswer만 개선하고 문항·자료·배점은 변경하지 말 것",
+      scoring:"items.scoring과 수준별 수행 특성만 개선하고 문항·자료는 변경하지 말 것",
+      feedback:"feedbackCases·feedbackNotes·applicationTip만 개선하고 문항·채점기준은 변경하지 말 것",
+      sources:"sourceReferences와 materials.source 연결만 점검하되 새로운 기관·자료명·URL을 만들지 말 것",
+    };
+    const request="다음 평가 문서 JSON에서 ["+label+"] 영역만 개선하라. "+sectionRules[section]+". " +
+      "수정 대상 밖의 값과 배열 순서는 그대로 유지하고, 전체 JSON 객체 하나만 반환하라.\n\n"+
+      JSON.stringify(result);
+    snapshotResult();
+    if(runMode==="paste"){
+      try{
+        await navigator.clipboard.writeText(request);
+        setRevisionTarget(section);
+        setStatusMsg(label+" 부분 수정 요청문을 복사했습니다. Claude에서 실행한 뒤 전체 답변을 4단계에 붙여넣으세요.");
+      }catch(_){ setError("부분 수정 요청문을 복사하지 못했습니다. 브라우저의 클립보드 권한을 확인하세요."); }
+      return;
+    }
+    if(!apiKey.trim()){
+      setError("부분 재생성을 실행하려면 Gemini API 키를 확인하세요.");
+      setShowGeminiConfig(true); switchMobileTab("form"); return;
+    }
+    setRevisionTarget(section); setError("");
+    try{
+      const {raw}=await callGemini({apiKey:apiKey.trim(),model:model.trim(),system:GUIDE,userText:request,images:[],maxTokens:32000});
+      const revised=attachImages(applyDesignContext(parseResult(raw)));
+      revised.reviewStatus="draft";
+      setResult(revised); saveToHistory(revised);
+      setStatusMsg(label+" 부분을 다시 생성했습니다. 변경 내용을 검토하세요.");
+    }catch(e){
+      setError((e&&e.message)||String(e));
+    }finally{ setRevisionTarget(""); }
   }
 
   function copyMd() {
@@ -1775,6 +1905,7 @@ function App() {
 
   return (
     <div className="wrap">
+      <div className="sr" role="status" aria-live="polite" aria-atomic="true">{statusMsg}</div>
       <header className="app noprint">
         <div className="mast">
           <div>
@@ -1802,7 +1933,7 @@ function App() {
         <div className="method-options" role="radiogroup" aria-label="문항 생성 방식">
           <button type="button" role="radio" aria-checked={runMode==="paste"}
             className={"method-option"+(runMode==="paste"?" is-selected":"")}
-            onClick={()=>setRunMode("paste")}>
+            onClick={()=>changeRunMode("paste")}>
             <span className="method-option-check" aria-hidden="true">✓</span>
             <strong>Claude에서 만들기</strong>
             <span className="method-meta"><span className="recommended-badge">추천</span> API 키 불필요</span>
@@ -1810,7 +1941,7 @@ function App() {
           </button>
           <button type="button" role="radio" aria-checked={runMode==="api"}
             className={"method-option"+(runMode==="api"?" is-selected":"")}
-            onClick={()=>{ if(runMode!=="api") setShowGeminiConfig(true); setRunMode("api"); }}>
+            onClick={()=>changeRunMode("api")}>
             <span className="method-option-check" aria-hidden="true">✓</span>
             <strong>이 앱에서 바로 만들기</strong>
             <span className="method-meta">Gemini API 키 필요</span>
@@ -1846,17 +1977,17 @@ function App() {
                 </div>
               </div>
               <div style={{marginTop:12}}>
-                <label className="fld">모델</label>
+                <label className="fld" htmlFor="geminiModel">Gemini 모델</label>
                 {modelList.length > 0
-                  ? <select value={modelList.includes(model)?model:"__custom__"}
+                  ? <select id="geminiModel" value={modelList.includes(model)?model:"__custom__"}
                       onChange={e=>{ if(e.target.value!=="__custom__") setModel(e.target.value); }}>
                       {modelList.map(m=><option key={m} value={m}>{m}</option>)}
                       <option value="__custom__">직접 입력…</option>
                     </select>
-                  : <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                  : <input id="geminiModel" type="text" value={model} onChange={e=>setModel(e.target.value)}
                       placeholder="gemini-2.5-flash" />}
                 {modelList.length > 0 && !modelList.includes(model) &&
-                  <input type="text" value={model} onChange={e=>setModel(e.target.value)}
+                  <input id="geminiModelCustom" aria-label="Gemini 모델명 직접 입력" type="text" value={model} onChange={e=>setModel(e.target.value)}
                     placeholder="모델명 직접 입력 (예: gemini-2.5-flash)" style={{marginTop:8}} />}
               </div>
               {modelMsg && <div className="hint" style={{color: /불러왔습니다/.test(modelMsg)?"var(--ui-success)":"var(--ui-danger)", fontWeight:600}}>{modelMsg}</div>}
@@ -1884,23 +2015,46 @@ function App() {
       <div className="mtabs noprint" role="tablist" aria-label="설정과 결과 전환">
         <button type="button" role="tab" id="tab-form" aria-selected={mobileTab==="form"} aria-controls="panel-form"
           tabIndex={mobileTab==="form"?0:-1}
-          onKeyDown={e=>{ if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); setMobileTab("preview"); } }}
-          onClick={()=>setMobileTab("form")}>설정</button>
+          onKeyDown={e=>{ if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); switchMobileTab("preview"); } }}
+          onClick={()=>switchMobileTab("form")}>설정</button>
         <button type="button" role="tab" id="tab-prev" aria-selected={mobileTab==="preview"} aria-controls="panel-prev"
           tabIndex={mobileTab==="preview"?0:-1}
-          onKeyDown={e=>{ if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); setMobileTab("form"); } }}
-          onClick={()=>setMobileTab("preview")}>결과 미리보기{result && <><span className="tab-status" aria-hidden="true">결과 있음</span><span className="sr">결과가 있습니다</span></>}</button>
+          onKeyDown={e=>{ if(e.key==="ArrowLeft"||e.key==="ArrowRight"){ e.preventDefault(); switchMobileTab("form"); } }}
+          onClick={()=>switchMobileTab("preview")}>결과 미리보기{result && <><span className="tab-status" aria-hidden="true">결과 있음</span><span className="sr">결과가 있습니다</span></>}</button>
       </div>
 
-      <div className={"workbench"+(mobileTab==="preview"?" show-preview":"")}>
+      <div className="work-summary noprint" aria-label="현재 설계 요약">
+        <div className="work-summary-values">
+          <b>{subject!=="자동"?subject:"과목 미지정"}</b>
+          <span>{targets.length?targets.join("·")+" 수준":"수준 자동"}</span>
+          <span>성취기준 {effectiveSelectedStds.length}개</span>
+          <span>문항 {Math.min(MAX_ITEMS,targets.length?Math.max(count,targets.length):count)}개</span>
+        </div>
+        <nav className="step-nav" aria-label="문항 설계 단계">
+          {["성취기준","출제 자료","문항 설계","생성·검토"].map((label,i)=>{
+            const n=i+1, done=completedSteps.includes(n);
+            return <button type="button" key={n} aria-current={activeStep===n?"step":undefined}
+              className={(activeStep===n?"is-current ":"")+(done?"is-done":"")}
+              onClick={()=>{ setActiveStep(n); switchMobileTab("form"); }}>{done?"✓ ":""}{n}. {label}</button>;
+          })}
+        </nav>
+      </div>
+
+      <div className={"workbench"+(mobileTab==="preview"?" show-preview":"")+(result?" has-result":" is-empty")}>
       <aside className="tools noprint" id="panel-form" role="tabpanel" aria-labelledby="tab-form">
 
       {/* 1단계: 출제 조건 */}
-      <div className="card">
-        <h2><span className="num">1</span> 출제 조건</h2>
+      <section className={"card workflow-step"+(activeStep===1?" is-open":"")} id="workflow-step-1">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===1} onClick={()=>setActiveStep(1)}>
+          <span className="step-index">01</span><span><strong>성취기준 선택</strong><small>{subject!=="자동"?subject:"과목 미지정"} · {effectiveSelectedStds.length?`공식 기준 ${effectiveSelectedStds.length}개`:standardsEntryMode==="manual"?"직접 입력":"기준 미선택"}</small></span>
+        </button>
+        <div className="step-content" hidden={activeStep!==1}>
 
         <label className="fld" htmlFor="subjectSel">과목</label>
-        <select id="subjectSel" value={subject} onChange={e=>{ setSubject(e.target.value); setSelectedStds([]); setStdFilter(""); }}>
+        <select id="subjectSel" value={subject} onChange={e=>{
+          const next=e.target.value; setSubject(next); setSelectedStds([]); setStdFilter("");
+          if(next!=="자동" && !(STANDARDS[next]||[]).length) setStandardsEntryMode("manual");
+        }}>
           <option value="자동">과목을 지정하지 않음</option>
           {Object.keys(groups).map(g=>(
             <optgroup key={g} label={g}>
@@ -1910,7 +2064,16 @@ function App() {
         </select>
         <div className="hint">과목을 선택하면 해당 교육과정 범위를 벗어난 개념은 사용하지 않습니다.</div>
 
-        {(STANDARDS[subject]||[]).length > 0 &&
+        <fieldset className="fset standards-entry-mode">
+          <legend className="subh">성취기준 입력 방식</legend>
+          <div className="pills mode-grid">
+            <Pill on={standardsEntryMode==="official"} onClick={()=>setStandardsEntryMode("official")}>공식 성취기준에서 선택</Pill>
+            <Pill on={standardsEntryMode==="manual"} onClick={()=>setStandardsEntryMode("manual")}>성취기준 직접 입력</Pill>
+          </div>
+          <div className="hint">두 방식은 동시에 적용되지 않습니다. 직접 입력 내용은 다음 단계에서 작성합니다.</div>
+        </fieldset>
+
+        {standardsEntryMode==="official" && (STANDARDS[subject]||[]).length > 0 &&
           <div style={{marginTop:14,borderTop:"1px dashed var(--line)",paddingTop:14}}>
             <label className="fld" htmlFor="stdFilterIn">성취기준 선택</label>
             <div className="hint compact">여러 개를 선택할 수 있습니다. 공식 성취수준은 문항과 채점기준에 함께 적용됩니다.</div>
@@ -1919,27 +2082,30 @@ function App() {
               style={{marginBottom:8}} />
             <StdList subject={subject} filter={stdFilter} selected={selectedStds} onToggle={toggleStd}/>
             {selectedStds.length>0 &&
-              <div className="note info" style={{marginTop:10}}>
-                성취기준 <b>{selectedStds.length}개</b>를 선택했습니다.{selectedStds.length>1?" 선택한 성취기준을 연결해 문항을 설계합니다.":""}
-                <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setSelectedStds([]);}}>모두 해제</a>
+              <div className="selected-standards" aria-label="선택한 성취기준">
+                <div className="selected-standards-head"><b>선택한 성취기준 · {selectedStds.length}개</b><button type="button" onClick={()=>setSelectedStds([])}>모두 해제</button></div>
+                <div className="standard-chips">{selectedStds.map(code=><button type="button" key={code} onClick={()=>toggleStd(code)} aria-label={code+" 선택 해제"}>[{code}] ×</button>)}</div>
               </div>}
             {selectedStds.map(code=>{
               const std=(STANDARDS[subject]||[]).find(s=>s.code===code); if(!std) return null;
               return (
-                <div className="box blue" key={code} style={{marginTop:10}}>
-                  <h4>[{std.code}] 공식 성취수준</h4>
-                  <div className="hint compact">문항과 채점기준에 적용됩니다.</div>
+                <details className="standard-levels" key={code}>
+                  <summary>[{std.code}] 공식 성취수준 확인</summary>
                   <table className="ktbl std-table" style={{margin:"4px 0 0"}}>
                     <tbody>{std.levels.map((lv,i)=>(
                       <tr key={i}><th style={{width:52}}>{lv.level}</th><td>{lv.text}</td></tr>
                     ))}</tbody>
                   </table>
-                </div>
+                </details>
               );
             })}
           </div>}
-        {(STANDARDS[subject]||[]).length === 0 && subject !== "자동" &&
+        {standardsEntryMode==="official" && subject==="자동" &&
+          <div className="note info" style={{marginTop:12}}>공식 성취기준을 찾으려면 과목을 먼저 선택하세요.</div>}
+        {standardsEntryMode==="official" && (STANDARDS[subject]||[]).length === 0 && subject !== "자동" &&
           <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 2단계 출제 자료에 성취기준과 성취수준을 직접 붙여넣으세요.</div>}
+        {standardsEntryMode==="manual" &&
+          <div className="note info" style={{marginTop:12}}>다음 단계의 입력란에 성취기준 코드·문장과 성취수준을 직접 붙여넣습니다.</div>}
 
         <fieldset className="fset">
           <legend className="subh">목표 성취수준</legend>
@@ -1961,14 +2127,19 @@ function App() {
           </div>
           <div className="hint">{MODES.find(m=>m.v===mode).d}</div>
         </fieldset>
-      </div>
+        <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(1,2)}>출제 자료 준비로</button></div>
+        </div>
+      </section>
 
       {/* 2단계: 출제 자료 */}
-      <div className="card">
-        <h2><span className="num">2</span> 출제 자료</h2>
+      <section className={"card workflow-step"+(activeStep===2?" is-open":"")} id="workflow-step-2">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===2} onClick={()=>setActiveStep(2)}>
+          <span className="step-index">02</span><span><strong>출제 자료 준비</strong><small>{hasRequiredInput?"문항 근거 준비됨":"입력 필요"}{references.length?` · 공공 자료 ${references.length}건`:""}</small></span>
+        </button>
+        <div className="step-content" hidden={activeStep!==2}>
 
         <label className="fld" htmlFor="mainInput">
-          {mode==="standard" ? "성취기준과 성취수준" :
+          {mode==="standard" ? (standardsEntryMode==="official" ? "추가 수업 자료 또는 출제 맥락(선택)" : "성취기준과 성취수준") :
            mode==="convert"  ? "기존 지필 문항" :
            mode==="interview"? "면접 제시문·질문·해설" :
            mode==="transform"? "기존 논술형 문항" : "수업 주제와 아이디어"}
@@ -1977,7 +2148,9 @@ function App() {
           aria-invalid={inputErr?true:undefined} aria-describedby={inputErr?"mainInputErr":undefined}
           onChange={e=>{ setText(e.target.value); if(inputErr && (e.target.value.trim()||images.length)) setInputErr(""); }}
           placeholder={
-            mode==="standard" ? "성취기준과 성취수준을 붙여넣으세요." :
+            mode==="standard" ? (standardsEntryMode==="official"
+              ? "선택한 성취기준에 더해 반영할 수업 자료, 탐구 사례 또는 출제 맥락이 있으면 입력하세요."
+              : "성취기준 코드·문장과 성취수준을 붙여넣으세요.") :
             mode==="convert"  ? "바꾸려는 문항과 정답 또는 해설을 붙여넣으세요." :
             mode==="interview"? "자료 제시형 면접의 제시문, 연속 질문, 출제 의도 또는 해설을 붙여넣으세요." :
             mode==="transform"? "변형할 문항과 채점기준을 붙여넣으세요." :
@@ -2030,6 +2203,7 @@ function App() {
           <label className="fld" htmlFor="sourceProviderSel">자료 정보원</label>
           <select id="sourceProviderSel" value={sourceProvider} onChange={e=>{
             setSourceProvider(e.target.value); setSourceResults([]); setSourceMsg("");
+            setSourceSuggestions([]); setSourceAlternatives([]);
           }}>
             {PUBLIC_SOURCES.map(s=><option key={s.id} value={s.id}>{s.name} · {s.kind}</option>)}
           </select>
@@ -2047,42 +2221,82 @@ function App() {
               placeholder={selectedProvider.placeholder} />
           </div>
           <div style={{flex:"0 0 auto"}}>
-            <button className="btn sec" onClick={searchSources} disabled={sourceLoading} style={{whiteSpace:"nowrap"}}>
+            <button className="btn sec" onClick={()=>searchSources()} disabled={sourceLoading} style={{whiteSpace:"nowrap"}}>
               {sourceLoading ? "검색 중…" : "자료 검색"}
             </button>
           </div>
         </div>
-        {sourceMsg && <div className="hint" style={{color:"var(--warn)",fontWeight:600,marginTop:8}}>{sourceMsg}</div>}
+        {sourceMsg && <div className={"source-message"+(/실패|오류|거부|설정/.test(sourceMsg)?" is-error":"")} role="status">{sourceMsg}</div>}
+        {!sourceLoading && sourceResults.length===0 && (sourceSuggestions.length>0 || sourceAlternatives.length>0) &&
+          <div className="source-empty-actions" aria-label="검색 대안">
+            {sourceSuggestions.length>0 && <div>
+              <b>검색어를 넓혀 다시 찾기</b>
+              <div className="source-action-list">
+                {sourceSuggestions.map(q=><button type="button" key={q} onClick={()=>searchSources(sourceProvider,q)}>{q}</button>)}
+              </div>
+            </div>}
+            {sourceAlternatives.length>0 && <div>
+              <b>다른 정보원에서 같은 검색어 찾기</b>
+              <div className="source-action-list">
+                {sourceAlternatives.map(s=><button type="button" key={s.id} onClick={()=>searchSources(s.id,sourceQuery)}>
+                  {s.name} · {s.kind}
+                </button>)}
+              </div>
+            </div>}
+          </div>}
         {sourceResults.length>0 &&
-          <div className="source-results">
+          <div className="source-results" aria-label="검색 결과">
             {sourceResults.map((a,i)=>{
               const on = references.some(x=>x.id===a.id);
+              const completeSource = !!(a.title && a.provider && a.date && a.url);
+              const relevantEnough = a.relevance===null || a.relevance>=35;
+              const selectable = completeSource && relevantEnough;
               return (
-                <div key={i} role="checkbox" aria-checked={on} tabIndex={0}
-                  onKeyDown={e=>{ if(e.key==="Enter"||e.key===" "){ e.preventDefault(); toggleReference(a); } }}
-                  onClick={()=>toggleReference(a)}
-                  className={"source-row"+(on?" is-on":"")}>
-                  <div className="source-title">{on?"✓ ":""}{a.title}</div>
-                  <div className="source-meta">{a.provider}{a.date?` · ${a.date}`:""}</div>
+                <article key={i} className={"source-row"+(on?" is-on":"")}>
+                  <div className="source-title-line">
+                    <div className="source-title">{a.title}</div>
+                    {a.relevance!==null && <span className="relevance">관련도 {a.relevance}%</span>}
+                  </div>
+                  <div className="source-meta">{a.provider}{a.date?` · ${a.date}`:" · 게시일 확인 필요"}</div>
                   {a.desc && <div className="source-desc">{a.desc}</div>}
-                  {a.url && <a className="source-link" href={a.url} target="_blank" rel="noreferrer"
-                    onClick={e=>e.stopPropagation()}>원문 확인</a>}
-                </div>
+                  <div className="source-row-actions">
+                    {a.url && <a className="source-link" href={a.url} target="_blank" rel="noreferrer">원문 확인</a>}
+                    <button type="button" className={on?"remove-source":"use-source"} disabled={!selectable}
+                      onClick={()=>toggleReference(a)}>{on?"자료에서 제외":"자료로 사용"}</button>
+                  </div>
+                  {!selectable && <div className="source-incomplete">{!completeSource
+                    ? "기관·제목·게시일·원문 링크가 모두 확인된 자료만 사용할 수 있습니다."
+                    : "검색어 관련도가 낮아 문항 자료로 선택할 수 없습니다."}</div>}
+                </article>
               );
             })}
           </div>}
         {references.length>0 &&
-          <div className="note info" style={{marginTop:10}}>
-            출처가 확인된 자료 <b>{references.length}건</b>을 선택했습니다.
-            <a href="#" style={{marginLeft:8,color:"var(--warn)"}} onClick={ev=>{ev.preventDefault(); setReferences([]);}}>모두 해제</a>
+          <div className="source-tray" aria-label="선택한 자료">
+            <div className="source-tray-head">
+              <b>문항에 사용할 자료 · {references.length}건</b>
+              <button type="button" onClick={()=>setReferences([])}>모두 해제</button>
+            </div>
+            {references.map(a=><div className="source-tray-item" key={a.id}>
+              <span><strong>{a.title}</strong><small>{a.provider} · {a.date}</small></span>
+              <button type="button" aria-label={a.title+" 제외"} onClick={()=>toggleReference(a)}>제외</button>
+            </div>)}
           </div>}
         <div className="hint">검색 결과는 원자료의 요약 정보입니다. 문항을 만들기 전에 제목·기관·원문을 확인하세요.</div>
         </React.Fragment>}
-      </div>
+        <div className="step-next">
+          <button type="button" className="btn" disabled={!hasRequiredInput} onClick={()=>completeStep(2,3)}>문항 구성 검토</button>
+          {!hasRequiredInput && <span>공식 성취기준을 선택하거나 출제 자료를 입력해야 다음 단계로 이동할 수 있습니다.</span>}
+        </div>
+        </div>
+      </section>
 
       {/* 3단계: 문항 구성 */}
-      <div className="card">
-        <h2><span className="num">3</span> 문항 구성</h2>
+      <section className={"card workflow-step"+(activeStep===3?" is-open":"")} id="workflow-step-3">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===3} onClick={()=>setActiveStep(3)}>
+          <span className="step-index">03</span><span><strong>문항 설계</strong><small>{selectedPattern.name} · GRASPS {GRASPS_CORE.length+graspsExtras.length}요소</small></span>
+        </button>
+        <div className="step-content" hidden={activeStep!==3}>
         <div className="count-setting">
           <div className="count-input">
             <label className="fld" htmlFor="cntIn">문항 수</label>
@@ -2117,26 +2331,27 @@ function App() {
           {patternRecommendations.map(rec=>{
             const on = selectedPattern.id===rec.pattern.id;
             return (
-              <button type="button" key={rec.pattern.id} aria-pressed={on}
-                className={"pattern-card"+(on?" is-selected":"")}
-                onClick={()=>setPatternId(rec.pattern.id)}>
-                <span className="pattern-card-top">
-                  <span className="pattern-rank">추천 {rec.rank}</span>
-                  {on && <span className="pattern-selected">현재 선택</span>}
-                </span>
-                <strong>{rec.pattern.name}</strong>
-                <span className="pattern-desc">{rec.pattern.short}</span>
-                <span className="pattern-flow">{rec.pattern.sequence.join(" → ")}</span>
-                <span className="pattern-reason">{rec.reason}</span>
-              </button>
+              <div key={rec.pattern.id} className={"pattern-card"+(on?" is-selected":"")}>
+                <button type="button" className="pattern-select" aria-pressed={on} onClick={()=>setPatternId(rec.pattern.id)}>
+                  <span className="pattern-card-top">
+                    <span className="pattern-rank">추천 {rec.rank}</span>
+                    {on && <span className="pattern-selected">현재 선택</span>}
+                  </span>
+                  <strong>{rec.pattern.name}</strong>
+                  <span className="pattern-desc">{rec.pattern.short}</span>
+                  <span className="pattern-flow">{rec.pattern.sequence.join(" → ")}</span>
+                </button>
+                <details className="pattern-reason"><summary>왜 추천했나요?</summary><p>{rec.reason}</p></details>
+              </div>
             );
           })}
         </div>
-        <div className="pattern-alternative-heading">
-          <strong>다른 출제 패턴 4개</strong>
-          <span>추천 밖의 패턴도 바로 선택할 수 있습니다.</span>
-        </div>
-        <div className="pattern-catalog-list" aria-label="다른 출제 패턴 4개">
+        <button type="button" className="pattern-alternative-toggle" aria-expanded={showAllPatterns}
+          onClick={()=>setShowAllPatterns(!showAllPatterns)}>
+          <span><strong>다른 출제 패턴 4개 {showAllPatterns?"접기":"보기"}</strong><small>추천 밖의 패턴까지 포함해 7개 모두 선택할 수 있습니다.</small></span>
+          <span aria-hidden="true">{showAllPatterns?"⌃":"⌄"}</span>
+        </button>
+        {showAllPatterns && <div className="pattern-catalog-list" aria-label="다른 출제 패턴 4개">
           {alternativePatterns.map(rec=>{
             const p=rec.pattern, on=selectedPattern.id===p.id;
             return <button type="button" key={p.id} aria-pressed={on}
@@ -2149,7 +2364,7 @@ function App() {
               <em>{p.sequence.join(" → ")}</em>
             </button>;
           })}
-        </div>
+        </div>}
 
         <button type="button" className="advtgl" aria-expanded={advOpen} onClick={()=>setAdvOpen(!advOpen)}>
           <span>고급 설정</span>
@@ -2174,10 +2389,11 @@ function App() {
           <fieldset className="grasps-setting">
             <legend className="fld">수행 맥락(GRASPS)</legend>
             <div className="grasps-grid">
-              {GRASPS_CORE.map(g=><div key={g.id} className="grasps-chip is-required">
-                <span>{g.code}</span><strong>{g.name}</strong><small>{g.desc}</small><em>기본 포함</em>
-              </div>)}
-              {GRASPS_OPTIONAL.map(g=>{
+              {[GRASPS_CORE[0],GRASPS_OPTIONAL[1],GRASPS_OPTIONAL[2],GRASPS_OPTIONAL[0],GRASPS_CORE[1],GRASPS_CORE[2]].map(g=>{
+                const required=GRASPS_CORE.some(x=>x.id===g.id);
+                if(required) return <div key={g.id} className="grasps-chip is-required">
+                  <span>{g.code}</span><strong>{g.name}</strong><small>{g.desc}</small><em>기본 포함</em>
+                </div>;
                 const on=graspsExtras.includes(g.id);
                 return <button type="button" key={g.id} aria-pressed={on} className={"grasps-chip"+(on?" is-selected":"")}
                   onClick={()=>toggleGraspsExtra(g.id)}>
@@ -2212,11 +2428,16 @@ function App() {
               placeholder='예: 그래프 해석을 포함하고, 600자 안팎으로 답하게 해 주세요.' />
           </div>
         </div>}
-      </div>
+        <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(3,4)}>생성 및 검토로</button></div>
+        </div>
+      </section>
 
       {/* 4단계: 문항 만들기 */}
-      <div className="card">
-        <h2><span className="num">4</span> {runMode==="paste" ? "Claude에서 문항 만들기" : "평가 문서 만들기"}</h2>
+      <section className={"card workflow-step"+(activeStep===4?" is-open":"")} id="workflow-step-4">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===4} onClick={()=>setActiveStep(4)}>
+          <span className="step-index">04</span><span><strong>생성 및 검토</strong><small>{result?"평가 문서 초안 생성됨":runMode==="paste"?"Claude 요청 준비":"Gemini 생성 준비"}</small></span>
+        </button>
+        <div className="step-content" hidden={activeStep!==4}>
 
         {(()=>{ const eff = Math.min(MAX_ITEMS, targets.length ? Math.max(count, targets.length) : count);
           const parts = [
@@ -2230,7 +2451,7 @@ function App() {
           if (visual==="none") parts.push("도식: 포함하지 않음");
           if (blankVer) parts.push("빈칸 문항: 사용");
           if (useSources && references.length) parts.push("공공 자료: "+references.length+"건");
-          const need = (!text.trim() && !images.length);
+          const need = !hasRequiredInput;
           return (
             <div className="sumline" aria-live="polite">
               <span>{parts.join(" / ")}</span>
@@ -2239,11 +2460,17 @@ function App() {
           );
         })()}
 
+        <div className="preflight" aria-label="생성 전 확인">
+          <b>생성 전 확인</b>
+          <ul>{preflightChecks.map((item,i)=><li key={i} className={item.ok?"is-ok":"is-missing"}>{item.ok?"✓":"–"} {item.label}</li>)}</ul>
+          {!canCreateDocument && <p>완료되지 않은 항목을 먼저 확인해야 문서를 만들 수 있습니다.</p>}
+        </div>
+
         {error && <div className="err" role="alert" style={{whiteSpace:"pre-wrap"}}>⚠ {error}</div>}
         <span className="sr" aria-live="polite">{promptCopied ? "요청문이 클립보드에 복사되었습니다" : ""}</span>
 
         {runMode==="api" && <React.Fragment>
-          <button className="btn primary-wide" onClick={generate} disabled={loading}>
+          <button className="btn primary-wide" onClick={generate} disabled={!canCreateDocument}>
             {loading ? <><span className="spin"></span>평가 문서를 만들고 있습니다. {loadSec}초 경과</> : "평가 문서 만들기"}
           </button>
           {loading &&
@@ -2253,7 +2480,7 @@ function App() {
         </React.Fragment>}
 
         {runMode==="paste" && <React.Fragment>
-          <button className="btn primary-wide" onClick={copyPromptForClaude}>
+          <button className="btn primary-wide" onClick={copyPromptForClaude} disabled={!canCreateDocument}>
             {promptCopied ? "요청문을 복사했습니다" : "Claude용 요청문 복사"}
           </button>
           {promptCopied &&
@@ -2276,7 +2503,8 @@ function App() {
           </div>
           {showEx && <pre className="exbox">{EX_JSON}</pre>}
         </React.Fragment>}
-      </div>
+        </div>
+      </section>
 
       {/* 최근 결과 */}
       {historyList.length>0 &&
@@ -2293,7 +2521,7 @@ function App() {
             <div key={h.ts} className={"history-row"+(i<historyList.length-1?" has-divider":"")}>
               <b className="history-name">{h.name}</b>
               <span className="history-date">{h.subject}{h.subject?" · ":""}{new Date(h.ts).toLocaleString("ko-KR",{month:"numeric",day:"numeric",hour:"2-digit",minute:"2-digit"})}</span>
-              <button className="btn sec mini-action" onClick={()=>{ try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); afterResult(); }}>열기</button>
+              <button className="btn sec mini-action" onClick={()=>{ setResultVersions([]); try{ setResult(attachImages(JSON.parse(JSON.stringify(h.data)))); }catch(_){ setResult(h.data); } setError(""); afterResult(); }}>열기</button>
               <button className="btn ghost mini-action"
                 onClick={()=>downloadDataUrl("data:application/json;charset=utf-8,"+encodeURIComponent(JSON.stringify(h)), (h.name||"평가도구").replace(/[\\/:*?"<>|]/g,"_")+".json")}>백업</button>
               <button className="btn ghost mini-action danger-action" onClick={()=>deleteHistory(i)}>삭제</button>
@@ -2306,20 +2534,25 @@ function App() {
         {loading && runMode==="api"
           ? <SkeletonDoc sec={loadSec}/>
           : (result
-              ? <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={nr=>setResult({...nr})}
+              ? <Result r={result} showTeacher={showTeacher} setShowTeacher={setShowTeacher} onUpdate={updateResultState}
                         onSave={()=>{ if(result) saveToHistory(result); }}
+                        onBeginEdit={snapshotResult} onRestore={restoreResultVersion} canRestore={resultVersions.length>0} previousVersion={resultVersions[0]}
+                        onReviseSection={reviseResultSection} onCancelRevision={cancelRevisionRequest} revisionTarget={revisionTarget} runMode={runMode}
                         copyMd={copyMd} copied={copied} />
-              : <EmptyDoc subject={subject} targets={targets} hasInput={!!text.trim()||images.length>0} runMode={runMode}/>)}
+              : <EmptyDoc subject={subject} targets={targets} hasInput={hasRequiredInput} runMode={runMode}/>)}
       </main>
       </div>
 
       {/* 모바일 하단 CTA */}
-      {mobileTab==="form" &&
-        <div className="mcta noprint">
-          {runMode==="paste"
-            ? <button className="btn" onClick={copyPromptForClaude}>{promptCopied?"요청문을 복사했습니다":"Claude용 요청문 복사"}</button>
-            : <button className="btn" onClick={generate} disabled={loading}>{loading?("평가 문서를 만들고 있습니다. "+loadSec+"초"):"평가 문서 만들기"}</button>}
-        </div>}
+      <div className={"mcta noprint "+(mobileTab==="preview"?"result-actions":"form-actions")}>
+        {mobileTab==="form" ? (runMode==="paste"
+          ? <button className="btn" onClick={copyPromptForClaude} disabled={!canCreateDocument}>{promptCopied?"요청문을 복사했습니다":"Claude용 요청문 복사"}</button>
+          : <button className="btn" onClick={generate} disabled={!canCreateDocument}>{loading?("평가 문서를 만들고 있습니다. "+loadSec+"초"):"평가 문서 만들기"}</button>)
+          : <React.Fragment>
+              <button className="btn sec" onClick={()=>switchMobileTab("form")}>설정 수정</button>
+              <button className="btn" onClick={goToResultTools} disabled={!result}>검토·내보내기</button>
+            </React.Fragment>}
+      </div>
 
       <p className="noprint footer-note">
         사용 전에는 성취기준과 성취수준의 일치, 자료 출처, 정답과 채점기준을 확인하세요.<br/>
@@ -2441,12 +2674,12 @@ function BlankEditor({m, onChange}) {
 }
 
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher, showCitations, onEdited, editing}) {
+function ItemBlock({it, showTeacher, showCitations, onEdited, editing, isFirst}) {
   const qs = normQuestions(it);
   const design = it.design||{};
   const ge = graspsEntries(it.grasps);
   return (
-    <div>
+    <div id={isFirst?"first-question-heading":undefined} tabIndex={isFirst?-1:undefined} className="question-block">
       <div className="kpillrow">
         <span className="kpill">평가 문항 {it.number}({it.type||"논술형"})</span>
         <span className="kline"></span>
@@ -2555,7 +2788,8 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing}) {
   );
 }
 
-const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate, onSave }) {
+const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copyMd, copied, onUpdate, onSave,
+  onBeginEdit, onRestore, canRestore, previousVersion, onReviseSection, onCancelRevision, revisionTarget, runMode }) {
   const info = r.info || {};
   const items = r.items || [];
   const ce = r.contentElements || {};
@@ -2564,14 +2798,46 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   const [editing, setEditing] = useState(false);
   const audit = auditResult(r);
   const showSourceCitations = (r.sourceReferences||[]).length > 0;
+  const reviewStatus = r.reviewStatus || "draft";
+  const reviewItems = [
+    ["alignment","교육과정과 성취기준의 정합성"],
+    ["evidence","자료와 질문의 연결"],
+    ["scoring","예시 답안과 채점기준의 일관성"],
+    ["clarity","모호한 표현·편향 여부"],
+    ["sources","출처와 사용 조건"],
+  ];
+  const reviewChecks = r.reviewChecks || {};
+  const reviewComplete = reviewItems.every(([id])=>!!reviewChecks[id]);
+  const changedSections = previousVersion ? [
+    ["학생용 문항",x=>(x.items||[]).map(it=>({intro:it.intro,materials:it.materials,questions:normQuestions(it).map(q=>({label:q.label,stem:q.stem,conditions:q.conditions,points:q.points}))}))],
+    ["예시 답안",x=>(x.items||[]).map(it=>normQuestions(it).map(q=>q.modelAnswer))],
+    ["채점기준",x=>({items:(x.items||[]).map(it=>it.scoring),levels:x.levelCharacteristics})],
+    ["피드백",x=>({cases:x.feedbackCases,notes:x.feedbackNotes,tip:x.applicationTip})],
+    ["자료 출처",x=>x.sourceReferences],
+  ].filter(([,pick])=>JSON.stringify(pick(r))!==JSON.stringify(pick(previousVersion))).map(([label])=>label) : [];
+  function toggleReview(id){
+    r.reviewChecks={...(r.reviewChecks||{}),[id]:!reviewChecks[id]};
+    if(r.reviewStatus==="approved") r.reviewStatus="reviewed";
+    onUpdate&&onUpdate(r);
+  }
+  function setReviewStatus(next){
+    if(next==="approved"&&!reviewComplete) return;
+    r.reviewStatus=next; onUpdate&&onUpdate(r); if(onSave) onSave();
+  }
 
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
+  function allowUnapprovedExport(){
+    if(reviewStatus==="approved") return true;
+    return window.confirm("이 문서는 아직 최종 승인되지 않았습니다. 현재 상태로 출력하시겠습니까?");
+  }
   function onDownloadDoc(teacher){
+    if(!allowUnapprovedExport()) return;
     setDocErr("");
     downloadDocx(r, teacher).catch(e=>setDocErr(e.message||String(e)));
   }
   function printAs(teacher){
+    if(!allowUnapprovedExport()) return;
     if (teacher === showTeacher) { window.print(); return; }
     setShowTeacher(teacher);
     setTimeout(()=>window.print(), 450);
@@ -2584,6 +2850,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           {r.curriculum==="2015"?"2015 개정":"2022 개정"}
         </span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
+        <span className={"review-doc-status "+reviewStatus}>{reviewStatus==="approved"?"최종 승인":reviewStatus==="reviewed"?"교사 검토 완료":"AI 초안"}</span>
         <span style={{flex:1}}></span>
         <span className="view-switch" role="group" aria-label="문서 보기 선택">
           <span className="view-label">문서 보기</span>
@@ -2592,10 +2859,11 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" className={!showTeacher?"is-active":""} aria-pressed={!showTeacher}
             onClick={()=>setShowTeacher(false)}>학생용</button>
         </span>
-        <button className="btn sec" onClick={()=>{ if(editing && onSave) onSave(); setEditing(!editing); }}
+        <button className="btn sec" onClick={()=>{ if(!editing&&onBeginEdit) onBeginEdit(); if(editing && onSave) onSave(); setEditing(!editing); }}
           style={editing?{background:"var(--accent)",color:"#fff"}:null}>
           {editing?"수정 완료":"문서 내용 수정"}
         </button>
+        {canRestore && <button className="btn ghost" onClick={onRestore}>이전 버전 복원</button>}
         <span className="outgrp" role="group" aria-label="출력">
           <span className="og-l">인쇄</span>
           <button type="button" onClick={()=>printAs(true)}>교사용</button>
@@ -2604,7 +2872,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" onClick={()=>onDownloadDoc(true)}>교사용</button>
           <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
         </span>
-        <button className="btn sec" onClick={copyMd} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
+        <button className="btn sec" onClick={()=>{ if(allowUnapprovedExport()) copyMd(); }} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
       </div>
       <div className="view-guide noprint" role="status">
         <b>현재 {showTeacher?"교사용":"학생용"}</b>
@@ -2612,6 +2880,30 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           ? "예시 답안·채점 기준·출제 설계까지 확인합니다. 위의 ‘학생용’을 누르면 배부본을 미리 볼 수 있습니다."
           : "학생에게 배부할 문항·제시문·답안란만 표시합니다. 출제 설계와 목표 수준은 숨겨집니다."}</span>
       </div>
+      {showTeacher && <section className="review-workspace noprint" aria-labelledby="review-title">
+        <div className="review-head">
+          <div><span>교사 검토 작업공간</span><h2 id="review-title">초안을 검토하고 승인하세요</h2></div>
+          <div className="review-status" aria-label="문서 상태">
+            <button type="button" className={reviewStatus==="draft"?"is-active":""} onClick={()=>setReviewStatus("draft")}>AI 초안</button>
+            <button type="button" className={reviewStatus==="reviewed"?"is-active":""} onClick={()=>setReviewStatus("reviewed")}>교사 검토 완료</button>
+            <button type="button" disabled={!reviewComplete} className={reviewStatus==="approved"?"is-active":""} onClick={()=>setReviewStatus("approved")}>최종 승인</button>
+          </div>
+        </div>
+        <div className="review-checks">
+          {reviewItems.map(([id,label])=><label key={id} className={reviewChecks[id]?"is-checked":""}>
+            <input type="checkbox" checked={!!reviewChecks[id]} onChange={()=>toggleReview(id)}/><span>{label}</span>
+          </label>)}
+        </div>
+        {!reviewComplete && <p className="review-note">다섯 항목을 모두 확인하면 최종 승인 상태로 바꿀 수 있습니다. 승인 전에도 출력은 가능하지만 검토 전 문서로 표시됩니다.</p>}
+        {canRestore && <p className="version-diff">이전 버전과 비교 · {changedSections.length?changedSections.join(" · ")+" 변경":"내용 변경이 아직 없습니다"}</p>}
+        <div className="section-revise">
+          <b>부분 수정</b><span>{runMode==="paste"?"선택 영역의 수정 요청문을 복사합니다.":"선택 영역만 다시 생성합니다."}</span>
+          <div>{[["questions","학생용 문항"],["answers","예시 답안"],["scoring","채점기준"],["feedback","피드백"],["sources","자료 출처"]].map(([id,label])=>
+            <button type="button" key={id} disabled={!!revisionTarget} onClick={()=>onReviseSection&&onReviseSection(id,label)}>
+              {revisionTarget===id?"처리 중…":label}
+            </button>)}{revisionTarget&&runMode==="paste"&&<button type="button" onClick={onCancelRevision}>수정 요청 취소</button>}</div>
+        </div>
+      </section>}
       {editing &&
         <div className="note info noprint">점선으로 표시된 문구를 선택해 수정할 수 있습니다. 수정 내용은 인쇄본과 Word 파일에도 적용됩니다.</div>}
       {docErr && <div className="err noprint">⚠ {docErr}</div>}
@@ -2736,7 +3028,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
         {/* 2. 평가 문항 */}
         <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
-        {items.map((it,i)=><ItemBlock key={i} it={it} showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+        {items.map((it,i)=><ItemBlock key={i} it={it} isFirst={i===0} showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
 
         {showTeacher && <React.Fragment>
           {/* 예시 답안 */}
@@ -2852,6 +3144,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       </div>
     </div>
   );
-}, (p, n) => p.r === n.r && p.showTeacher === n.showTeacher && p.copied === n.copied);
+}, (p, n) => p.r === n.r && p.showTeacher === n.showTeacher && p.copied === n.copied &&
+  p.canRestore === n.canRestore && p.previousVersion === n.previousVersion && p.revisionTarget === n.revisionTarget && p.runMode === n.runMode);
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
