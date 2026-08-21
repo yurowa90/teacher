@@ -303,7 +303,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
 - 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 앱 요청에 [선택한 공공 자료] 블록이 있을 때만 해당 자료의 출처를 materials.source에 기록하고 sourceRefId를 유지한다. 그 블록이 없으면 materials.source는 null, sourceRefId는 빈 문자열로 두며 기관명·원자료명·URL을 추정하거나 만들어 내지 않는다.
-- 조건: 조건은 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 논술형에서 분량 제한(예: "500~700자로 작성할 것")처럼 발문만으로 통제하기 어려운 것만 조건으로 둔다. 조건을 넣지 않는 문항은 conditions.content·conditions.form을 모두 빈 배열([])로 둔다.
+- 조건: 조건은 성취기준의 내용·과정·기능을 평가하는 데 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 글자 수·분량·문단 수처럼 성취기준과 직접 관계없는 형식 제한은 넣지 않는다. 내용적 조건이나 형식적 조건이 없으면 해당 배열을 반드시 빈 배열([])로 둔다.
 
 [반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
   · 요약: 자료의 핵심 개념·결론을 간결하게 정리   · 분류: 공통된 과학적 특성으로 상위·하위 범주로 묶기
@@ -669,6 +669,20 @@ function normQuestions(it) {
   return [];
 }
 
+/* 조건은 성취기준 수행을 실제로 제한하는 항목만 문서에 남긴다. */
+const GENERIC_LENGTH_CONDITION = /(?:\d[\d,]*\s*(?:~|∼|–|—|-)\s*\d[\d,]*|\d[\d,]*)\s*(?:자|글자)(?:\s*(?:이내|이상|이하|미만|초과|안팎|내외))?|글자\s*수|분량\s*(?:제한|기준)?/i;
+function conditionItems(value){
+  const values = Array.isArray(value) ? value : (value == null ? [] : [value]);
+  return values.map(x=>String(x||"").replace(/\s+/g," ").trim()).filter(Boolean);
+}
+function meaningfulConditions(cond){
+  const c=cond||{};
+  return {
+    content:conditionItems(c.content),
+    form:conditionItems(c.form).filter(x=>!GENERIC_LENGTH_CONDITION.test(x)),
+  };
+}
+
 function graspsEntries(grasps){
   const g = grasps||{};
   const standards = Array.isArray(g.standards) ? g.standards.filter(x=>String(x||"").trim()).join(" · ") : (g.standards||"");
@@ -737,15 +751,11 @@ function toMarkdown(r, showTeacher) {
     });
     normQuestions(it).forEach(q=>{
       L.push(""); L.push(`**${q.label?q.label+" ":""}${q.stem}${q.points?` (${q.points}점)`:""}**`);
-      const c = q.conditions||{};
-      if ((c.content||[]).length || (c.form||[]).length) {
+      const c = meaningfulConditions(q.conditions);
+      if (c.content.length || c.form.length) {
         L.push(""); L.push("〈조건〉");
-        if ((c.form||[]).length) {
-          L.push("[내용적 측면]"); (c.content||[]).forEach(x=>L.push(`- ${x}`));
-          L.push("[형식적 측면]"); (c.form||[]).forEach(x=>L.push(`- ${x}`));
-        } else {
-          (c.content||[]).forEach(x=>L.push(`- ${x}`));
-        }
+        if (c.content.length) { L.push("[내용적 측면]"); c.content.forEach(x=>L.push(`- ${x}`)); }
+        if (c.form.length) { L.push("[형식적 측면]"); c.form.forEach(x=>L.push(`- ${x}`)); }
       }
     });
     if (showTeacher && (it.tips||[]).length) {
@@ -933,13 +943,11 @@ function buildDocxXml(r, showTeacher){
     });
     normQuestions(it).forEach(q=>{
       B.push(dP((q.label?q.label+" ":"")+(q.stem||"")+(q.points?" ("+q.points+"점)":""),{bold:true,before:100,after:60}));
-      const c=q.conditions||{};
-      if ((c.content||[]).length||(c.form||[]).length){
+      const c=meaningfulConditions(q.conditions);
+      if (c.content.length||c.form.length){
         B.push(dP("〈조건〉",{bold:true,after:40}));
-        if ((c.form||[]).length){
-          B.push(dP("[내용적 측면]",{bold:true,after:20})); B.push(dBul(c.content));
-          B.push(dP("[형식적 측면]",{bold:true,after:20})); B.push(dBul(c.form));
-        } else B.push(dBul(c.content));
+        if (c.content.length){ B.push(dP("[내용적 측면]",{bold:true,after:20})); B.push(dBul(c.content)); }
+        if (c.form.length){ B.push(dP("[형식적 측면]",{bold:true,after:20})); B.push(dBul(c.form)); }
       }
       if (!showTeacher){
         B.push(dP("[답안 작성란]",{color:"888888",after:40}));
@@ -1585,6 +1593,7 @@ function App() {
       };
       const g=it.grasps||{};
       const qs=normQuestions(it);
+      qs.forEach(q=>{ q.conditions=meaningfulConditions(q.conditions); });
       const scoringElements=(it.scoring||[]).map(x=>x.element).filter(Boolean);
       it.grasps = {
         ...g,
@@ -1659,7 +1668,7 @@ function App() {
     }
 
     P.push("발문 작성: 모든 발문을 반응 지시어(요약·분류·구분·비교·대조·제시·설명·분석·평가·논증·서술 등)로 끝맺고, 그 지시어의 인지 활동에 맞게 설계하라. 각 문항 directive에 사용한 지시어를 명시하라.");
-    P.push("조건 최소화: 가급적 문항별 조건(conditions)을 넣지 말고 발문만으로 요구가 분명하게 하라. 분량 제한 등 꼭 필요한 경우에만 최소한으로 넣고, 없으면 conditions.content·conditions.form을 빈 배열([])로 둬라.");
+    P.push("조건 최소화: 문항별 조건은 성취기준의 내용·과정·기능을 평가하는 데 실제로 필요한 경우만 넣어라. 글자 수·분량·문단 수 같은 형식 제한은 사용하지 말고, 해당 범주의 조건이 없으면 conditions.content·conditions.form을 각각 빈 배열([])로 둬라.");
 
     const rec = patternRecommendations.find(x=>x.pattern.id===selectedPattern.id);
     P.push(
@@ -2425,7 +2434,7 @@ function App() {
           <div style={{marginTop:12}}>
             <label className="fld" htmlFor="styleIn">추가 요청</label>
             <input id="styleIn" type="text" value={style} onChange={e=>setStyle(e.target.value)}
-              placeholder='예: 그래프 해석을 포함하고, 600자 안팎으로 답하게 해 주세요.' />
+              placeholder='예: 그래프에서 두 변인의 관계를 비교하고, 근거를 두 가지 이상 사용하게 해 주세요.' />
           </div>
         </div>}
         <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(3,4)}>생성 및 검토로</button></div>
@@ -2575,18 +2584,19 @@ function KCallout({label, items}) {
 }
 
 function KCond({cond}) {
-  const c = cond || {};
-  if (!((c.content||[]).length || (c.form||[]).length)) return null;
+  const c = meaningfulConditions(cond);
+  if (!(c.content.length || c.form.length)) return null;
   return (
     <div className="kcond">
       <span className="t">〈조건〉</span>
-      {(c.form||[]).length>0 ? <React.Fragment>
+      {c.content.length>0 && <React.Fragment>
         <b className="axis">[내용적 측면]</b>
-        <ul>{(c.content||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
+        <ul>{c.content.map((x,i)=><li key={i}>{x}</li>)}</ul>
+      </React.Fragment>}
+      {c.form.length>0 && <React.Fragment>
         <b className="axis">[형식적 측면]</b>
-        <ul>{(c.form||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
-      </React.Fragment> :
-        <ul>{(c.content||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>}
+        <ul>{c.form.map((x,i)=><li key={i}>{x}</li>)}</ul>
+      </React.Fragment>}
     </div>
   );
 }
