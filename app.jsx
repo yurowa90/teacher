@@ -2859,6 +2859,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
     const id = index===0 ? "first-question-heading" : `question-item-${index+1}`;
     const el = document.getElementById(id);
     if (!el) return;
+    const scrollBehavior = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches ? "auto" : "smooth";
     el.focus({preventScroll:true});
     const pane = document.querySelector("main.paperpane");
     const paneScrollable = pane && pane.scrollHeight > pane.clientHeight+2 && getComputedStyle(pane).overflowY!=="visible";
@@ -2869,11 +2870,11 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       const stickyToolsOffset = (stickyTools ? stickyTools.getBoundingClientRect().height : 0)+12;
       pane.scrollTo({
         top:Math.max(0,pane.scrollTop+targetBox.top-paneBox.top-stickyToolsOffset),
-        behavior:reducedMotion()?"auto":"smooth"
+        behavior:scrollBehavior
       });
       return;
     }
-    el.scrollIntoView({behavior:reducedMotion()?"auto":"smooth",block:"start"});
+    el.scrollIntoView({behavior:scrollBehavior,block:"start"});
   }
 
   return (
