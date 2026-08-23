@@ -2865,7 +2865,8 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
     if (paneScrollable) {
       const paneBox = pane.getBoundingClientRect();
       const targetBox = el.getBoundingClientRect();
-      const stickyToolsOffset = 68;
+      const stickyTools = pane.querySelector(".toolbar");
+      const stickyToolsOffset = (stickyTools ? stickyTools.getBoundingClientRect().height : 0)+12;
       pane.scrollTo({
         top:Math.max(0,pane.scrollTop+targetBox.top-paneBox.top-stickyToolsOffset),
         behavior:reducedMotion()?"auto":"smooth"
