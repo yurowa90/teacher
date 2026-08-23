@@ -2869,7 +2869,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       const stickyTools = pane.querySelector(".toolbar");
       const stickyToolsOffset = (stickyTools ? stickyTools.getBoundingClientRect().height : 0)+12;
       const targetTop = Math.max(0,pane.scrollTop+targetBox.top-paneBox.top-stickyToolsOffset);
-      window.requestAnimationFrame(()=>pane.scrollTo({top:targetTop,behavior:scrollBehavior}));
+      window.requestAnimationFrame(()=>{ pane.scrollTop=targetTop; });
       return;
     }
     window.requestAnimationFrame(()=>el.scrollIntoView({behavior:scrollBehavior,block:"start"}));
