@@ -2860,6 +2860,18 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
     const el = document.getElementById(id);
     if (!el) return;
     el.focus({preventScroll:true});
+    const pane = document.querySelector("main.paperpane");
+    const paneScrollable = pane && pane.scrollHeight > pane.clientHeight+2 && getComputedStyle(pane).overflowY!=="visible";
+    if (paneScrollable) {
+      const paneBox = pane.getBoundingClientRect();
+      const targetBox = el.getBoundingClientRect();
+      const stickyToolsOffset = 68;
+      pane.scrollTo({
+        top:Math.max(0,pane.scrollTop+targetBox.top-paneBox.top-stickyToolsOffset),
+        behavior:reducedMotion()?"auto":"smooth"
+      });
+      return;
+    }
     el.scrollIntoView({behavior:reducedMotion()?"auto":"smooth",block:"start"});
   }
 
