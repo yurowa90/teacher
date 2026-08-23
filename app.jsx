@@ -2684,12 +2684,12 @@ function BlankEditor({m, onChange}) {
 }
 
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher, showCitations, onEdited, editing, isFirst}) {
+function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}) {
   const qs = normQuestions(it);
   const design = it.design||{};
   const ge = graspsEntries(it.grasps);
   return (
-    <div id={isFirst?"first-question-heading":undefined} tabIndex={isFirst?-1:undefined} className="question-block">
+    <div id={anchorId} tabIndex={-1} className="question-block">
       <div className="kpillrow">
         <span className="kpill">평가 문항 {it.number}({it.type||"논술형"})</span>
         <span className="kline"></span>
@@ -2818,6 +2818,9 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   ];
   const reviewChecks = r.reviewChecks || {};
   const reviewComplete = reviewItems.every(([id])=>!!reviewChecks[id]);
+  const standardCode = String(r.standardCode||"").replace(/^\[|\]$/g, "");
+  const itemTypes = [...new Set(items.map(it=>String(it.type||"").trim()).filter(Boolean))];
+  const documentType = itemTypes.length===1 ? itemTypes[0] : "서·논술형";
   const changedSections = previousVersion ? [
     ["학생용 문항",x=>(x.items||[]).map(it=>({intro:it.intro,materials:it.materials,questions:normQuestions(it).map(q=>({label:q.label,stem:q.stem,conditions:q.conditions,points:q.points}))}))],
     ["예시 답안",x=>(x.items||[]).map(it=>normQuestions(it).map(q=>q.modelAnswer))],
@@ -2851,6 +2854,13 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
     if (teacher === showTeacher) { window.print(); return; }
     setShowTeacher(teacher);
     setTimeout(()=>window.print(), 450);
+  }
+  function goToQuestion(index){
+    const id = index===0 ? "first-question-heading" : `question-item-${index+1}`;
+    const el = document.getElementById(id);
+    if (!el) return;
+    el.focus({preventScroll:true});
+    el.scrollIntoView({behavior:reducedMotion()?"auto":"smooth",block:"start"});
   }
 
   return (
@@ -2945,12 +2955,18 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         </div>}
 
       {/* ───────── KICE 평가도구 자료 문서 ───────── */}
-      <div className={"kdoc"+(editing?" editing":"")} id="printArea">
+      <div className={"kdoc "+(showTeacher?"view-teacher":"view-student")+(editing?" editing":"")} id="printArea">
         <div className="spine" aria-hidden="true">{showTeacher ? "교사용" : "학생 배부본"}</div>
+        <div className="document-meta" aria-label="평가 문서 정보">
+          <span className="document-meta-name">평가 문서</span>
+          <span>{info.subject||"과목 미지정"}</span>
+          {showTeacher && standardCode && <span>[{standardCode}]</span>}
+          <span>{documentType}</span>
+          <span>{items.length}문항</span>
+          <strong>{showTeacher?"교사용":"학생 배부본"}</strong>
+        </div>
         <div className="keyebrow">
           서·논술형 평가도구 자료
-          <span className="chip">과학과</span>
-          {info.subject && <span className="chip" style={{background:"#fff",color:"var(--kred-dk)",border:"1px solid var(--kred)"}}>{info.subject}</span>}
         </div>
         <div className="khead"><Ed v={info.toolName || "서·논술형 평가 문항"} editing={editing} onC={nv=>{ r.info=r.info||{}; r.info.toolName=nv; onUpdate&&onUpdate(r); }}/></div>
         {!showTeacher &&
@@ -2959,9 +2975,21 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
             <span>이름: ________________</span>
           </div>}
 
+        {items.length>1 && <nav className="document-navigator noprint" aria-label="문항 바로가기">
+          <span className="document-navigator-label">문항 이동</span>
+          <div className="document-navigator-list">
+            {items.map((it,i)=><button type="button" key={it.number||i} onClick={()=>goToQuestion(i)}
+              aria-label={`문항 ${it.number||i+1}로 이동`}>
+              <span>{String(i+1).padStart(2,"0")}</span>
+              <strong>문항 {it.number||i+1}</strong>
+              <small>{it.type||"논술형"}{it.points?` · ${it.points}점`:""}</small>
+            </button>)}
+          </div>
+        </nav>}
+
         {/* 1. 평가 도구 정보표 */}
-        {showTeacher && <React.Fragment>
-          <div className="kban">1. 평가 도구 정보표</div>
+        {showTeacher && <section className="document-section document-section-info" aria-labelledby="document-info-title">
+          <div className="kban" id="document-info-title">1. 평가 도구 정보표</div>
           <table className="ktbl">
             <tbody>
               <tr>
@@ -3034,13 +3062,17 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
                 })}
               </tbody>
             </table>}
-        </React.Fragment>}
+        </section>}
 
         {/* 2. 평가 문항 */}
-        <div className="kban">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
-        {items.map((it,i)=><ItemBlock key={i} it={it} isFirst={i===0} showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+        <section className="document-section document-section-questions" aria-labelledby="document-questions-title">
+          <div className="kban" id="document-questions-title">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
+          {items.map((it,i)=><ItemBlock key={i} it={it} anchorId={i===0?"first-question-heading":`question-item-${i+1}`}
+            showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+        </section>
 
-        {showTeacher && <React.Fragment>
+        {showTeacher && <section className="document-section document-section-teacher" aria-labelledby="teacher-guide-title">
+          <div className="kban" id="teacher-guide-title">3. 교사용 해설 및 채점</div>
           {/* 예시 답안 */}
           <div className="khd">예시 답안</div>
           <table className="ktbl">
@@ -3150,7 +3182,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
               <ul className="kul">{(ap.rubricVariation||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
             </React.Fragment>}
           </React.Fragment>}
-        </React.Fragment>}
+        </section>}
       </div>
     </div>
   );
