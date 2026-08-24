@@ -169,7 +169,8 @@ function commonItem(source, row, index) {
     provider: cleanText(row.provider || cfg.provider, 160),
     kind: cfg.kind,
     title,
-    description: cleanText(row.description || "", 700),
+    // 검색 카드는 CSS로 두 줄만 보이지만 문항 생성에는 초록·본문 요약의 근거 맥락이 필요하다.
+    description: cleanText(row.description || "", 3600),
     url,
     date: isoishDate(row.date || ""),
   };
@@ -187,20 +188,23 @@ function compactItems(items, limit) {
 
 function queryParts(query) {
   const phrase = cleanText(query, 100).toLowerCase();
+  const compactPhrase = phrase.replace(/[\s\p{P}\p{S}]+/gu, "");
   const tokens = Array.from(new Set(
     phrase.split(/[\s,./·()\[\]{}:+\-]+/).map(x => x.trim()).filter(x => x.length > 1)
   ));
-  return { phrase, tokens };
+  return { phrase, compactPhrase, tokens };
 }
 
 function relevanceScore(item, query) {
-  const { phrase, tokens } = queryParts(query);
+  const { phrase, compactPhrase, tokens } = queryParts(query);
   const title = String(item && item.title || "").toLowerCase();
-  const description = String(item && item.description || "").toLowerCase();
+  const description = String(item && (item.content || item.description) || "").toLowerCase();
   const full = title + " " + description;
+  const compactTitle = title.replace(/[\s\p{P}\p{S}]+/gu, "");
+  const compactDescription = description.replace(/[\s\p{P}\p{S}]+/gu, "");
   if (!phrase) return 0;
-  if (title.includes(phrase)) return 100;
-  if (description.includes(phrase)) return 88;
+  if (title.includes(phrase) || (compactPhrase && compactTitle.includes(compactPhrase))) return 100;
+  if (description.includes(phrase) || (compactPhrase && compactDescription.includes(compactPhrase))) return 88;
   if (!tokens.length) return 0;
 
   let matched = 0;
@@ -227,7 +231,7 @@ function querySuggestions(query) {
   const compact = q.replace(/\s+/g, "");
   const domain = [
     [/생태|먹이|생물다양/, ["생태계 변화", "생물다양성", "먹이그물"]],
-    [/기후|탄소|온실/, ["기후변화 적응", "탄소중립", "온실가스 배출"]],
+    [/기후|탄소|온실|온난/, ["기후변화 적응", "탄소중립", "온실가스 배출"]],
     [/에너지|전력|재생/, ["에너지 소비", "재생에너지", "전력 수요"]],
     [/감염|질병|바이러스/, ["감염병 대응", "질병 예방", "백신 정책"]],
     [/유전|유전자|생명윤리/, ["유전자 편집", "생명윤리", "유전 정보"]],
@@ -406,10 +410,93 @@ async function searchKosis(query, limit, key) {
   return { items: compactItems(items, limit) };
 }
 
-async function searchPolicy(query, limit, key) {
-  // 정책뉴스 API는 기간 조회 결과를 받은 뒤 제목·부제·본문에서 검색어를 선별한다.
+function firstHtmlText(block, selectors) {
+  for (const selector of selectors) {
+    const re = selector instanceof RegExp ? selector : new RegExp(selector, "i");
+    const m = String(block || "").match(re);
+    if (m && cleanText(m[m.length - 1], 1200)) return cleanText(m[m.length - 1], 1200);
+  }
+  return "";
+}
+
+function policySearchItems(body, limit) {
+  const html = String(body || "");
+  const anchorRe = /<a\b([^>]*\bhref\s*=\s*(["'])([^"']*policyNewsView\.do\?[^"']*newsId=[^"']*)\2[^>]*)>([\s\S]*?)<\/a>/gi;
+  const anchors = [];
+  let match;
+  while ((match = anchorRe.exec(html))) {
+    anchors.push({ index: match.index, end: anchorRe.lastIndex, attrs: match[1], href: match[3], inner: match[4] });
+  }
+
+  const items = anchors.map((anchor, index) => {
+    const next = anchors[index + 1];
+    const scopeEnd = Math.min(html.length, next ? next.index : anchor.end + 5000);
+    const scope = anchor.inner + " " + html.slice(anchor.end, scopeEnd);
+    const anchorTitle = firstHtmlText(anchor.attrs, [
+      /\btitle\s*=\s*["']([^"']+)["']/i,
+      /\baria-label\s*=\s*["']([^"']+)["']/i,
+    ]);
+    const structuredTitle = firstHtmlText(anchor.inner, [
+      /<([a-z0-9]+)\b[^>]*class\s*=\s*["'][^"']*(?:title|subject|\btit\b)[^"']*["'][^>]*>([\s\S]*?)<\/\1>/i,
+      /<(?:h2|h3|h4|strong|dt)\b[^>]*>([\s\S]*?)<\/(?:h2|h3|h4|strong|dt)>/i,
+      /<img\b[^>]*\balt\s*=\s*["']([^"']+)["'][^>]*>/i,
+    ]);
+    const anchorText = cleanText(anchor.inner, 4000);
+    const scopeText = cleanText(scope, 6000);
+    const dateMatch = scopeText.match(/(?:19|20)\d{2}\s*[.\/-]\s*(?:0?[1-9]|1[0-2])\s*[.\/-]\s*(?:0?[1-9]|[12]\d|3[01])/);
+    const date = isoishDate(dateMatch ? dateMatch[0] : "");
+    const title = cleanText(
+      anchorTitle || structuredTitle || anchorText.split(/(?:19|20)\d{2}\s*[.\/-]/)[0],
+      320
+    );
+    let description = firstHtmlText(scope, [
+      /<p\b[^>]*class\s*=\s*["'][^"']*(?:summary|desc|text|cont)[^"']*["'][^>]*>([\s\S]*?)<\/p>/i,
+      /<p\b[^>]*>([\s\S]*?)<\/p>/i,
+    ]);
+    if (!description || description === title) {
+      description = scopeText.replace(title, "").replace(dateMatch ? dateMatch[0] : "", "").trim();
+    }
+    return commonItem("policy", {
+      title,
+      description,
+      provider: SOURCES.policy.provider,
+      date,
+      url: anchor.href,
+      base: "https://www.korea.kr",
+    }, index);
+  }).filter(item => item.title && item.url && item.date);
+
+  return compactItems(items, limit);
+}
+
+async function searchPolicySite(query, limit) {
+  const variants = Array.from(new Set([
+    cleanText(query, 100),
+    cleanText(query, 100).replace(/\s+/g, ""),
+  ].filter(Boolean)));
+  let lastError = null;
+  for (const keyword of variants) {
+    try {
+      const url = serviceUrl("https://www.korea.kr/news/policyNewsList.do", { srchKeyword: keyword });
+      const body = await fetchText(url, {
+        headers: {
+          accept: "text/html,application/xhtml+xml",
+          "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
+        },
+      }, { source: "policy", name: SOURCES.policy.name });
+      const items = policySearchItems(body, limit);
+      if (items.length) return { items, searchedKeyword: keyword };
+    } catch (error) {
+      lastError = error;
+    }
+  }
+  return { items: [], error: lastError };
+}
+
+async function searchRecentPolicyApi(query, limit, key) {
+  if (!key) return { items: [] };
+  // 공공데이터 정책뉴스 API는 최대 3일 목록만 제공하므로 최신 자료의 보조 경로로만 사용한다.
   const end = new Date();
-  // 상위 API는 한 번에 최대 3개 날짜(오늘 포함)만 허용한다.
   const start = new Date(end.getTime() - 2 * 24 * 60 * 60 * 1000);
   const ymd = d => d.toISOString().slice(0, 10).replace(/-/g, "");
   const url = serviceUrl("https://apis.data.go.kr/1371000/policyNewsService2/policyNewsList2", {
@@ -431,9 +518,26 @@ async function searchPolicy(query, limit, key) {
   }, i));
   const valid = all.filter(x => x.title);
   const matched = rankWithRelevance(valid, query).filter(x => x.relevance >= 50);
+  return { items: compactItems(matched, limit) };
+}
+
+async function searchPolicy(query, limit, key) {
+  const site = await searchPolicySite(query, limit);
+  if (site.items.length) {
+    return {
+      items: site.items,
+      notice: site.searchedKeyword === cleanText(query, 100)
+        ? "정책브리핑 전체 키워드 검색 결과입니다."
+        : "띄어쓰기를 보정해 정책브리핑 전체 검색 결과를 찾았습니다.",
+    };
+  }
+
+  const recent = await searchRecentPolicyApi(query, limit, key);
   return {
-    items: compactItems(matched, limit),
-    notice: matched.length ? "" : "검색어와 관련된 정책자료를 찾지 못했습니다. 관련 없는 최신 뉴스는 표시하지 않습니다.",
+    items: recent.items,
+    notice: recent.items.length
+      ? "정책브리핑 전체 검색이 일시적으로 제한되어 최신 정책뉴스에서 찾은 결과를 표시합니다."
+      : "정책브리핑 전체 검색에서 관련 자료를 찾지 못했습니다. 관련 없는 최신 뉴스는 표시하지 않습니다.",
   };
 }
 
@@ -707,7 +811,7 @@ module.exports = async (req, res) => {
   const key = source === "scienceon"
     ? scienceOnConfig.authKey
     : process.env[cfg.key];
-  if (!key) {
+  if (!key && source !== "policy") {
     res.status(503).json({ error: cfg.name + " API 연결이 아직 설정되지 않았습니다. 배포 환경변수를 확인해 주세요." });
     return;
   }
