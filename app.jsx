@@ -104,7 +104,7 @@ const SOURCE_STRUCTURES = [
   },
   {
     v:"contrast", t:"대립·상보 자료",
-    d:"서로 다른 주장이나 결과를 함께 제시해 비교하고 판단 근거를 세우게 합니다."
+    d:"서로 대립하거나 보완하는 주장·자료 해석·연구 결과를 함께 제시합니다. 각 자료의 근거·전제·설명력·한계를 같은 기준으로 비교한 뒤, 더 타당한 해석을 선택하거나 두 관점을 종합해 판단을 정당화하게 합니다."
   },
   {
     v:"cross-domain", t:"영역 융합 자료",
@@ -2389,7 +2389,6 @@ function App() {
             {SOURCE_STRUCTURES.map(s=><option key={s.v} value={s.v}>{s.t}</option>)}
           </select>
           <div className="hint" aria-live="polite">{selectedSource.d}</div>
-          <div className="recommendation-dependency" role="note">이 설정을 반영해 아래 추천 출제 패턴의 순위와 추천 이유가 즉시 바뀝니다.</div>
         </div>
 
         <div className="pattern-heading">
