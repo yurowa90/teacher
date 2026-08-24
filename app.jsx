@@ -2787,12 +2787,12 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
             <div className="kvis">
               <img src={m.imageData} alt={m.caption||m.label||"자료 그림"} style={{maxWidth:"100%",borderRadius:4}}/>
               {m.caption && <div className="cap">{m.caption}</div>}
-              <div className="noprint" style={{marginTop:4}}>
+              {showTeacher && <div className="noprint" style={{marginTop:4}}>
                 <button className="btn ghost mini-doc-action"
                   onClick={()=>downloadDataUrl(m.imageData, ("자료그림_"+(m.label||"").replace(/[()\\/:*?"<>|]/g,"")||"자료그림")+".png")}>
                   그림 저장
                 </button>
-              </div>
+              </div>}
             </div>}
           {!m.imageData && (m.svg || m.svgBlank) &&
             <div className="kvis">
@@ -2807,7 +2807,7 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
               })()}
               {showTeacher && m.svgBlank &&
                 <div className="cap noprint" style={{color:"var(--accent)",fontWeight:600}}>※ 학생 배부본에는 ㉠㉡ 빈칸 도식이 실립니다. (위는 완성본)</div>}
-              <div className="noprint" style={{marginTop:4,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
+              {showTeacher && <div className="noprint" style={{marginTop:4,display:"flex",gap:8,justifyContent:"center",flexWrap:"wrap"}}>
                 {m.svg &&
                   <button className="btn ghost mini-doc-action"
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svg,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_완성본.png"); }catch(e){ alert(e.message); } }}>
@@ -2818,7 +2818,7 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
                     onClick={async()=>{ try{ downloadDataUrl(await svgToPngDataUrl(m.svgBlank,3), "도식_"+((m.label||"자료").replace(/[()]/g,""))+"_빈칸.png"); }catch(e){ alert(e.message); } }}>
                     빈칸 도식 PNG 저장
                   </button>}
-              </div>
+              </div>}
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
           {showTeacher && m.svgError &&
