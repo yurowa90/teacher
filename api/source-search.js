@@ -144,6 +144,11 @@ function isoishDate(value) {
   if (monthFirst) {
     return monthFirst[3] + "-" + monthFirst[1].padStart(2, "0") + "-" + monthFirst[2].padStart(2, "0");
   }
+  const separated = s.match(/\b((?:19|20)\d{2})\s*[.\/-]\s*(0?[1-9]|1[0-2])(?:\s*[.\/-]\s*(0?[1-9]|[12]\d|3[01]))?/);
+  if (separated) {
+    return separated[1] + "-" + separated[2].padStart(2, "0") +
+      (separated[3] ? "-" + separated[3].padStart(2, "0") : "");
+  }
   const m = s.match(/(19|20)\d{2}[.\/-]?(0?[1-9]|1[0-2])?[.\/-]?(0?[1-9]|[12]\d|3[01])?/);
   if (!m) return s;
   const digits = m[0].replace(/\D/g, "");
@@ -419,7 +424,7 @@ function firstHtmlText(block, selectors) {
   return "";
 }
 
-function policySearchItems(body, limit) {
+function policySearchItems(body, query, limit) {
   const html = String(body || "");
   const anchorRe = /<a\b([^>]*\bhref\s*=\s*(["'])([^"']*policyNewsView\.do\?[^"']*newsId=[^"']*)\2[^>]*)>([\s\S]*?)<\/a>/gi;
   const anchors = [];
@@ -466,7 +471,8 @@ function policySearchItems(body, limit) {
     }, index);
   }).filter(item => item.title && item.url && item.date);
 
-  return compactItems(items, limit);
+  // 사이트가 검색어를 무시하거나 추천 콘텐츠를 함께 섞더라도 무관한 최신 뉴스는 반환하지 않는다.
+  return compactItems(rankWithRelevance(items, query).filter(item => item.relevance >= 50), limit);
 }
 
 async function searchPolicySite(query, limit) {
@@ -477,14 +483,14 @@ async function searchPolicySite(query, limit) {
   let lastError = null;
   for (const keyword of variants) {
     try {
-      const url = serviceUrl("https://www.korea.kr/news/policyNewsList.do", { srchKeyword: keyword });
+      const url = serviceUrl("https://www.korea.kr/news/policyNewsList.do", { srchWord: keyword });
       const body = await fetchText(url, {
         headers: {
           accept: "text/html,application/xhtml+xml",
           "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
         },
       }, { source: "policy", name: SOURCES.policy.name });
-      const items = policySearchItems(body, limit);
+      const items = policySearchItems(body, query, limit);
       if (items.length) return { items, searchedKeyword: keyword };
     } catch (error) {
       lastError = error;
