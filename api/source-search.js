@@ -144,7 +144,7 @@ function isoishDate(value) {
   if (monthFirst) {
     return monthFirst[3] + "-" + monthFirst[1].padStart(2, "0") + "-" + monthFirst[2].padStart(2, "0");
   }
-  const separated = s.match(/\b((?:19|20)\d{2})\s*[.\/-]\s*(0?[1-9]|1[0-2])(?:\s*[.\/-]\s*(0?[1-9]|[12]\d|3[01]))?/);
+  const separated = s.match(/\b((?:19|20)\d{2})\s*[.\/-]\s*(1[0-2]|0?[1-9])(?:\s*[.\/-]\s*(3[01]|[12]\d|0?[1-9]))?(?!\d)/);
   if (separated) {
     return separated[1] + "-" + separated[2].padStart(2, "0") +
       (separated[3] ? "-" + separated[3].padStart(2, "0") : "");
@@ -475,6 +475,56 @@ function policySearchItems(body, query, limit) {
   return compactItems(rankWithRelevance(items, query).filter(item => item.relevance >= 50), limit);
 }
 
+function policyArticleDetails(body) {
+  const html = String(body || "");
+  const published = firstHtmlText(html, [
+    /<meta\b[^>]*property\s*=\s*["']article:published_time["'][^>]*content\s*=\s*["']([^"']+)["']/i,
+    /<meta\b[^>]*content\s*=\s*["']([^"']+)["'][^>]*property\s*=\s*["']article:published_time["']/i,
+    /<span\b[^>]*>\s*((?:19|20)\d{2}\s*[.\/-]\s*\d{1,2}\s*[.\/-]\s*\d{1,2})\s*<\/span>/i,
+  ]);
+  const startMatch = /<div\b[^>]*class\s*=\s*["'][^"']*\bview_cont\b[^"']*["'][^>]*>/i.exec(html);
+  let article = "";
+  if (startMatch) {
+    const start = startMatch.index + startMatch[0].length;
+    const rest = html.slice(start);
+    const footer = rest.search(/<div\b[^>]*class\s*=\s*["'][^"']*\barticle_footer\b/i);
+    article = footer >= 0 ? rest.slice(0, footer) : rest.slice(0, 18000);
+    article = article
+      .replace(/<script\b[\s\S]*?<\/script>/gi, " ")
+      .replace(/<style\b[\s\S]*?<\/style>/gi, " ")
+      .replace(/<figure\b[\s\S]*?<\/figure>/gi, " ");
+  }
+  return {
+    date: isoishDate(published),
+    content: cleanText(article, 3600).replace(/\s*문의\s*:[\s\S]*$/i, "").trim(),
+  };
+}
+
+async function enrichPolicyItems(items) {
+  const enrichmentCount = Math.min(6, items.length);
+  const settled = await Promise.allSettled(items.slice(0, enrichmentCount).map(async item => {
+    const body = await fetchText(item.url, {
+      headers: {
+        accept: "text/html,application/xhtml+xml",
+        "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
+      },
+    }, { source: "policy", name: SOURCES.policy.name });
+    const details = policyArticleDetails(body);
+    return {
+      ...item,
+      description: details.content || item.description,
+      date: details.date || item.date,
+    };
+  }));
+  return items.map((item, index) => {
+    const result = settled[index];
+    if (!result || result.status !== "fulfilled") return item;
+    const enriched = result.value;
+    // 검색 단계에서 계산한 점수는 검색어 문맥을 이미 반영하므로 유지한다.
+    return { ...enriched, relevance: item.relevance };
+  });
+}
+
 async function searchPolicySite(query, limit) {
   const variants = Array.from(new Set([
     cleanText(query, 100),
@@ -490,7 +540,8 @@ async function searchPolicySite(query, limit) {
           "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
         },
       }, { source: "policy", name: SOURCES.policy.name });
-      const items = policySearchItems(body, query, limit);
+      const searchItems = policySearchItems(body, query, limit);
+      const items = await enrichPolicyItems(searchItems);
       if (items.length) return { items, searchedKeyword: keyword };
     } catch (error) {
       lastError = error;
