@@ -49,11 +49,10 @@
   .stamp span+span{border-left:1px solid var(--line);}
   .stamp .s1{background:var(--ink);color:var(--ui-paper);}
 
-  /* 비대칭 2단: 좌 문서 미리보기 / 우 설정 도구 */
-  .workbench{display:grid;grid-template-columns:minmax(0,1.5fr) minmax(460px,1fr);
+  /* 비대칭 2단: 대화면에서 문서 지면을 2/3, 설정 도구를 1/3로 배분 */
+  .workbench{display:grid;grid-template-columns:minmax(0,2fr) minmax(520px,1fr);
     grid-template-areas:"preview tools";gap:24px;align-items:start;margin-top:22px;}
-  .workbench.is-empty{grid-template-columns:minmax(360px,.85fr) minmax(520px,1.15fr);}
-  .workbench.has-result{grid-template-columns:minmax(0,1.5fr) minmax(460px,1fr);}
+  .workbench.is-empty,.workbench.has-result{grid-template-columns:minmax(0,2fr) minmax(520px,1fr);}
   aside.tools{grid-area:tools;min-width:0;background:var(--ui-surface);border:1px solid var(--line);
     border-top:4px solid var(--ink);border-radius:2px;padding:0 24px 14px;}
   main.paperpane{grid-area:preview;min-width:0;position:sticky;top:24px;
