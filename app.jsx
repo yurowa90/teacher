@@ -317,6 +317,14 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [자료-발문 연계 원칙] 자료가 있으면 최소 한 문항 이상이 그 자료를 직접 분석·해석해야만 풀 수 있게 하고, 발문/조건에서 자료를 명시적으로 가리킨다("(나)에 제시된 ~를 근거로", "(가)와 (나)를 비교하여"). 자료에 없는 사실을 묻거나 답의 단서를 자료에서 빠뜨리지 않는다. 자료 없이 일반 지식만으로 풀리는 문항은 배제한다.
 
+[출처 자료의 교과 제시문 재구성 — 필수]
+- 검색 결과의 제목·초록·발췌문을 그대로 복사하거나 항목 몇 개로 축약하지 않는다. materials.body는 학생이 읽고 사고할 수 있는 완결된 교과 제시문으로 새로 쓴다.
+- 제시문에는 ① 원자료가 다루는 현상·문제의 맥락, ② 원자료에서 확인되는 구체적 근거(수치·경향·관계·사례), ③ 선택한 성취기준의 교과 개념이나 원리, ④ 다른 자료와 비교하거나 추론할 단서를 유기적으로 연결한다.
+- 교과 개념은 자료를 해석하는 데 필요한 만큼 설명하되 발문의 정답이나 판단을 제시문이 그대로 대신하지 않게 한다. 학생이 자료와 개념을 연결해 결론을 도출할 여지를 남긴다.
+- 원자료에 없는 수치·연도·인과관계는 만들지 않는다. 검색 발췌만으로 확인되지 않는 세부 사실은 일반화하지 말고, 확인 가능한 근거와 교과 개념을 구분해 서술한다.
+- 한 자료를 (가)·(나)로 나눌 때는 같은 내용을 반복하지 말고, 예를 들어 (가)는 현상과 연구 결과, (나)는 비교 자료나 적용 맥락처럼 서로 다른 인지 기능을 갖게 한다.
+- 표·그래프·도식 자료를 만들면 materials.body에도 변수·단위·비교 기준과 자료가 의미하는 맥락을 설명해, 그림만 보거나 본문만 읽어도 무엇을 비교해야 하는지 알 수 있게 한다.
+
 [채점 기준] 분석적 채점을 원칙으로 한다. 하위 문항(또는 문항)마다 채점 요소를 정하고, 만점부터 0점까지 모든 점수 단계에 '수행 특성'을 기술한다(예: 3점=3가지를 옳게 제시함 / 2점=2가지 / 1점=1가지 / 0점=옳게 제시하지 못하거나 답안을 작성하지 않음). 단계 간 기준이 서로 중복되지 않게 하고, 도움이 되면 점수 단계별 예시 답안을 덧붙인다. 배점은 3층으로 정합해야 한다: 각 하위 문항 배점 = 그 하위 문항 채점 요소 만점의 합, 문항 배점 = 하위 문항 배점의 합. 논증·평가·해석 요소는 개수가 아니라 수행의 질로 단계를 구분한다(예: 3점=근거와 자료를 연결해 타당하게 논증함 / 2점=근거는 있으나 자료와의 연결이 불완전함 / 1점=근거 없이 주장만 제시함). 점수 단계는 만점부터 0점까지 촘촘히 두는 것을 원칙으로 하되, 건너뛸 경우 그 이유가 수행 특성에서 드러나야 한다.
 
 [성취수준별 학생 수행 특성] 밴드 구획은 정보표 achievementLevels의 밴드와 동일하게 하고, scoreRange는 전체 문항 배점 합계를 기준으로 0점부터 만점까지 빠짐·겹침 없이 나눈다. 각 밴드별로 그 구간 학생이 무엇을 해냈고 무엇을 보완해야 하는지 '~하였습니다 / ~해야 합니다' 문체로 2~4문장 기술한다.
@@ -344,6 +352,8 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 - 색은 [인쇄 설정] 지시를 따른다. 컬러 지정 시에도 상자 채움은 연한 톤(예: #f4f1ea·#e8efe6·#e4ecf5), 테두리·글자는 진한 톤으로 대비를 확보한다.
 - viewBox만 지정한다(width/height 속성 금지). viewBox="0 0 900 260"(흐름형)·"0 0 760 480"(분기형) 내외.
 - 접근성: <svg>의 첫 자식으로 <title>도식 한 줄 요약</title>을 넣는다.
+- XML 안전성: SVG는 XML로 즉시 파싱 가능한 한 줄 문자열이어야 한다. &nbsp;·&ndash; 같은 HTML 전용 엔티티를 절대 쓰지 말고 공백이나 실제 유니코드 문자 또는 숫자 문자 참조(&#160;)를 사용한다. 텍스트의 &와 <는 각각 &amp;와 &lt;로 이스케이프한다. foreignObject·HTML 태그·외부 이미지·스크립트는 사용하지 않는다.
+- 출력 전 완성본과 빈칸본 각각에 닫히지 않은 태그, 중복 id, 잘못된 marker 참조, viewBox 밖 좌표, 겹치는 텍스트가 없는지 자체 점검한다. 그래프는 데이터에 대응하는 좌표·축·눈금·범례를 갖추며, 데이터가 없으면 그래프인 척하는 임의의 선을 만들지 않는다.
 
 [첨부 이미지의 자료 활용] 사용자가 이미지를 첨부하며 자료로 쓰라고 지시한 경우, 그 이미지를 다시 그리지 말고 materials 항목에 "imageIndex": N (첨부 순서, 1부터)을 지정하고 svg는 null, label과 caption만 작성하라. 그 이미지는 앱이 문서에 원본 그대로 삽입한다. 문항은 그 이미지의 내용을 직접 분석·해석해야 풀리도록 설계한다.
 
@@ -531,15 +541,37 @@ function parseResult(raw) {
 
 /* ── 도식 빈칸 편집: SVG의 텍스트를 교사가 골라 ㉠㉡ 빈칸으로 ── */
 const BLANK_SYMS = ["㉠","㉡","㉢","㉣","㉤","㉥","㉦","㉧"];
+const SVG_NAMED_ENTITIES = {
+  nbsp:"&#160;", ndash:"–", mdash:"—", middot:"·", times:"×", divide:"÷",
+  minus:"−", deg:"°", micro:"µ", rarr:"→", larr:"←", harr:"↔", le:"≤", ge:"≥",
+};
+function normalizeSvgSource(svg){
+  let source=String(svg||"").trim()
+    .replace(/^```(?:svg|xml)?\s*/i,"").replace(/```\s*$/,"").trim();
+  const start=source.search(/<svg\b/i), end=source.toLowerCase().lastIndexOf("</svg>");
+  if(start<0||end<start) return "";
+  source=source.slice(start,end+6);
+  source=source.replace(/&([A-Za-z][A-Za-z0-9]+);/g,(all,name)=>{
+    if(["amp","lt","gt","quot","apos"].includes(name)) return all;
+    return SVG_NAMED_ENTITIES[name] || ("&amp;"+name+";");
+  });
+  return source.replace(/&(?!#\d+;|#x[0-9a-f]+;|amp;|lt;|gt;|quot;|apos;)/gi,"&amp;");
+}
+function parseSvgDocument(svg){
+  const source=normalizeSvgSource(svg); if(!source) return null;
+  const doc=new DOMParser().parseFromString(source,"image/svg+xml");
+  if(!doc.documentElement||doc.documentElement.nodeName.toLowerCase()!=="svg"||doc.querySelector("parsererror")) return null;
+  return doc;
+}
 function extractSvgTexts(svg){
   try{
-    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const doc = parseSvgDocument(svg); if(!doc) return [];
     return Array.from(doc.querySelectorAll("text")).map(t=>t.textContent.replace(/\s+/g," ").trim());
   }catch(_){ return []; }
 }
 function buildBlankSvg(svg, sel){
   try{
-    const doc = new DOMParser().parseFromString(svg, "image/svg+xml");
+    const doc = parseSvgDocument(svg); if(!doc) return null;
     const texts = Array.from(doc.querySelectorAll("text"));
     const ordered = [...sel].sort((a,b)=>a-b);
     ordered.forEach((idx,k)=>{
@@ -554,8 +586,7 @@ function buildBlankSvg(svg, sel){
 /* ── SVG 무해화: script·이벤트 핸들러·외부 참조 제거 (XSS 방어) ── */
 function sanitizeSvg(svg){
   try{
-    const doc = new DOMParser().parseFromString(svg||"", "image/svg+xml");
-    if (!doc.documentElement || doc.documentElement.nodeName.toLowerCase() !== "svg") return "";
+    const doc = parseSvgDocument(svg); if(!doc) return "";
     doc.querySelectorAll("script,foreignObject,iframe,object,embed,animate,set,animateTransform").forEach(e=>e.remove());
     doc.querySelectorAll("*").forEach(el=>{
       Array.from(el.attributes).forEach(a=>{
@@ -570,13 +601,14 @@ function sanitizeSvg(svg){
 
 /* ── SVG → PNG 변환 (개별 저장·docx 삽입용) ─────────────────── */
 function svgDims(svg){
-  const m = (svg||"").match(/viewBox\s*=\s*["']\s*[\d.\-]+[ ,]+[\d.\-]+[ ,]+([\d.]+)[ ,]+([\d.]+)/);
+  const m = normalizeSvgSource(svg).match(/viewBox\s*=\s*["']\s*[\d.\-]+[ ,]+[\d.\-]+[ ,]+([\d.]+)[ ,]+([\d.]+)/);
   return m ? { w: parseFloat(m[1]), h: parseFloat(m[2]) } : { w: 900, h: 400 };
 }
 function svgToPngDataUrl(svg, scale){
   return new Promise((resolve, reject)=>{
     const { w, h } = svgDims(svg);
-    svg = sanitizeSvg(svg) || svg;
+    svg = sanitizeSvg(svg);
+    if(!svg){ reject(new Error("도식의 SVG 문법이 올바르지 않아 표시하거나 저장할 수 없습니다.")); return; }
     // 이미지 로드가 되려면 독립 SVG 문서 요건(xmlns·크기)이 필요 — 없으면 보정
     if (!/xmlns\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg xmlns="http://www.w3.org/2000/svg"');
     if (!/<svg[^>]*\swidth\s*=/.test(svg)) svg = svg.replace(/<svg/i, '<svg width="'+w+'" height="'+h+'"');
@@ -642,6 +674,12 @@ function auditResult(r){
         }
       });
     }
+    (it.materials||[]).forEach((m,mi)=>{
+      if(m.svgError) issues.push(`문항 ${it.number} 자료 ${mi+1}: ${m.svgError}`);
+      const body=String(m.body||"").trim();
+      if(m.source&&body&&!m.svg&&!m.imageData&&body.length<160)
+        issues.push(`문항 ${it.number} 자료 ${mi+1}: 출처 자료 제시문이 너무 짧아 근거와 교과 개념의 연결을 확인하기 어려움`);
+    });
   });
   (r.feedbackCases||[]).forEach((cs,ci)=>{
     const it = items.find(x=>x.number===cs.itemNumber) || items[0];
@@ -747,7 +785,7 @@ function toMarkdown(r, showTeacher) {
       L.push(`> **${m.label||""}** ${(m.body||"").replace(/\n/g,"\n> ")}`);
       if (m.svg) L.push(`> (그림자료: ${m.caption||"SVG 도식"})`);
       const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
-      if (c.text) L.push(`> 출처: ${c.text}${c.url?` · ${c.url}`:""}`);
+      if (c.text) L.push(`> 출처(내용 재구성): ${c.text}${c.url?` · ${c.url}`:""}`);
     });
     normQuestions(it).forEach(q=>{
       L.push(""); L.push(`**${q.label?q.label+" ":""}${q.stem}${q.points?` (${q.points}점)`:""}**`);
@@ -939,7 +977,7 @@ function buildDocxXml(r, showTeacher){
         B.push(dP("〔"+(m.label||"자료")+" 그림: "+(m.caption||"도식")+" — 그림 변환에 실패해 웹 화면의 인쇄/PDF에서 확인하세요〕",{color:"888888",after:100}));
       }
       const c=showSourceCitations ? sourceCitation(m.source) : {text:"",url:""};
-      if (c.text) B.push(dP("출처: "+c.text+(c.url?" · "+c.url:""),{color:"666666",after:100}));
+      if (c.text) B.push(dP("출처(내용 재구성): "+c.text+(c.url?" · "+c.url:""),{color:"666666",after:100}));
     });
     normQuestions(it).forEach(q=>{
       B.push(dP((q.label?q.label+" ":"")+(q.stem||"")+(q.points?" ("+q.points+"점)":""),{bold:true,before:100,after:60}));
@@ -1507,6 +1545,7 @@ function App() {
         kind:it.kind || providerConfig.kind,
         title:stripTags(it.title),
         desc:stripTags(it.description || it.desc),
+        content:stripTags(it.content || it.description || it.desc),
         url:safeHttpUrl(it.url || it.link),
         date:String(it.date || "").trim(),
         relevance:Number.isFinite(Number(it.relevance)) ? Number(it.relevance) : null,
@@ -1611,6 +1650,15 @@ function App() {
           m.sourceRefId = "";
           m.source = null;
         }
+        ["svg","svgBlank"].forEach(key=>{
+          const raw=m[key]; if(!raw) return;
+          const safe=sanitizeSvg(raw);
+          if(safe) m[key]=safe;
+          else {
+            m[key]=null;
+            m.svgError="생성된 도식의 SVG 문법을 자동 복구하지 못해 문서에서 제외했습니다.";
+          }
+        });
       });
     });
     return r;
@@ -1729,14 +1777,15 @@ function App() {
       const A = references.map((a,i)=>
         `SRC-${i+1} | [${a.kind||"공공 자료"}] ${a.title}\n`+
         `    제공기관: ${a.provider||a.sourceName||""}${a.date?` · ${a.date}`:""}\n`+
-        `    내용: ${a.desc||""}\n`+
+        `    원자료 발췌·초록: ${a.content||a.desc||""}\n`+
         `    원문: ${a.url||""}`
       ).join("\n\n");
       P.push(
         `[선택한 공공 자료 — 제시문·발문의 근거로 활용]\n${A}\n` +
         `→ 위 자료를 바탕으로 제시문(materials)을 구성하고, 최소 한 문항 이상이 이 자료를 직접 분석·해석해야만 풀리도록 발문·조건을 설계하라. ` +
         `사용한 자료마다 materials.sourceRefId에 SRC 번호를 정확히 기록하고 source에 제공기관·원자료명·날짜·원문 URL을 그대로 옮겨라. ` +
-        `제시문 아래에는 출처가 표시되어야 한다. 원문을 길게 복제하지 말고 학생 수준에 맞게 요약·재구성하되, 수치·법령명·연구 결과와 맥락을 왜곡하지 말라. ` +
+        `제시문 아래에는 출처가 표시되어야 한다. 검색 결과의 발췌문을 그대로 붙이거나 제목·결론만 형식적으로 옮기지 말고, 공식 성취기준의 교과 개념과 원자료 근거를 연결한 학생용 제시문으로 재구성하라. ` +
+        `각 제시문은 현상 맥락→자료의 구체적 근거→교과 개념으로 해석할 단서가 이어지는 완결된 설명문이어야 한다. 수치·법령명·연구 결과와 맥락은 왜곡하거나 새로 만들지 말라. ` +
         `성취기준·과목 범위와 맞지 않는 자료는 사용하지 말라.`
       );
     } else {
@@ -1869,7 +1918,8 @@ function App() {
   async function reviseResultSection(section,label){
     if(!result || revisionTarget) return;
     const sectionRules={
-      questions:"items의 intro·materials·questions만 개선하고 예시 답안·채점기준·피드백은 변경하지 말 것",
+      materials:"items의 intro·materials만 개선할 것. 검색 발췌를 그대로 옮긴 짧은 요약이나 항목 나열을 제거하고, 원자료의 구체적 근거와 성취기준의 교과 개념을 연결한 학생용 제시문으로 재구성할 것. sourceRefId와 materials.source의 기관·제목·날짜·URL은 절대 변경하지 말고 questions·예시 답안·채점기준·피드백도 변경하지 말 것",
+      questions:"items.questions만 개선하고 제시문·예시 답안·채점기준·피드백은 변경하지 말 것",
       answers:"items.questions의 modelAnswer만 개선하고 문항·자료·배점은 변경하지 말 것",
       scoring:"items.scoring과 수준별 수행 특성만 개선하고 문항·자료는 변경하지 말 것",
       feedback:"feedbackCases·feedbackNotes·applicationTip만 개선하고 문항·채점기준은 변경하지 말 것",
@@ -2326,6 +2376,22 @@ function App() {
           <p>1개부터 4개까지 만들 수 있습니다. 여러 수준을 선택하면 수준 수만큼 자동 조정됩니다.</p>
         </div>
 
+        <div className="source-structure-setting">
+          <div className="source-structure-heading">
+            <div>
+              <div className="subh">자료 설정</div>
+              <p>문항에 제시할 자료의 관계와 형식을 먼저 정합니다.</p>
+            </div>
+            <span>추천 순위에 반영</span>
+          </div>
+          <label className="fld" htmlFor="sourceStructureSel">자료 구성</label>
+          <select id="sourceStructureSel" value={sourceStructure} onChange={e=>setSourceStructure(e.target.value)}>
+            {SOURCE_STRUCTURES.map(s=><option key={s.v} value={s.v}>{s.t}</option>)}
+          </select>
+          <div className="hint" aria-live="polite">{selectedSource.d}</div>
+          <div className="recommendation-dependency" role="note">이 설정을 반영해 아래 추천 출제 패턴의 순위와 추천 이유가 즉시 바뀝니다.</div>
+        </div>
+
         <div className="pattern-heading">
           <div>
             <div className="subh">출제 패턴</div>
@@ -2380,7 +2446,6 @@ function App() {
           <span className="chevron" aria-hidden="true">{advOpen ? "⌃" : "⌄"}</span>
           <span className="sr">{advOpen ? "접기" : "펼치기"}</span>
           <span className="advsum">{[
-            "자료: "+selectedSource.t,
             "GRASPS: "+(GRASPS_CORE.length+graspsExtras.length)+"요소",
             "도식: "+(visual==="none" ? "포함하지 않음" : (visual==="always" ? "항상" : "필요할 때")),
             "인쇄: "+(mono ? "흑백" : "컬러"),
@@ -2389,12 +2454,6 @@ function App() {
           ].filter(Boolean).join(" / ")}</span>
         </button>
         {advOpen && <div style={{paddingTop:12}}>
-          <label className="fld" htmlFor="sourceStructureSel">자료 구성</label>
-          <select id="sourceStructureSel" value={sourceStructure} onChange={e=>setSourceStructure(e.target.value)}>
-            {SOURCE_STRUCTURES.map(s=><option key={s.v} value={s.v}>{s.t}</option>)}
-          </select>
-          <div className="hint" aria-live="polite">{selectedSource.d}</div>
-
           <fieldset className="grasps-setting">
             <legend className="fld">수행 맥락(GRASPS)</legend>
             <div className="grasps-grid">
@@ -2762,9 +2821,11 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
               </div>
               {showTeacher && m.svg && <BlankEditor m={m} onChange={onEdited}/>}
             </div>}
+          {showTeacher && m.svgError &&
+            <div className="svg-warning noprint" role="status">{m.svgError} 제시문은 유지되며, ‘제시문’ 부분 재생성으로 도식을 다시 만들 수 있습니다.</div>}
           {showCitations && (()=>{ const c=sourceCitation(m.source); return c.text ?
             <div className="kcite">
-              <b>출처</b> · {c.text}
+              <b>출처(내용 재구성)</b> · {c.text}
               {c.url && <React.Fragment><br/><a href={c.url} target="_blank" rel="noreferrer">{c.url}</a></React.Fragment>}
             </div> : null; })()}
         </div>
@@ -2840,20 +2901,38 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
-  function allowUnapprovedExport(){
-    if(reviewStatus==="approved") return true;
-    return window.confirm("이 문서는 아직 최종 승인되지 않았습니다. 현재 상태로 출력하시겠습니까?");
+  const [pendingExport, setPendingExport] = useState(null);
+  function performExport(request){
+    if(!request) return;
+    if(request.type==="doc"){
+      setDocErr("");
+      downloadDocx(r,request.teacher).catch(e=>setDocErr(e.message||String(e)));
+      return;
+    }
+    if(request.type==="print"){
+      if(request.teacher===showTeacher){ window.print(); return; }
+      setShowTeacher(request.teacher); setTimeout(()=>window.print(),450); return;
+    }
+    if(request.type==="copy") copyMd();
+  }
+  function requestExport(request){
+    if(reviewStatus==="approved") performExport(request);
+    else setPendingExport(request);
+  }
+  function goToReviewWorkspace(){
+    setPendingExport(null); setShowTeacher(true);
+    setTimeout(()=>{
+      const el=document.getElementById("review-workspace");
+      if(!el) return;
+      el.focus({preventScroll:true});
+      el.scrollIntoView({behavior:"smooth",block:"start"});
+    },60);
   }
   function onDownloadDoc(teacher){
-    if(!allowUnapprovedExport()) return;
-    setDocErr("");
-    downloadDocx(r, teacher).catch(e=>setDocErr(e.message||String(e)));
+    requestExport({type:"doc",teacher});
   }
   function printAs(teacher){
-    if(!allowUnapprovedExport()) return;
-    if (teacher === showTeacher) { window.print(); return; }
-    setShowTeacher(teacher);
-    setTimeout(()=>window.print(), 450);
+    requestExport({type:"print",teacher});
   }
   function goToQuestion(index){
     const id = index===0 ? "first-question-heading" : `question-item-${index+1}`;
@@ -2882,7 +2961,10 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           {r.curriculum==="2015"?"2015 개정":"2022 개정"}
         </span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
-        <span className={"review-doc-status "+reviewStatus}>{reviewStatus==="approved"?"최종 승인":reviewStatus==="reviewed"?"교사 검토 완료":"AI 초안"}</span>
+        <button type="button" className={"review-doc-status "+reviewStatus} onClick={goToReviewWorkspace}
+          aria-label={(reviewStatus==="approved"?"최종 승인":reviewStatus==="reviewed"?"교사 검토 완료":"AI 초안")+" · 검토 및 승인 영역으로 이동"}>
+          {reviewStatus==="approved"?"최종 승인":reviewStatus==="reviewed"?"교사 검토 완료":"AI 초안"} · 검토/승인
+        </button>
         <span style={{flex:1}}></span>
         <span className="view-switch" role="group" aria-label="문서 보기 선택">
           <span className="view-label">문서 보기</span>
@@ -2904,15 +2986,26 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <button type="button" onClick={()=>onDownloadDoc(true)}>교사용</button>
           <button type="button" onClick={()=>onDownloadDoc(false)}>학생용</button>
         </span>
-        <button className="btn sec" onClick={()=>{ if(allowUnapprovedExport()) copyMd(); }} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
+        <button className="btn sec" onClick={()=>requestExport({type:"copy"})} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
       </div>
+      {pendingExport && <div className="export-approval-prompt noprint" role="dialog" aria-modal="true" aria-labelledby="export-approval-title">
+        <div>
+          <b id="export-approval-title">최종 승인 전 출력</b>
+          <p>다섯 가지 검토 항목을 확인한 뒤 최종 승인할 수 있습니다. 검토 작업공간으로 이동하거나, 미승인 상태임을 알고 현재 문서를 출력하세요.</p>
+        </div>
+        <div className="export-approval-actions">
+          <button type="button" className="btn" onClick={goToReviewWorkspace}>검토·승인으로 이동</button>
+          <button type="button" className="btn sec" onClick={()=>{const request=pendingExport;setPendingExport(null);performExport(request);}}>미승인 상태로 계속</button>
+          <button type="button" className="btn ghost" onClick={()=>setPendingExport(null)}>취소</button>
+        </div>
+      </div>}
       <div className="view-guide noprint" role="status">
         <b>현재 {showTeacher?"교사용":"학생용"}</b>
         <span>{showTeacher
           ? "예시 답안·채점 기준·출제 설계까지 확인합니다. 위의 ‘학생용’을 누르면 배부본을 미리 볼 수 있습니다."
           : "학생에게 배부할 문항·제시문·답안란만 표시합니다. 출제 설계와 목표 수준은 숨겨집니다."}</span>
       </div>
-      {showTeacher && <section className="review-workspace noprint" aria-labelledby="review-title">
+      {showTeacher && <section className="review-workspace noprint" id="review-workspace" tabIndex={-1} aria-labelledby="review-title">
         <div className="review-head">
           <div><span>교사 검토 작업공간</span><h2 id="review-title">초안을 검토하고 승인하세요</h2></div>
           <div className="review-status" aria-label="문서 상태">
@@ -2930,7 +3023,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         {canRestore && <p className="version-diff">이전 버전과 비교 · {changedSections.length?changedSections.join(" · ")+" 변경":"내용 변경이 아직 없습니다"}</p>}
         <div className="section-revise">
           <b>부분 수정</b><span>{runMode==="paste"?"선택 영역의 수정 요청문을 복사합니다.":"선택 영역만 다시 생성합니다."}</span>
-          <div>{[["questions","학생용 문항"],["answers","예시 답안"],["scoring","채점기준"],["feedback","피드백"],["sources","자료 출처"]].map(([id,label])=>
+          <div>{[["materials","제시문"],["questions","발문"],["answers","예시 답안"],["scoring","채점기준"],["feedback","피드백"],["sources","자료 출처"]].map(([id,label])=>
             <button type="button" key={id} disabled={!!revisionTarget} onClick={()=>onReviseSection&&onReviseSection(id,label)}>
               {revisionTarget===id?"처리 중…":label}
             </button>)}{revisionTarget&&runMode==="paste"&&<button type="button" onClick={onCancelRevision}>수정 요청 취소</button>}</div>
