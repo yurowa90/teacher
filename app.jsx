@@ -522,7 +522,7 @@ function autoCloseJson(s) {
   return out;
 }
 
-function parseResult(raw) {
+function parseResult(raw, opts) {
   let s = (raw || "").trim();
   s = s.replace(/^```(json)?/i,"").replace(/```\s*$/,"").trim();
   const a = s.indexOf("{");
@@ -533,9 +533,16 @@ function parseResult(raw) {
     s,
     b > 0 ? s.slice(0, b + 1) : s,
     noTrailingComma(b > 0 ? s.slice(0, b + 1) : s),
-    noTrailingComma(autoCloseJson(s)),   // 잘린 출력 복구
   ];
   for (const t of attempts) { try { return JSON.parse(t); } catch(_){} }
+  // 잘린 출력 복구는 명시적으로 허용된 경로에서만 시도하고, 복구된 문서에는 표식을 남긴다
+  if (!opts || opts.recover !== false) {
+    try {
+      const p = JSON.parse(noTrailingComma(autoCloseJson(s)));
+      if (p && typeof p === "object") p.__recovered = true;
+      return p;
+    } catch(_){}
+  }
   throw new Error("PARSE_FAIL");
 }
 
@@ -587,7 +594,7 @@ function buildBlankSvg(svg, sel){
 function sanitizeSvg(svg){
   try{
     const doc = parseSvgDocument(svg); if(!doc) return "";
-    doc.querySelectorAll("script,foreignObject,iframe,object,embed,animate,set,animateTransform").forEach(e=>e.remove());
+    doc.querySelectorAll("script,foreignObject,iframe,object,embed,style,animate,set,animateTransform,animateMotion").forEach(e=>e.remove());
     doc.querySelectorAll("*").forEach(el=>{
       Array.from(el.attributes).forEach(a=>{
         const n = a.name.toLowerCase(), v = (a.value||"").toLowerCase();
@@ -1301,7 +1308,7 @@ function App() {
 
   useEffect(()=>{ localStorage.setItem("run_mode", runMode); }, [runMode]);
 
-  useEffect(()=>{ if(apiKey) localStorage.setItem("gemini_key", apiKey); }, [apiKey]);
+  useEffect(()=>{ if(apiKey) localStorage.setItem("gemini_key", apiKey); else localStorage.removeItem("gemini_key"); }, [apiKey]);
   useEffect(()=>{ localStorage.setItem("gemini_model", model); }, [model]);
 
   // 생성 경과 시간 표시
@@ -1871,7 +1878,9 @@ function App() {
     setError("");
     if (!pasteText.trim()) { setError("Claude의 답변 전체를 붙여넣으세요."); return; }
     try {
-      const p = attachImages(applyDesignContext(parseResult(pasteText)));
+      const parsed = parseResult(pasteText);
+      if(!parsed || !Array.isArray(parsed.items) || !parsed.items.length) throw new Error("PARSE_FAIL");
+      const p = attachImages(applyDesignContext(parsed));
       if(!revisionTarget) setResultVersions([]);
       setResult(p); setRevisionTarget(""); saveToHistory(p); afterResult();
     } catch(e) {
@@ -1880,11 +1889,14 @@ function App() {
   }
 
   // 붙여넣는 즉시 자동 인식(성공하면 바로 문서 표시)
+  // 자동 경로는 엄격 파싱만 허용 — 잘린 답변을 복구해 완성 문서처럼 보여주지 않는다(복구는 ③ 버튼의 수동 경로에서만)
   function onPasteChange(v){
     setPasteText(v);
     if (v.trim().length > 80 && v.includes('"items"')) {
       try {
-        const p = attachImages(applyDesignContext(parseResult(v)));
+        const parsed = parseResult(v, {recover:false});
+        if(!parsed || !Array.isArray(parsed.items) || !parsed.items.length) return;
+        const p = attachImages(applyDesignContext(parsed));
         if(!revisionTarget) setResultVersions([]);
         setResult(p); setRevisionTarget(""); setError(""); saveToHistory(p); afterResult();
       } catch(_){/* 아직 불완전하면 무시 — ③ 버튼으로 수동 시도 가능 */}
@@ -2901,6 +2913,19 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   // Word(.docx) 다운로드 — 진짜 OOXML 문서라 한글(HWP)·훈워드·MS워드 모두 열림
   const [docErr, setDocErr] = useState("");
   const [pendingExport, setPendingExport] = useState(null);
+  // 승인 확인 대화상자: 열릴 때 첫 버튼으로 포커스 이동, 닫히면 원래 위치로 복귀
+  const approvalFirstBtn = useRef(null);
+  const approvalPrevFocus = useRef(null);
+  useEffect(()=>{
+    if(pendingExport){
+      approvalPrevFocus.current = document.activeElement;
+      const t=setTimeout(()=>{ if(approvalFirstBtn.current) approvalFirstBtn.current.focus(); },0);
+      return ()=>clearTimeout(t);
+    }
+    const prev=approvalPrevFocus.current;
+    approvalPrevFocus.current=null;
+    if(prev && prev.focus && document.contains(prev)) prev.focus();
+  },[pendingExport]);
   function performExport(request){
     if(!request) return;
     if(request.type==="doc"){
@@ -2987,15 +3012,19 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         </span>
         <button className="btn sec" onClick={()=>requestExport({type:"copy"})} title="Markdown 형식으로 복사합니다.">{copied?"복사했습니다":"HWP·Word용 복사"}</button>
       </div>
-      {pendingExport && <div className="export-approval-prompt noprint" role="dialog" aria-modal="true" aria-labelledby="export-approval-title">
-        <div>
-          <b id="export-approval-title">최종 승인 전 출력</b>
-          <p>다섯 가지 검토 항목을 확인한 뒤 최종 승인할 수 있습니다. 검토 작업공간으로 이동하거나, 미승인 상태임을 알고 현재 문서를 출력하세요.</p>
-        </div>
-        <div className="export-approval-actions">
-          <button type="button" className="btn" onClick={goToReviewWorkspace}>검토·승인으로 이동</button>
-          <button type="button" className="btn sec" onClick={()=>{const request=pendingExport;setPendingExport(null);performExport(request);}}>미승인 상태로 계속</button>
-          <button type="button" className="btn ghost" onClick={()=>setPendingExport(null)}>취소</button>
+      {pendingExport && <div className="export-approval-overlay noprint"
+        onKeyDown={e=>{ if(e.key==="Escape") setPendingExport(null); }}
+        onClick={e=>{ if(e.target===e.currentTarget) setPendingExport(null); }}>
+        <div className="export-approval-prompt" role="dialog" aria-modal="true" aria-labelledby="export-approval-title">
+          <div>
+            <b id="export-approval-title">최종 승인 전 출력</b>
+            <p>다섯 가지 검토 항목을 확인한 뒤 최종 승인할 수 있습니다. 검토 작업공간으로 이동하거나, 미승인 상태임을 알고 현재 문서를 출력하세요.</p>
+          </div>
+          <div className="export-approval-actions">
+            <button type="button" ref={approvalFirstBtn} className="btn" onClick={goToReviewWorkspace}>검토·승인으로 이동</button>
+            <button type="button" className="btn sec" onClick={()=>{const request=pendingExport;setPendingExport(null);performExport(request);}}>미승인 상태로 계속</button>
+            <button type="button" className="btn ghost" onClick={()=>setPendingExport(null)}>취소</button>
+          </div>
         </div>
       </div>}
       <div className="view-guide noprint" role="status">
@@ -3031,6 +3060,11 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       {editing &&
         <div className="note info noprint">점선으로 표시된 문구를 선택해 수정할 수 있습니다. 수정 내용은 인쇄본과 Word 파일에도 적용됩니다.</div>}
       {docErr && <div className="err noprint">⚠ {docErr}</div>}
+
+      {r.__recovered && <div className="err noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
+        <b>복구된 불완전 문서</b> — AI 답변이 중간에 잘린 상태로 받아 괄호를 자동으로 닫아 표시했습니다.
+        채점기준·피드백 등 뒷부분이 누락됐을 수 있으니, 답변 전체를 다시 복사해 붙여넣거나 문항 수를 줄여 다시 생성하세요.
+      </div>}
 
       {showTeacher && audit.length>0 &&
         <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
