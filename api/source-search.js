@@ -225,8 +225,10 @@ function relevanceScore(item, query) {
 }
 
 function rankWithRelevance(items, query) {
+  // 검색 단계에서 이미 계산된 점수는 보존한다 — 정책브리핑은 원문 보강으로 description이
+  // 전문으로 바뀌므로, 여기서 재계산하면 검색어 문맥 기준 점수를 덮어쓰게 된다.
   return (items || []).map((item, index) => ({
-    item: { ...item, relevance: relevanceScore(item, query) }, index,
+    item: { ...item, relevance: Number.isFinite(item.relevance) ? item.relevance : relevanceScore(item, query) }, index,
   })).sort((a, b) => b.item.relevance - a.item.relevance || a.index - b.index)
     .map(entry => entry.item);
 }
@@ -502,20 +504,31 @@ function policyArticleDetails(body) {
 
 async function enrichPolicyItems(items) {
   const enrichmentCount = Math.min(6, items.length);
-  const settled = await Promise.allSettled(items.slice(0, enrichmentCount).map(async item => {
-    const body = await fetchText(item.url, {
-      headers: {
-        accept: "text/html,application/xhtml+xml",
-        "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
-      },
-    }, { source: "policy", name: SOURCES.policy.name });
-    const details = policyArticleDetails(body);
-    return {
-      ...item,
-      description: details.content || item.description,
-      date: details.date || item.date,
-    };
-  }));
+  const targets = items.slice(0, enrichmentCount);
+  // 원문 보강은 korea.kr로만 나가고, 동시 2건으로 제한 — 요청 1건이 유발하는
+  // 아웃바운드 부하와 함수 실행시간 증폭을 막는다.
+  const settled = [];
+  const CONCURRENCY = 2;
+  for (let i = 0; i < targets.length; i += CONCURRENCY) {
+    const part = await Promise.allSettled(targets.slice(i, i + CONCURRENCY).map(async item => {
+      let host = "";
+      try { host = new URL(item.url).host.toLowerCase(); } catch (_) {}
+      if (host !== "www.korea.kr" && host !== "korea.kr") return item;
+      const body = await fetchText(item.url, {
+        headers: {
+          accept: "text/html,application/xhtml+xml",
+          "user-agent": "TeacherEssayTest/1.0 (+https://teacher-essaytest.vercel.app)",
+        },
+      }, { source: "policy", name: SOURCES.policy.name });
+      const details = policyArticleDetails(body);
+      return {
+        ...item,
+        description: details.content || item.description,
+        date: details.date || item.date,
+      };
+    }));
+    settled.push(...part);
+  }
   return items.map((item, index) => {
     const result = settled[index];
     if (!result || result.status !== "fulfilled") return item;
@@ -838,12 +851,27 @@ function validCaller(req) {
 
 function rateAllowed(req) {
   global.__publicSourceRate = global.__publicSourceRate || new Map();
-  const ip = String(req.headers["x-forwarded-for"] || "").split(",")[0].trim() || "unknown";
+  global.__publicSourceRateAll = global.__publicSourceRateAll || [];
   const now = Date.now();
+  // 인스턴스 전체 상한: x-forwarded-for 위조로 IP별 제한을 우회해도 총량은 못 넘긴다
+  global.__publicSourceRateAll = global.__publicSourceRateAll.filter(t => now - t < 60000);
+  if (global.__publicSourceRateAll.length >= 120) return false;
+  // 플랫폼이 채우는 x-real-ip를 우선하고, x-forwarded-for는 위조가 어려운 마지막 값을 쓴다
+  const ip = String(req.headers["x-real-ip"] || "").trim()
+    || String(req.headers["x-forwarded-for"] || "").split(",").pop().trim()
+    || "unknown";
   const recent = (global.__publicSourceRate.get(ip) || []).filter(t => now - t < 60000);
   if (recent.length >= 40) return false;
   recent.push(now); global.__publicSourceRate.set(ip, recent);
-  if (global.__publicSourceRate.size > 5000) global.__publicSourceRate.clear();
+  global.__publicSourceRateAll.push(now);
+  if (global.__publicSourceRate.size > 5000) {
+    // 전량 초기화는 모든 카운터를 무력화하므로 만료된 항목만 정리한다
+    for (const [k, arr] of global.__publicSourceRate) {
+      const alive = arr.filter(t => now - t < 60000);
+      if (alive.length) global.__publicSourceRate.set(k, alive);
+      else global.__publicSourceRate.delete(k);
+    }
+  }
   return true;
 }
 
