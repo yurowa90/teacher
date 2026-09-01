@@ -139,7 +139,7 @@ const GRASPS_OPTIONAL = [
   { id:"audience", code:"A", name:"독자", desc:"글을 읽고 판단할 대상" },
 ];
 
-function recommendPatterns({ mode, text, images, articles, standardsText, sourceStructure }) {
+function recommendPatterns({ mode, text, images, articles, standardsText, sourceStructure, planText }) {
   // 사용자가 직접 입력한 자료를 가장 강하게, 성취기준·외부 자료는 보조 근거로 반영한다.
   // 서로 다른 입력을 하나로 합치면 성취기준의 단어 하나가 추천 순위를 고정하는 문제가 생긴다.
   const rows = DESIGN_PATTERNS.map((pattern,index)=>({ pattern, score:-index*0.001, reasons:[] }));
@@ -163,6 +163,7 @@ function recommendPatterns({ mode, text, images, articles, standardsText, source
   };
 
   scan(text, 1.35, "입력 자료");
+  scan(planText, 1.6, "평가계획의 평가요소");
   scan(standardsText, 0.65, "선택한 성취기준");
   scan((articles||[]).map(a=>(a.title||"")+" "+(a.desc||"")).join(" "), 0.9, "선택한 외부 자료");
 
@@ -237,6 +238,44 @@ const VISUALS = [
   { v:"none",   t:"포함하지 않음" },
 ];
 
+const ASSESSMENT_TYPES = [
+  {
+    v:"performance", t:"수행평가용",
+    d:"현재와 같은 확장형 논술 문항을 설계합니다. 수업·탐구 맥락과 상세한 피드백 구조를 유지합니다."
+  },
+  {
+    v:"periodic", t:"정기시험용",
+    d:"시험 시간 안에 독립적으로 해결하는 간결한 논술 문항을 설계합니다. 문항당 5~10분, 답안 3~5문장을 기준으로 합니다."
+  },
+];
+
+const PERIODIC_CONSTRAINTS = Object.freeze({
+  minMinutes:5,
+  maxMinutes:10,
+  minSentences:3,
+  maxSentences:5,
+  answerLines:7,
+});
+
+function assessmentTypeOf(r){
+  return (r&&r.assessmentType) || (r&&r.designContext&&r.designContext.assessmentType) || "performance";
+}
+
+function planElementLines(value){
+  return String(value||"").split(/\r?\n/).map(x=>x.replace(/^\s*[-*•·]\s*/,"").trim()).filter(Boolean);
+}
+
+function normalizedElement(value){
+  return String(value||"").replace(/[\s·ㆍ,.;:()\[\]{}'"“”‘’]/g,"").toLowerCase();
+}
+
+function sentenceCount(value){
+  const text=String(value||"").replace(/\s+/g," ").trim();
+  if(!text) return 0;
+  const marked=text.match(/[^.!?]+[.!?]+(?:\s|$)/g);
+  return marked&&marked.length ? marked.length : Math.max(1,text.split(/(?:다|요)[.]?(?:\s+|$)/).filter(x=>x.trim()).length-1);
+}
+
 // 공공 자료 정보원 — 검색 결과는 서버에서 공통 형식으로 정규화한다.
 const PUBLIC_SOURCES = [
   { id:"policy", name:"정책브리핑", kind:"정책·사례", provider:"대한민국 정책브리핑",
@@ -279,7 +318,7 @@ const DIRECTIVES = ["요약","분류","비교","대조","분석","추론","적�
    — KICE 「서·논술형 평가도구 자료」(과학과) 양식
    — 「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론
    ────────────────────────────────────────────────────────────── */
-const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평가도구 자료」(과학과) 양식과 「2025 중등 논술형 평가 길라잡이」(경기도교육청) 방법론을 따르는 과학과 서·논술형 평가 도구 개발 전문가다. 결과물은 KICE 평가도구 자료 한 편과 같은 완결된 문서 구조를 갖는다: ① 평가 도구 정보표 → ② 평가 문항 → ③ 예시 답안 → ④ 채점 기준 → ⑤ 성취수준별 학생 수행 특성 → ⑥ 채점 시 유의점 → ⑦ 채점 및 피드백 사례 → ⑧ 피드백 제공 시 유의점 → ⑨ 수행평가 적용을 위한 Tip.
+const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평가도구 자료」(과학과) 양식과 경기도교육청 중등 논술형 평가 방법론을 따르는 과학과 서·논술형 평가 도구 개발 전문가다. 사용자가 지정한 평가 용도(수행평가용 또는 정기시험용)를 반드시 구분한다. 결과물은 완결된 평가도구 자료 한 편의 구조를 갖는다: ① 평가 도구 정보표 → ② 평가 문항 → ③ 예시 답안 → ④ 채점 기준 → ⑤ 성취수준별 학생 수행 특성 → ⑥ 채점 시 유의점 → ⑦ 채점 및 피드백 사례 → ⑧ 피드백 제공 시 유의점 → ⑨ 평가 적용을 위한 Tip.
 
 [문항 제작 절차]
 1) 성취기준·성취수준 분석 → 2) 평가요소(내용요소) 도출 → 3) 문항 제작(발문·자료·조건) → 4) 채점기준표 작성 → 5) 예시 답안·성취수준별 수행 특성·피드백 사례 작성. 이 순서를 따른다.
@@ -303,7 +342,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 [문항 구성요소]
 - 발문: 학생이 무엇을 수행할지 명확히 제시한다. 반드시 아래 반응 지시어 중 하나로 발문을 끝맺어(예: "~을 비교하시오", "~을 논증하시오", "~을 분석하시오") 요구하는 인지 활동이 발문 자체로 분명하게 한다. 필요하면 하위 문항 (1), (2)로 나눈다.
 - 자료: (가), (나) … 라벨을 붙인 제시문·그림자료. 문항 해결에 실제로 필요할 때만 넣는다(장식 금지). 앱 요청에 [선택한 공공 자료] 블록이 있을 때만 해당 자료의 출처를 materials.source에 기록하고 sourceRefId를 유지한다. 그 블록이 없으면 materials.source는 null, sourceRefId는 빈 문자열로 두며 기관명·원자료명·URL을 추정하거나 만들어 내지 않는다.
-- 조건: 조건은 성취기준의 내용·과정·기능을 평가하는 데 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 글자 수·분량·문단 수처럼 성취기준과 직접 관계없는 형식 제한은 넣지 않는다. 내용적 조건이나 형식적 조건이 없으면 해당 배열을 반드시 빈 배열([])로 둔다.
+- 조건: 조건은 성취기준의 내용·과정·기능을 평가하는 데 꼭 필요할 때만 최소한으로 넣는다. 원칙적으로 발문의 반응 지시어만으로 요구가 분명하도록 설계하고, 조건 없이 푸는 문항을 우선한다. 수행평가용에는 글자 수·분량·문단 수처럼 성취기준과 직접 관계없는 형식 제한을 넣지 않는다. 정기시험용의 3~5문장 기준은 문항 범위와 답안 공간을 통제하는 시험 설계값이지 채점할 형식 조건이 아니므로 conditions.form에 넣거나 문장 수 자체를 채점하지 않는다. 내용적 조건이나 형식적 조건이 없으면 해당 배열을 반드시 빈 배열([])로 둔다.
 
 [반응 지시어 활용 — 필수] 발문에는 아래 반응 지시어를 문항 의도에 맞게 반드시 사용하고, 그 지시어의 인지 활동에 맞게 발문·채점 요소를 설계한다. 각 문항 directive에 사용한 지시어를 적는다.
   · 요약: 자료의 핵심 개념·결론을 간결하게 정리   · 분류: 공통된 과학적 특성으로 상위·하위 범주로 묶기
@@ -331,7 +370,7 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 [채점 및 피드백 사례] 수준이 다른 가상 학생 사례 2개를 만든다. 각 사례는 ① 학생 답안 예시(실제 학생이 쓴 듯한 불완전한 답안), ② 채점 요소별 부여 점수, ③ 'ooo 학생은 ~'으로 시작하는 개별 피드백(잘한 점 → 보완할 점 → 학습 제안 순, '~할 수 있을 것입니다' 문체)으로 구성한다. 부여 점수는 채점 기준의 점수 단계 값 중 하나와 정확히 일치해야 한다.
 
-[수행평가 적용을 위한 Tip] ① 교수·학습 및 평가 계획(도구 활용 개요 1~2문장 + 차시별 계획 1~2차시: 활동 제목, 주요 학습 내용, 평가 계획), ② 문항 변형 방향 2~3개, ③ 채점기준표 변형 방향 2~3개를 제안한다.
+[평가 적용을 위한 Tip] 수행평가용은 ① 교수·학습 및 평가 계획(도구 활용 개요 1~2문장 + 차시별 계획 1~2차시), ② 문항 변형 방향 2~3개, ③ 채점기준표 변형 방향 2~3개를 제안한다. 정기시험용은 수업에서 미리 연습할 핵심 수행, 문항당 5~10분 운영, 3~5문장 답안에 맞춘 채점·피드백 유의점을 제안한다.
 
 [평가 도구 정보표] 학교급·학년·영역(단원)은 성취기준·과목에서 추론해 채운다. 성취수준은 입력에 있으면 그대로 쓰고, 없으면 성취기준으로부터 A~E 수준 기술을 만들어 2~3개 밴드(예: A·B / C·D / E)로 묶어 작성한다. 평가 도구 개발 취지는 '~하도록 한다 / ~평가한다' 문체 2~3문장으로 쓴다.
 
@@ -361,6 +400,9 @@ const GUIDE = `당신은 한국교육과정평가원(KICE) 「서·논술형 평
 
 {
   "designVersion": "patterns-grasps-v1",
+  "assessmentType": "performance" | "periodic",
+  "examConstraints": null 또는 { "totalScore": 10, "itemCount": 1, "minutesPerItem": "5~10분", "answerLength": "3~5문장 내외" },
+  "evaluationPlan": { "linked": false, "elements": [], "expectedPerformance": "", "notes": "" },
   "curriculum": "2022" | "2015",
   "standardCode": "감지된 성취기준 코드 또는 ''",
   "standardText": "성취기준 문장(있으면) 또는 ''",
@@ -651,6 +693,9 @@ function downloadDataUrl(dataUrl, name){
 function auditResult(r){
   const issues = [];
   const items = r.items||[];
+  const periodic = assessmentTypeOf(r)==="periodic";
+  const exam = r.examConstraints||{};
+  const plan = r.evaluationPlan||{};
   const okDirectives = DIRECTIVES.concat(["제시"]);
   const modernDesign = r.designVersion==="patterns-grasps-v1";
   const requestedGrasps = ((r.designContext||{}).requestedGrasps)||[];
@@ -687,6 +732,12 @@ function auditResult(r){
       if(m.source&&body&&!m.svg&&!m.imageData&&body.length<160)
         issues.push(`문항 ${it.number} 자료 ${mi+1}: 출처 자료 제시문이 너무 짧아 근거와 교과 개념의 연결을 확인하기 어려움`);
     });
+    if(periodic){
+      const answers=normQuestions(it).map(q=>q.modelAnswer||"").filter(Boolean).join(" ");
+      const sentences=sentenceCount(answers);
+      if(sentences && (sentences<PERIODIC_CONSTRAINTS.minSentences || sentences>PERIODIC_CONSTRAINTS.maxSentences))
+        issues.push(`문항 ${it.number}: 만점 예시 답안이 약 ${sentences}문장으로 정기시험 기준(3~5문장)을 벗어날 수 있음`);
+    }
   });
   (r.feedbackCases||[]).forEach((cs,ci)=>{
     const it = items.find(x=>x.number===cs.itemNumber) || items[0];
@@ -697,6 +748,25 @@ function auditResult(r){
     });
   });
   const total = items.reduce((n,it)=>n+(Number(it.points)||0),0);
+  if(periodic){
+    const requestedCount=Number(exam.itemCount)||0;
+    const requestedScore=Number(exam.totalScore)||0;
+    if(requestedCount && items.length!==requestedCount)
+      issues.push(`정기시험 문항 수 ${items.length}개가 설정값 ${requestedCount}개와 다름`);
+    if(requestedScore && total!==requestedScore)
+      issues.push(`정기시험 문서 총점 ${total}점이 설정값 ${requestedScore}점과 다름`);
+  }
+  if(plan.linked && (plan.elements||[]).length){
+    const coverage=normalizedElement(JSON.stringify({
+      evaluationElements:r.evaluationElements||[],
+      itemSummary:(r.info&&r.info.itemSummary)||[],
+      items:items.map(it=>({questions:normQuestions(it).map(q=>q.stem),scoring:it.scoring,levelAnalysis:it.levelAnalysis}))
+    }));
+    (plan.elements||[]).forEach(el=>{
+      const target=normalizedElement(el);
+      if(target && !coverage.includes(target)) issues.push(`평가계획의 평가요소 '${el}'가 발문·채점기준에 명시적으로 대응하지 않음`);
+    });
+  }
   const bands = r.levelCharacteristics||[];
   if (bands.length && total){
     const nums = bands.flatMap(b=>String(b.scoreRange||"").match(/\d+/g)||[]).map(Number);
@@ -715,7 +785,7 @@ function normQuestions(it) {
 }
 
 /* 조건은 성취기준 수행을 실제로 제한하는 항목만 문서에 남긴다. */
-const GENERIC_LENGTH_CONDITION = /(?:\d[\d,]*\s*(?:~|∼|–|—|-)\s*\d[\d,]*|\d[\d,]*)\s*(?:자|글자)(?:\s*(?:이내|이상|이하|미만|초과|안팎|내외))?|글자\s*수|분량\s*(?:제한|기준)?/i;
+const GENERIC_LENGTH_CONDITION = /(?:\d[\d,]*\s*(?:~|∼|–|—|-)\s*\d[\d,]*|\d[\d,]*)\s*(?:자|글자|문장)(?:\s*(?:이내|이상|이하|미만|초과|안팎|내외))?|(?:글자|문장)\s*수|분량\s*(?:제한|기준)?/i;
 function conditionItems(value){
   const values = Array.isArray(value) ? value : (value == null ? [] : [value]);
   return values.map(x=>String(x||"").replace(/\s+/g," ").trim()).filter(Boolean);
@@ -741,10 +811,15 @@ function graspsEntries(grasps){
 function toMarkdown(r, showTeacher) {
   const L = [];
   const info = r.info || {};
+  const periodic = assessmentTypeOf(r)==="periodic";
+  const exam = r.examConstraints||{};
+  const plan = r.evaluationPlan||{};
   const showSourceCitations = (r.sourceReferences||[]).length > 0;
   L.push(`# ${info.toolName || "서·논술형 평가 문항"}`);
   L.push("");
   L.push(`- 교육과정: ${r.curriculum === "2015" ? "2015 개정" : "2022 개정"}`);
+  L.push(`- 평가 용도: ${periodic?"정기시험용":"수행평가용"}`);
+  if (periodic) L.push(`- 시험 조건: 총 ${exam.totalScore||"-"}점 · ${exam.itemCount||(r.items||[]).length}문항 · 문항당 5~10분 · 답안 3~5문장 내외`);
   if (r.standardCode) L.push(`- 성취기준 코드: ${r.standardCode}`);
   if (r.subjectScope) L.push(`- 과목 범위: ${r.subjectScope}`);
   if (r.standardNote) L.push(`> ⚠ ${r.standardNote}`);
@@ -763,6 +838,12 @@ function toMarkdown(r, showTeacher) {
     if ((info.itemSummary||[]).length) {
       L.push(""); L.push("| 문항 번호 | 문항 유형 | 성취기준 기반 평가 요소 |"); L.push("|---|---|---|");
       (info.itemSummary||[]).forEach(s=>L.push(`| ${s.item} | ${s.type} | ${(s.elements||[]).join(" / ")} |`));
+    }
+    if (plan.linked && (plan.elements||[]).length) {
+      L.push(""); L.push("**평가계획 연계**");
+      (plan.elements||[]).forEach(x=>L.push(`- 평가요소: ${x}`));
+      if (plan.expectedPerformance) L.push(`- 기대 수행: ${plan.expectedPerformance}`);
+      if (plan.notes) L.push(`- 참고사항: ${plan.notes}`);
     }
     if ((r.sourceReferences||[]).length) {
       L.push(""); L.push("**사용한 자료 정보원**");
@@ -858,7 +939,7 @@ function toMarkdown(r, showTeacher) {
     }
     const ap = r.applicationTip;
     if (ap) {
-      L.push(""); L.push("## 수행평가 적용을 위한 Tip");
+      L.push(""); L.push(`## ${periodic?"정기시험":"수행평가"} 적용을 위한 Tip`);
       if ((ap.planIntro||[]).length) { L.push(""); L.push("**교수·학습 및 평가 계획**"); (ap.planIntro||[]).forEach(x=>L.push(`- ${x}`)); }
       const lp = ap.lessonPlan;
       if (lp && (lp.sessions||[]).length) {
@@ -921,8 +1002,11 @@ function dBul(list){ return (list||[]).map(x=>dP("• "+x,{after:40})).join("");
 
 function buildDocxXml(r, showTeacher){
   const info = r.info||{}; const B=[];
+  const periodic = assessmentTypeOf(r)==="periodic";
+  const exam = r.examConstraints||{};
+  const plan = r.evaluationPlan||{};
   const showSourceCitations = (r.sourceReferences||[]).length > 0;
-  B.push(dP("서·논술형 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
+  B.push(dP((periodic?"정기시험 논술형":"수행평가 서·논술형")+" 평가도구 자료 (과학과)",{color:"2B4531",size:18,after:40}));
   B.push(dBanner(info.toolName||"서·논술형 평가 문항"));
   if (!showTeacher) B.push(dP("(   )학년 (   )반 (   )번    이름: ________________",{after:120}));
 
@@ -934,6 +1018,9 @@ function buildDocxXml(r, showTeacher){
     rows.push([dCell("학년",{fill:D_SOFT,bold:true,center:true}), dCell(info.grade||""),
                dCell("영역(단원)",{fill:D_SOFT,bold:true,center:true}), dCell(info.domain||"")]);
     rows.push([dCell("평가 도구명",{fill:D_SOFT,bold:true,center:true}), dCell([dP(info.toolName||"",{bold:true,after:40})],{span:3})]);
+    rows.push([dCell("평가 용도",{fill:D_SOFT,bold:true,center:true}), dCell(periodic?"정기시험용":"수행평가용"),
+               dCell(periodic?"시험 조건":"평가계획",{fill:D_SOFT,bold:true,center:true}),
+               dCell(periodic?(`총 ${exam.totalScore||"-"}점 · ${exam.itemCount||(r.items||[]).length}문항 · 문항당 5~10분 · 답안 3~5문장`):(plan.linked?"평가계획 연계":"평가계획 미연계"))]);
     if (r.standardText)
       rows.push([dCell("성취기준",{fill:D_SOFT,bold:true,center:true}), dCell((r.standardCode?"["+r.standardCode+"] ":"")+r.standardText,{span:3})]);
     (info.achievementLevels||[]).forEach(a=>{
@@ -944,6 +1031,12 @@ function buildDocxXml(r, showTeacher){
     if ((info.itemSummary||[]).length){
       const t=[[dCell("문항 번호",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("문항 유형",{fill:D_SOFT,bold:true,center:true,w:1800}),dCell("성취기준 기반 평가 요소",{fill:D_SOFT,bold:true,center:true})]];
       (info.itemSummary||[]).forEach(s=>t.push([dCell(s.item||"",{center:true}),dCell(s.type||"",{center:true}),dCell([( (s.elements||[]).map(e=>dP("• "+e,{after:20})).join("") )||dP("",{after:20})])]));
+      B.push(dTable(t));
+    }
+    if (plan.linked && (plan.elements||[]).length){
+      const t=[[dCell("평가계획 평가요소",{fill:D_SOFT,bold:true,center:true,w:2200}),dCell([(plan.elements||[]).map(x=>dP("• "+x,{after:20})).join("")])]];
+      if(plan.expectedPerformance) t.push([dCell("기대 수행",{fill:D_SOFT,bold:true,center:true}),dCell(plan.expectedPerformance)]);
+      if(plan.notes) t.push([dCell("참고사항",{fill:D_SOFT,bold:true,center:true}),dCell(plan.notes)]);
       B.push(dTable(t));
     }
     if ((r.sourceReferences||[]).length){
@@ -994,12 +1087,16 @@ function buildDocxXml(r, showTeacher){
         if (c.content.length){ B.push(dP("[내용적 측면]",{bold:true,after:20})); B.push(dBul(c.content)); }
         if (c.form.length){ B.push(dP("[형식적 측면]",{bold:true,after:20})); B.push(dBul(c.form)); }
       }
-      if (!showTeacher){
+      if (!showTeacher && !periodic){
         B.push(dP("[답안 작성란]",{color:"888888",after:40}));
         const n = Math.min(14, Math.max(5, (q.points||3)*2));
         for(let k=0;k<n;k++) B.push(dP("＿".repeat(38),{color:"BBBBBB",after:100}));
       }
     });
+    if(!showTeacher && periodic){
+      B.push(dP("[답안 작성란 · 3~5문장 내외]",{color:"888888",after:40}));
+      for(let k=0;k<PERIODIC_CONSTRAINTS.answerLines;k++) B.push(dP("＿".repeat(38),{color:"BBBBBB",after:100}));
+    }
     if (showTeacher && (it.tips||[]).length){ B.push(dSq("활용 Tip !")); B.push(dBul(it.tips)); }
     const la = it.levelAnalysis||{};
     if (showTeacher && (la.standardElements||la.levelElements||la.rationale)){
@@ -1052,7 +1149,7 @@ function buildDocxXml(r, showTeacher){
     if ((r.feedbackNotes||[]).length){ B.push(dSq("피드백 제공 시 유의점")); B.push(dBul(r.feedbackNotes)); }
     const ap=r.applicationTip;
     if (ap){
-      B.push(dHd("수행평가 적용을 위한 Tip"));
+      B.push(dHd((periodic?"정기시험":"수행평가")+" 적용을 위한 Tip"));
       if ((ap.planIntro||[]).length){ B.push(dSq("교수·학습 및 평가 계획")); B.push(dBul(ap.planIntro)); }
       if (ap.lessonPlan && (ap.lessonPlan.sessions||[]).length){
         const t=[[dCell("차시",{fill:D_SOFT,bold:true,center:true,w:1000}),dCell("교수·학습 활동",{fill:D_SOFT,bold:true,center:true}),dCell("평가 계획",{fill:D_SOFT,bold:true,center:true,w:1800})]];
@@ -1198,15 +1295,15 @@ function Ed({v, editing, onC}){
   );
 }
 
-function EmptyDoc({subject, targets, hasInput, runMode}){
+function EmptyDoc({subject, targets, hasInput, runMode, assessmentType, planLinked}){
   const nextTitle = hasInput
     ? (runMode==="paste" ? "Claude 답변을 가져오세요" : "평가 문서를 만들 준비가 되었습니다")
     : "출제 자료를 입력하세요";
   const nextText = hasInput
     ? (runMode==="paste"
-        ? "Claude용 요청문을 복사한 뒤, 받은 답변을 4단계에 붙여넣으세요."
-        : "4단계에서 평가 문서 만들기를 실행하세요.")
-    : "2단계에서 성취기준, 기존 문항 또는 수업 자료를 입력하세요.";
+        ? "Claude용 요청문을 복사한 뒤, 받은 답변을 5단계에 붙여넣으세요."
+        : "5단계에서 평가 문서 만들기를 실행하세요.")
+    : "3단계에서 성취기준, 기존 문항 또는 수업 자료를 입력하세요.";
   return (
     <div className="emptydoc noprint">
       <div className="empty-sheet-head" aria-hidden="true">
@@ -1217,8 +1314,10 @@ function EmptyDoc({subject, targets, hasInput, runMode}){
         <h2 className="empty-title">{nextTitle}</h2>
         <p className="ed-desc">{nextText}</p>
         <dl className="ready-grid">
+          <div><dt>평가 용도</dt><dd>{assessmentType==="periodic"?"정기시험용":"수행평가용"}</dd></div>
           <div><dt>과목</dt><dd>{subject!=="자동" ? subject : "지정하지 않음"}</dd></div>
           <div><dt>목표 성취수준</dt><dd>{targets.length ? targets.join(" · ")+" 수준" : "지정하지 않음"}</dd></div>
+          <div><dt>평가계획</dt><dd>{planLinked?"평가요소 반영":"연계하지 않음"}</dd></div>
           <div><dt>출제 자료</dt><dd className={hasInput?"ready-ok":"ready-needed"}>{hasInput ? "입력 완료" : "입력 필요"}</dd></div>
         </dl>
       </div>
@@ -1244,6 +1343,7 @@ function SkeletonDoc({sec}){
 }
 
 function App() {
+  const [assessmentType, setAssessmentType] = useState("performance");
   const [apiKey, setApiKey]   = useState(()=>localStorage.getItem("gemini_key")||"");
   const [model, setModel]     = useState(()=>{
     const saved = localStorage.getItem("gemini_model");
@@ -1269,6 +1369,12 @@ function App() {
   const [blankVer, setBlankVer] = useState(false); // 빈칸 변형(㉠㉡ 도식 완성형)
   const [count, setCount]     = useState(1);
   const [countStr, setCountStr] = useState("1");   // 입력 중간 상태(키보드 입력 허용)
+  const [totalScore, setTotalScore] = useState(10);
+  const [totalScoreStr, setTotalScoreStr] = useState("10");
+  const [planLinked, setPlanLinked] = useState(false);
+  const [planElementsText, setPlanElementsText] = useState("");
+  const [planExpectedPerformance, setPlanExpectedPerformance] = useState("");
+  const [planNotes, setPlanNotes] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
   const [result, setResult]   = useState(null);
@@ -1366,7 +1472,29 @@ function App() {
   const effectiveSelectedStds = standardsEntryMode==="official" ? selectedStds : [];
   const selectedStandardRows = (STANDARDS[subject]||[]).filter(s=>effectiveSelectedStds.includes(s.code));
   const standardsText = selectedStandardRows.map(s=>s.text).join(" ");
-  const patternRankings = recommendPatterns({ mode, text, images, articles:references, standardsText, sourceStructure });
+  const isPeriodic = assessmentType==="periodic";
+  const assessmentLabel = isPeriodic ? "정기시험용" : "수행평가용";
+  const effectiveCount = isPeriodic
+    ? Math.min(MAX_ITEMS,count)
+    : Math.min(MAX_ITEMS,targets.length ? Math.max(count,targets.length) : count);
+  const planEvaluationElements = planLinked ? planElementLines(planElementsText) : [];
+  const planText = planLinked ? [planElementsText,planExpectedPerformance,planNotes].filter(Boolean).join("\n") : "";
+  const planReady = !planLinked || planEvaluationElements.length>0;
+  const visibleCount = Number(countStr);
+  const visibleTotalScore = Number(totalScoreStr);
+  const periodicCountReady = Number.isInteger(visibleCount) && visibleCount>=1 && visibleCount<=MAX_ITEMS;
+  const periodicTotalScoreReady = Number.isFinite(visibleTotalScore) && visibleTotalScore>=1 && visibleTotalScore<=100;
+  const periodicScoreReady = !isPeriodic || (periodicCountReady && periodicTotalScoreReady);
+  const constraintFingerprint = JSON.stringify({
+    assessmentType,
+    itemCount:effectiveCount,
+    totalScore:isPeriodic?totalScore:null,
+    planLinked,
+    planElements:planEvaluationElements,
+    planExpectedPerformance:planLinked?planExpectedPerformance.trim():"",
+    planNotes:planLinked?planNotes.trim():"",
+  });
+  const patternRankings = recommendPatterns({ mode, text, images, articles:references, standardsText, sourceStructure, planText });
   const patternRecommendations = patternRankings.slice(0,3);
   const alternativePatterns = patternRankings.slice(3);
   const recommendedPattern = patternRankings[0].pattern;
@@ -1379,10 +1507,12 @@ function App() {
   );
   const sourceReferencesComplete = !useSources || references.every(a=>a.title&&a.provider&&a.date&&a.url);
   const generationMethodReady = runMode==="paste" || !!(apiKey.trim() && model.trim());
-  const canCreateDocument = hasRequiredInput && sourceReferencesComplete && generationMethodReady && !loading;
+  const canCreateDocument = hasRequiredInput && planReady && periodicScoreReady && sourceReferencesComplete && generationMethodReady && !loading;
   const preflightChecks = [
+    {label:`평가 용도: ${assessmentLabel}`,ok:true},
     {label:"성취기준 또는 문항 제작 자료가 준비됨",ok:hasRequiredInput},
-    {label:"문항 수와 출제 패턴을 확인함",ok:count>=1&&count<=MAX_ITEMS&&!!selectedPattern},
+    {label:planLinked?`평가계획 평가요소 ${planEvaluationElements.length}개가 준비됨`:"평가계획 없이 진행",ok:planReady},
+    {label:isPeriodic?`총배점 ${totalScore}점·문항 ${effectiveCount}개 확인`:`문항 ${effectiveCount}개와 출제 패턴 확인`,ok:periodicScoreReady&&!!selectedPattern},
     {label:"선택 자료의 기관·제목·날짜·원문 주소가 확인됨",ok:sourceReferencesComplete},
     {label:runMode==="paste"?"Claude 요청 방식이 선택됨":"Gemini API 키와 모델이 준비됨",ok:generationMethodReady},
   ];
@@ -1396,6 +1526,16 @@ function App() {
     setError(""); setInputErr(""); setModelMsg("");
     setStatusMsg(next==="api" ? "Gemini 방식으로 전환했습니다." : "Claude 방식으로 전환했습니다.");
     if (next==="api" && !apiKey) setShowGeminiConfig(true);
+  }
+
+  function changeAssessmentType(next){
+    if(next===assessmentType) return;
+    setAssessmentType(next);
+    setCompletedSteps([]);
+    setActiveStep(1);
+    setStatusMsg(next==="periodic"
+      ? "정기시험용으로 전환했습니다. 문항당 5~10분, 답안 3~5문장 기준이 적용됩니다."
+      : "수행평가용으로 전환했습니다. 기존 확장형 설계 기준이 적용됩니다.");
   }
 
   function completeStep(step, next){
@@ -1428,7 +1568,7 @@ function App() {
   function afterResult(){
     if (mobileLayout()) mobileScroll.current.form=window.scrollY;
     setMobileTab("preview");
-    setCompletedSteps(xs=>Array.from(new Set([...xs,1,2,3,4])));
+    setCompletedSteps(xs=>Array.from(new Set([...xs,1,2,3,4,5])));
     setStatusMsg("평가 문서 생성이 완료되었습니다. 첫 번째 문항으로 이동했습니다.");
     setTimeout(()=>{
       const el = document.getElementById("first-question-heading") || document.getElementById("panel-prev");
@@ -1450,7 +1590,7 @@ function App() {
     setInputErr(mode==="standard" && standardsEntryMode==="official"
       ? "공식 성취기준을 선택하거나 출제 자료를 입력하세요."
       : "문항 제작에 사용할 내용을 입력하거나 참고 자료를 첨부하세요.");
-    setError("2단계에서 문항 제작의 근거가 될 자료를 준비하세요.");
+    setError("3단계에서 문항 제작의 근거가 될 자료를 준비하세요.");
     setMobileTab("form");
     setTimeout(()=>{
       const el = document.getElementById("mainInput");
@@ -1609,6 +1749,19 @@ function App() {
   // GRASPS 기본 3요소는 발문·채점 요소에서 복구하고, 추가로 요청한 요소는 임의로 꾸며 넣지 않아 점검에서 확인하게 한다.
   function applyDesignContext(r){
     r.designVersion = "patterns-grasps-v1";
+    r.assessmentType = assessmentType;
+    r.examConstraints = isPeriodic ? {
+      totalScore,
+      itemCount:effectiveCount,
+      minutesPerItem:`${PERIODIC_CONSTRAINTS.minMinutes}~${PERIODIC_CONSTRAINTS.maxMinutes}분`,
+      answerLength:`${PERIODIC_CONSTRAINTS.minSentences}~${PERIODIC_CONSTRAINTS.maxSentences}문장 내외`,
+    } : null;
+    r.evaluationPlan = {
+      linked:planLinked,
+      elements:[...planEvaluationElements],
+      expectedPerformance:planLinked ? planExpectedPerformance.trim() : "",
+      notes:planLinked ? planNotes.trim() : "",
+    };
     const requestedGrasps = ["goal","product","standards",...graspsExtras];
     const selectedRefs = (useSources ? references : []).map((x,i)=>({
       refId:`SRC-${i+1}`,
@@ -1625,6 +1778,8 @@ function App() {
       selectedPatternName:selectedPattern.name,
       requestedGrasps,
       sourceStructure:selectedSource.t,
+      assessmentType,
+      constraintFingerprint,
     };
     (r.items||[]).forEach(it=>{
       const d=it.design||{};
@@ -1673,6 +1828,11 @@ function App() {
 
   function buildPrompt() {
     const P = [];
+    P.push(isPeriodic
+      ? `[평가 용도 — 정기시험용]
+시험 시간 안에 학생이 독립적으로 해결하는 간결한 논술형 문항을 제작하라. 각 문항은 ${PERIODIC_CONSTRAINTS.minMinutes}~${PERIODIC_CONSTRAINTS.maxMinutes}분 안에 해결할 수 있고, 문항 전체의 만점 예시 답안은 ${PERIODIC_CONSTRAINTS.minSentences}~${PERIODIC_CONSTRAINTS.maxSentences}문장 내외로 완결되어야 한다. 외부 조사·협업·장기 산출물을 요구하지 말고, 시험지에 제시된 자료와 수업에서 학습한 개념만으로 답할 수 있게 하라.`
+      : `[평가 용도 — 수행평가용]
+현재 KICE 평가도구 구조를 유지하여 수업·탐구 맥락과 확장된 사고 과정, 상세한 피드백이 드러나는 수행평가용 문항을 제작하라.`);
     const modeText = {
       standard:"아래에 주어진 성취기준(및 성취수준)을 바탕으로 KICE 서·논술형 평가도구 자료 한 편을 제작하라.",
       convert:"아래에 주어진 지필/선다형/단답형/학력평가 문항을 같은 성취기준·개념을 유지한 채 서·논술형 문항으로 변환하고, KICE 평가도구 자료 한 편으로 완성하라.",
@@ -1682,8 +1842,23 @@ function App() {
     }[mode];
     P.push(modeText);
     // 여러 타겟 수준을 고르면 각 수준마다 최소 1개 문항을 보장 → 문항 수를 수준 개수까지 자동 확대(상한 4)
-    const effCount = Math.min(MAX_ITEMS, targets.length ? Math.max(count, targets.length) : count);
-    P.push(`제작할 문항 수: ${effCount}개. (필요하면 각 문항 안에 하위 문항 (1), (2)를 구성해도 된다.)`);
+    const effCount = effectiveCount;
+    P.push(isPeriodic
+      ? `제작할 문항 수: 정확히 ${effCount}개. 전체 총배점은 정확히 ${totalScore}점으로 하고 items[*].points의 합, 모든 하위 문항 배점의 합, 채점 요소 만점의 합을 모두 ${totalScore}점에 맞춰라. 각 문항은 하나의 통합 발문을 우선하고, 꼭 필요한 경우에만 하위 문항을 최대 2개로 구성하라.`
+      : `제작할 문항 수: ${effCount}개. (필요하면 각 문항 안에 하위 문항 (1), (2)를 구성해도 된다.)`);
+
+    if (planLinked) {
+      P.push(
+        `[평가계획 연계 — 승인된 조건]
+평가요소(아래 표현을 그대로 사용):
+${planEvaluationElements.map(x=>`- ${x}`).join("\n")}
+평가요소별 기대 수행: ${planExpectedPerformance.trim()||"별도 입력 없음"}
+평가계획 참고사항: ${planNotes.trim()||"별도 입력 없음"}
+→ 위 평가요소를 r.evaluationElements와 info.itemSummary[*].elements에 원문 그대로 기록하고, 모든 평가요소가 최소 한 개 이상의 발문·채점 요소에 실제로 대응하도록 설계하라. 평가요소와 무관한 수행을 새 핵심 채점 요소로 추가하지 말라.`
+      );
+    } else {
+      P.push("[평가계획 연계 — 사용 안 함] 선택한 성취기준과 입력 자료에서 평가요소를 도출하라.");
+    }
 
     if (subject !== "자동") {
       const cur = SUBJECTS.find(s=>s.v===subject);
@@ -1715,6 +1890,8 @@ function App() {
     if (targets.length) {
       if (targets.length === 1) {
         P.push(`각 문항의 타겟 성취수준: ${targets[0]}. 모든 문항을 이 수준으로 설계하라. 타겟이 C인 문항이라면 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 갖도록 최소능력자 기준으로 설계하라. 각 문항 levelAnalysis에 근거를 적어라.`);
+      } else if (isPeriodic) {
+        P.push(`타겟 성취수준: ${targets.join(", ")}. 정기시험 문항 수 ${effCount}개는 교사가 확정한 값이므로 자동으로 늘리지 마라. 각 문항이 겨냥하는 수준을 targetLevel에 명시하고, 선택 수준을 문항들에 가능한 한 고르게 배분하되 한 문항에 여러 수준의 수행 증거가 포함될 수 있다. levelAnalysis에 배정 수준과 변별 근거를 적어라.`);
       } else {
         P.push(`타겟 성취수준: ${targets.join(", ")} (${targets.length}개 선택). 반드시 선택된 각 수준마다 최소 1개 이상의 문항을 배정하라. 총 ${effCount}개 문항 중 ${targets.join("·")} 수준을 각각 최소 1회 포함하고, 남는 문항이 있으면 이 수준들에 고르게 추가 배분하라. 문항마다 그 문항이 겨냥하는 수준을 targetLevel에 명시하고, 어떤 수준의 문항인지 알 수 있게 하라. 예를 들어 타겟이 C인 문항은 A·B·C 수준 학생은 해결하고 D·E 수준 학생은 해결하지 못하는 변별점을 최소능력자 기준으로 설계하라. 각 문항 levelAnalysis에 배정 수준과 변별 근거를 적어라.`);
       }
@@ -1723,7 +1900,9 @@ function App() {
     }
 
     P.push("발문 작성: 모든 발문을 반응 지시어(요약·분류·구분·비교·대조·제시·설명·분석·평가·논증·서술 등)로 끝맺고, 그 지시어의 인지 활동에 맞게 설계하라. 각 문항 directive에 사용한 지시어를 명시하라.");
-    P.push("조건 최소화: 문항별 조건은 성취기준의 내용·과정·기능을 평가하는 데 실제로 필요한 경우만 넣어라. 글자 수·분량·문단 수 같은 형식 제한은 사용하지 말고, 해당 범주의 조건이 없으면 conditions.content·conditions.form을 각각 빈 배열([])로 둬라.");
+    P.push(isPeriodic
+      ? `조건 최소화: ${PERIODIC_CONSTRAINTS.minSentences}~${PERIODIC_CONSTRAINTS.maxSentences}문장 기준은 문항의 범위와 답안 공간을 정하는 내부 설계값이다. 문장 수 자체를 채점하지 말고 conditions.form에는 넣지 마라. 내용 조건이 없으면 conditions.content·conditions.form을 각각 빈 배열([])로 둬라.`
+      : "조건 최소화: 문항별 조건은 성취기준의 내용·과정·기능을 평가하는 데 실제로 필요한 경우만 넣어라. 글자 수·분량·문단 수 같은 형식 제한은 사용하지 말고, 해당 범주의 조건이 없으면 conditions.content·conditions.form을 각각 빈 배열([])로 둬라.");
 
     const rec = patternRecommendations.find(x=>x.pattern.id===selectedPattern.id);
     P.push(
@@ -1746,8 +1925,16 @@ function App() {
       `항상 포함: 목표(goal), 산출물(product), 평가기준(standards).\n`+
       `추가 포함: ${extraNames.length ? extraNames.join(", ") : "없음"}.\n`+
       `→ 각 문항의 grasps에 선택된 요소를 구체적으로 작성하고 발문·자료·채점기준에 반영하라. goal·product·standards는 절대 비우지 말라. `+
-      `선택하지 않은 role·audience·situation은 빈 문자열로 둔다. 최소 3개 요소가 실제 문항에 드러나야 한다.`
+      `선택하지 않은 role·audience·situation은 빈 문자열로 둔다. 최소 3개 요소가 실제 문항에 드러나야 한다.`+
+      (isPeriodic ? ` 정기시험용에서는 역할·상황을 장식적으로 길게 확장하지 말고 ${PERIODIC_CONSTRAINTS.minMinutes}~${PERIODIC_CONSTRAINTS.maxMinutes}분 안에 이해할 수 있는 수준으로 압축하라.` : "")
     );
+
+    if (isPeriodic) {
+      P.push(
+        `[정기시험 자료·답안 제약]
+각 문항의 제시 자료는 시험지 안에서 독립적으로 이해할 수 있는 하나의 짧은 자료 묶음으로 구성하라. 표·그래프·도식·대화·사례는 문항 해결에 필요한 정보만 남기고, 긴 기사나 여러 단계의 활동 안내는 제외하라. items[*].questions의 modelAnswer를 문항별로 합쳤을 때 ${PERIODIC_CONSTRAINTS.minSentences}~${PERIODIC_CONSTRAINTS.maxSentences}문장 내외가 되게 하고, items[*].tips에는 '예상 답안 작성 시간 ${PERIODIC_CONSTRAINTS.minMinutes}~${PERIODIC_CONSTRAINTS.maxMinutes}분'을 포함하라. applicationTip은 수업에서 미리 연습할 핵심 수행과 정기시험 운영·채점 유의점 중심으로 작성하라.`
+      );
+    }
 
     if (mode==="interview") {
       P.push("[면접 문항 전환 규칙] 면접 질문을 그대로 복사하지 말고, 공통 개념·원리 도출 → 자료 비교·구분 → 새 사례 적용·예측 → 평가·해결안 제시 중 입력의 평가 의도에 필요한 단계를 골라 하나의 논술 문항 또는 서로 연결된 하위 문항으로 재구성하라. 각 답변이 독립적으로 채점 가능하도록 자료 근거와 반응 지시어를 명시하라.");
@@ -1937,7 +2124,11 @@ function App() {
       feedback:"feedbackCases·feedbackNotes·applicationTip만 개선하고 문항·채점기준은 변경하지 말 것",
       sources:"sourceReferences와 materials.source 연결만 점검하되 새로운 기관·자료명·URL을 만들지 말 것",
     };
-    const request="다음 평가 문서 JSON에서 ["+label+"] 영역만 개선하라. "+sectionRules[section]+". " +
+    const constraintReminder=isPeriodic
+      ? ` 정기시험용 제약(문항당 ${PERIODIC_CONSTRAINTS.minMinutes}~${PERIODIC_CONSTRAINTS.maxMinutes}분, 문항 전체 답안 ${PERIODIC_CONSTRAINTS.minSentences}~${PERIODIC_CONSTRAINTS.maxSentences}문장, 총 ${totalScore}점)을 유지하라.`
+      : " 수행평가용 설계 범위를 유지하라.";
+    const planReminder=planLinked ? ` 평가계획의 평가요소(${planEvaluationElements.join(" / ")})를 바꾸거나 누락하지 말라.` : "";
+    const request="다음 평가 문서 JSON에서 ["+label+"] 영역만 개선하라. "+sectionRules[section]+". "+constraintReminder+planReminder+" " +
       "수정 대상 밖의 값과 배열 순서는 그대로 유지하고, 전체 JSON 객체 하나만 반환하라.\n\n"+
       JSON.stringify(result);
     snapshotResult();
@@ -1945,7 +2136,7 @@ function App() {
       try{
         await navigator.clipboard.writeText(request);
         setRevisionTarget(section);
-        setStatusMsg(label+" 부분 수정 요청문을 복사했습니다. Claude에서 실행한 뒤 전체 답변을 4단계에 붙여넣으세요.");
+        setStatusMsg(label+" 부분 수정 요청문을 복사했습니다. Claude에서 실행한 뒤 전체 답변을 5단계에 붙여넣으세요.");
       }catch(_){ setError("부분 수정 요청문을 복사하지 못했습니다. 브라우저의 클립보드 권한을 확인하세요."); }
       return;
     }
@@ -1989,11 +2180,34 @@ function App() {
         </div>
       </header>
 
+      <section className="assessment-purpose noprint" aria-labelledby="assessment-purpose-title">
+        <div className="run-method-head">
+          <div>
+            <span className="run-method-kicker">평가 용도</span>
+            <h2 id="assessment-purpose-title">어떤 평가 문항을 만들까요?</h2>
+            <p className="run-method-intro">평가 용도에 따라 문항의 범위, 답안 분량과 검토 기준이 달라집니다.</p>
+          </div>
+          <span className="current-method">현재: {assessmentLabel}</span>
+        </div>
+        <div className="method-options" role="radiogroup" aria-label="평가 용도">
+          {ASSESSMENT_TYPES.map(type=><button type="button" key={type.v} role="radio"
+            aria-checked={assessmentType===type.v}
+            className={"method-option assessment-option"+(assessmentType===type.v?" is-selected":"")}
+            onClick={()=>changeAssessmentType(type.v)}>
+            <span className="method-option-check" aria-hidden="true">✓</span>
+            <strong>{type.t}</strong>
+            <span className="method-meta">{type.v==="performance"?"현재 방식 유지":"제한형 논술 문항"}</span>
+            <small>{type.d}</small>
+            {type.v==="periodic" && <span className="assessment-fixed">고정 · 문항당 5~10분 / 답안 3~5문장</span>}
+          </button>)}
+        </div>
+      </section>
+
       {/* 문항 생성 방식 — 초보자에게 선택지를 숨기지 않음 */}
       <section className="run-method noprint" aria-labelledby="run-method-title">
         <div className="run-method-head">
           <div>
-            <span className="run-method-kicker">시작 설정</span>
+            <span className="run-method-kicker">생성 방식</span>
             <h2 id="run-method-title">문항을 어떻게 만들까요?</h2>
             <p className="run-method-intro">처음 사용한다면 API 키가 필요 없는 Claude 방식을 권합니다.</p>
           </div>
@@ -2096,13 +2310,15 @@ function App() {
 
       <div className="work-summary noprint" aria-label="현재 설계 요약">
         <div className="work-summary-values">
-          <b>{subject!=="자동"?subject:"과목 미지정"}</b>
+          <b>{assessmentLabel}</b>
+          <span>{subject!=="자동"?subject:"과목 미지정"}</span>
           <span>{targets.length?targets.join("·")+" 수준":"수준 자동"}</span>
           <span>성취기준 {effectiveSelectedStds.length}개</span>
-          <span>문항 {Math.min(MAX_ITEMS,targets.length?Math.max(count,targets.length):count)}개</span>
+          <span>{planLinked?`평가계획 ${planEvaluationElements.length}요소`:"평가계획 미연계"}</span>
+          <span>문항 {effectiveCount}개{isPeriodic?` · ${totalScore}점`:""}</span>
         </div>
         <nav className="step-nav" aria-label="문항 설계 단계">
-          {["성취기준","출제 자료","문항 설계","생성·검토"].map((label,i)=>{
+          {["성취기준","평가계획","출제 자료","문항 설계","생성·검토"].map((label,i)=>{
             const n=i+1, done=completedSteps.includes(n);
             return <button type="button" key={n} aria-current={activeStep===n?"step":undefined}
               className={(activeStep===n?"is-current ":"")+(done?"is-done":"")}
@@ -2174,7 +2390,7 @@ function App() {
         {standardsEntryMode==="official" && subject==="자동" &&
           <div className="note info" style={{marginTop:12}}>공식 성취기준을 찾으려면 과목을 먼저 선택하세요.</div>}
         {standardsEntryMode==="official" && (STANDARDS[subject]||[]).length === 0 && subject !== "자동" &&
-          <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 2단계 출제 자료에 성취기준과 성취수준을 직접 붙여넣으세요.</div>}
+          <div className="note info" style={{marginTop:12}}>이 과목의 공식 성취기준 목록은 아직 준비 중입니다. 3단계 출제 자료에 성취기준과 성취수준을 직접 붙여넣으세요.</div>}
         {standardsEntryMode==="manual" &&
           <div className="note info" style={{marginTop:12}}>다음 단계의 입력란에 성취기준 코드·문장과 성취수준을 직접 붙여넣습니다.</div>}
 
@@ -2186,28 +2402,70 @@ function App() {
           {targetMsg && <div className="note" style={{marginTop:10}}>⚠ {targetMsg}</div>}
           <div className="hint">
             {targets.length
-              ? `여러 수준을 선택하면 수준별 문항을 하나씩 만듭니다. 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다.`
+              ? (isPeriodic
+                  ? `선택한 수준은 정기시험 문항 수 안에서 난이도 배분에 반영됩니다. 문항 수는 자동으로 늘어나지 않습니다.`
+                  : `여러 수준을 선택하면 수준별 문항을 하나씩 만듭니다. 최대 ${MAX_ITEMS}개까지 선택할 수 있습니다.`)
               : "선택하지 않으면 입력한 자료에 맞춰 난이도를 구성합니다."}
           </div>
         </fieldset>
 
-        <fieldset className="fset">
-          <legend className="subh">설계 방식</legend>
-          <div className="pills mode-grid">
-            {MODES.map(m=><Pill key={m.v} on={mode===m.v} onClick={()=>setMode(m.v)}>{m.t}</Pill>)}
-          </div>
-          <div className="hint">{MODES.find(m=>m.v===mode).d}</div>
-        </fieldset>
-        <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(1,2)}>출제 자료 준비로</button></div>
+        <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(1,2)}>평가계획 연계로</button></div>
         </div>
       </section>
 
-      {/* 2단계: 출제 자료 */}
+      {/* 2단계: 평가계획 연계 */}
       <section className={"card workflow-step"+(activeStep===2?" is-open":"")} id="workflow-step-2">
         <button type="button" className="step-toggle" aria-expanded={activeStep===2} onClick={()=>setActiveStep(2)}>
-          <span className="step-index">02</span><span><strong>출제 자료 준비</strong><small>{hasRequiredInput?"문항 근거 준비됨":"입력 필요"}{references.length?` · 공공 자료 ${references.length}건`:""}</small></span>
+          <span className="step-index">02</span><span><strong>평가계획 연계</strong><small>{planLinked?(planReady?`평가요소 ${planEvaluationElements.length}개 반영`:"평가요소 입력 필요"):"평가계획 없이 진행"}</small></span>
         </button>
         <div className="step-content" hidden={activeStep!==2}>
+          <fieldset className="fset plan-link-setting">
+            <legend className="subh">기존 평가계획서 반영 여부</legend>
+            <div className="pills mode-grid">
+              <Pill on={!planLinked} onClick={()=>setPlanLinked(false)}>평가계획 없이 진행</Pill>
+              <Pill on={planLinked} onClick={()=>setPlanLinked(true)}>평가계획 반영</Pill>
+            </div>
+            <div className="hint">평가계획을 반영하면 입력한 평가요소가 추천 출제 패턴, 발문과 채점기준의 필수 조건이 됩니다.</div>
+          </fieldset>
+
+          {planLinked && <div className="plan-fields">
+            <label className="fld" htmlFor="planElementsIn">평가요소 <span className="required-mark">필수</span></label>
+            <textarea id="planElementsIn" value={planElementsText} onChange={e=>setPlanElementsText(e.target.value)}
+              aria-invalid={!planReady} aria-describedby="planElementsHelp"
+              placeholder={"평가계획서의 평가요소를 한 줄에 하나씩 입력하세요.\n예: 용해도 곡선을 근거로 혼합물의 분리 가능성 판단하기\n예: 실험 결과를 분석하여 변인 사이의 관계 설명하기"}/>
+            <div className="hint" id="planElementsHelp">입력한 문구를 임의로 바꾸지 않고 결과 문서와 채점기준에 연결합니다.</div>
+            {!planReady && <div className="fielderr" role="alert">평가계획 반영을 선택했다면 평가요소를 한 개 이상 입력해야 합니다.</div>}
+
+            <label className="fld" htmlFor="planPerformanceIn">평가요소별 기대 수행 <span className="optional-badge">선택</span></label>
+            <textarea id="planPerformanceIn" value={planExpectedPerformance} onChange={e=>setPlanExpectedPerformance(e.target.value)}
+              placeholder="학생이 평가요소와 관련해 실제로 보여야 할 수행을 입력하세요."/>
+
+            <label className="fld" htmlFor="planNotesIn">평가계획 참고사항 <span className="optional-badge">선택</span></label>
+            <textarea id="planNotesIn" value={planNotes} onChange={e=>setPlanNotes(e.target.value)}
+              placeholder="평가의 중점, 채점 시 유의사항 등 문항 제작에 반영할 내용을 입력하세요."/>
+          </div>}
+
+          <fieldset className="fset plan-design-mode">
+            <legend className="subh">문항 제작 유형</legend>
+            <div className="pills mode-grid">
+              {MODES.map(m=><Pill key={m.v} on={mode===m.v} onClick={()=>setMode(m.v)}>{m.t}</Pill>)}
+            </div>
+            <div className="hint">{MODES.find(m=>m.v===mode).d}</div>
+          </fieldset>
+
+          <div className="step-next">
+            <button type="button" className="btn" disabled={!planReady} onClick={()=>completeStep(2,3)}>출제 자료 준비로</button>
+            {!planReady && <span>평가요소를 입력해야 다음 단계로 이동할 수 있습니다.</span>}
+          </div>
+        </div>
+      </section>
+
+      {/* 3단계: 출제 자료 */}
+      <section className={"card workflow-step"+(activeStep===3?" is-open":"")} id="workflow-step-3">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===3} onClick={()=>setActiveStep(3)}>
+          <span className="step-index">03</span><span><strong>출제 자료 준비</strong><small>{hasRequiredInput?"문항 근거 준비됨":"입력 필요"}{references.length?` · 공공 자료 ${references.length}건`:""}</small></span>
+        </button>
+        <div className="step-content" hidden={activeStep!==3}>
 
         <label className="fld" htmlFor="mainInput">
           {mode==="standard" ? (standardsEntryMode==="official" ? "추가 수업 자료 또는 출제 맥락(선택)" : "성취기준과 성취수준") :
@@ -2356,18 +2614,18 @@ function App() {
         <div className="hint">검색 결과는 원자료의 요약 정보입니다. 문항을 만들기 전에 제목·기관·원문을 확인하세요.</div>
         </React.Fragment>}
         <div className="step-next">
-          <button type="button" className="btn" disabled={!hasRequiredInput} onClick={()=>completeStep(2,3)}>문항 구성 검토</button>
+          <button type="button" className="btn" disabled={!hasRequiredInput} onClick={()=>completeStep(3,4)}>문항 구성 검토</button>
           {!hasRequiredInput && <span>공식 성취기준을 선택하거나 출제 자료를 입력해야 다음 단계로 이동할 수 있습니다.</span>}
         </div>
         </div>
       </section>
 
-      {/* 3단계: 문항 구성 */}
-      <section className={"card workflow-step"+(activeStep===3?" is-open":"")} id="workflow-step-3">
-        <button type="button" className="step-toggle" aria-expanded={activeStep===3} onClick={()=>setActiveStep(3)}>
-          <span className="step-index">03</span><span><strong>문항 설계</strong><small>{selectedPattern.name} · GRASPS {GRASPS_CORE.length+graspsExtras.length}요소</small></span>
+      {/* 4단계: 문항 구성 */}
+      <section className={"card workflow-step"+(activeStep===4?" is-open":"")} id="workflow-step-4">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===4} onClick={()=>setActiveStep(4)}>
+          <span className="step-index">04</span><span><strong>문항 설계</strong><small>{selectedPattern.name} · GRASPS {GRASPS_CORE.length+graspsExtras.length}요소</small></span>
         </button>
-        <div className="step-content" hidden={activeStep!==3}>
+        <div className="step-content" hidden={activeStep!==4}>
         <div className="count-setting">
           <div className="count-input">
             <label className="fld" htmlFor="cntIn">문항 수</label>
@@ -2385,8 +2643,30 @@ function App() {
                 setCount(n); setCountStr(String(n));
               }} />
           </div>
-          <p>1개부터 4개까지 만들 수 있습니다. 여러 수준을 선택하면 수준 수만큼 자동 조정됩니다.</p>
+          {isPeriodic && <div className="count-input">
+            <label className="fld" htmlFor="totalScoreIn">총배점</label>
+            <input id="totalScoreIn" type="number" min="1" max="100" step="0.5" inputMode="decimal" value={totalScoreStr}
+              onChange={e=>{
+                const v=e.target.value; setTotalScoreStr(v);
+                const n=parseFloat(v); if(n>=1&&n<=100) setTotalScore(n);
+              }}
+              onBlur={()=>{
+                let n=parseFloat(totalScoreStr);
+                if(!Number.isFinite(n)||n<1) n=10;
+                if(n>100) n=100;
+                setTotalScore(n); setTotalScoreStr(String(n));
+              }}/>
+          </div>}
+          <p>{isPeriodic
+            ? "정기시험 문항은 1개부터 4개, 총배점은 1점부터 100점까지 설정할 수 있습니다."
+            : "1개부터 4개까지 만들 수 있습니다. 여러 수준을 선택하면 수준 수만큼 자동 조정됩니다."}</p>
         </div>
+
+        {isPeriodic && <div className="periodic-constraints" role="note" aria-label="정기시험 고정 조건">
+          <div><span>고정 조건</span><strong>문항당 5~10분</strong><strong>답안 3~5문장 내외</strong></div>
+          <p>시간과 답안 분량은 별도 입력 없이 문항·제시문·예시 답안·학생용 답안 공간에 자동 적용됩니다. 문장 수 자체는 채점하지 않습니다.</p>
+          {!periodicScoreReady && <div className="fielderr">문항 수는 1~4개, 총배점은 1~100점의 숫자로 입력하세요.</div>}
+        </div>}
 
         <div className="source-structure-setting">
           <div className="source-structure-heading">
@@ -2507,19 +2787,23 @@ function App() {
               placeholder='예: 그래프에서 두 변인의 관계를 비교하고, 근거를 두 가지 이상 사용하게 해 주세요.' />
           </div>
         </div>}
-        <div className="step-next"><button type="button" className="btn" onClick={()=>completeStep(3,4)}>생성 및 검토로</button></div>
+        <div className="step-next">
+          <button type="button" className="btn" disabled={!periodicScoreReady} onClick={()=>completeStep(4,5)}>생성 및 검토로</button>
+          {!periodicScoreReady && <span>총배점과 문항 수의 관계를 확인해야 다음 단계로 이동할 수 있습니다.</span>}
+        </div>
         </div>
       </section>
 
-      {/* 4단계: 문항 만들기 */}
-      <section className={"card workflow-step"+(activeStep===4?" is-open":"")} id="workflow-step-4">
-        <button type="button" className="step-toggle" aria-expanded={activeStep===4} onClick={()=>setActiveStep(4)}>
-          <span className="step-index">04</span><span><strong>생성 및 검토</strong><small>{result?"평가 문서 초안 생성됨":runMode==="paste"?"Claude 요청 준비":"Gemini 생성 준비"}</small></span>
+      {/* 5단계: 문항 만들기 */}
+      <section className={"card workflow-step"+(activeStep===5?" is-open":"")} id="workflow-step-5">
+        <button type="button" className="step-toggle" aria-expanded={activeStep===5} onClick={()=>setActiveStep(5)}>
+          <span className="step-index">05</span><span><strong>생성 및 검토</strong><small>{result?"평가 문서 초안 생성됨":runMode==="paste"?"Claude 요청 준비":"Gemini 생성 준비"}</small></span>
         </button>
-        <div className="step-content" hidden={activeStep!==4}>
+        <div className="step-content" hidden={activeStep!==5}>
 
-        {(()=>{ const eff = Math.min(MAX_ITEMS, targets.length ? Math.max(count, targets.length) : count);
+        {(()=>{ const eff = effectiveCount;
           const parts = [
+            "평가 용도: "+assessmentLabel,
             "과목: "+(subject!=="자동" ? subject : "미지정"),
             "성취수준: "+(targets.length ? targets.join(" · ") : "미지정"),
             "출제 패턴: "+selectedPattern.name,
@@ -2527,6 +2811,8 @@ function App() {
             "GRASPS: "+(GRASPS_CORE.length+graspsExtras.length)+"요소",
             "인쇄: "+(mono ? "흑백" : "컬러")
           ];
+          if (isPeriodic) parts.push("총배점: "+totalScore+"점", "문항당 5~10분", "답안 3~5문장");
+          if (planLinked) parts.push("평가계획: "+planEvaluationElements.length+"요소 반영");
           if (visual==="none") parts.push("도식: 포함하지 않음");
           if (blankVer) parts.push("빈칸 문항: 사용");
           if (useSources && references.length) parts.push("공공 자료: "+references.length+"건");
@@ -2618,7 +2904,8 @@ function App() {
                         onBeginEdit={snapshotResult} onRestore={restoreResultVersion} canRestore={resultVersions.length>0} previousVersion={resultVersions[0]}
                         onReviseSection={reviseResultSection} onCancelRevision={cancelRevisionRequest} revisionTarget={revisionTarget} runMode={runMode}
                         copyMd={copyMd} copied={copied} />
-              : <EmptyDoc subject={subject} targets={targets} hasInput={hasRequiredInput} runMode={runMode}/>)}
+              : <EmptyDoc subject={subject} targets={targets} hasInput={hasRequiredInput} runMode={runMode}
+                  assessmentType={assessmentType} planLinked={planLinked}/>)}
       </main>
       </div>
 
@@ -2754,7 +3041,7 @@ function BlankEditor({m, onChange}) {
 }
 
 /* 평가 문항 블록 */
-function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}) {
+function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId, periodic}) {
   const qs = normQuestions(it);
   const design = it.design||{};
   const ge = graspsEntries(it.grasps);
@@ -2769,6 +3056,7 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
         {design.patternName && <span className="tag data">출제 패턴: {design.patternName}</span>}
         {it.directive && <span className="tag">반응지시어: {it.directive}</span>}
         {it.targetLevel && <span className="tag lvl">목표 수준 {it.targetLevel}</span>}
+        {periodic && <span className="tag periodic-limit">5~10분 · 3~5문장</span>}
       </div>}
       {showTeacher && (design.patternName || ge.length>0) &&
         <section className="kdesign" aria-label="출제 설계와 GRASPS 수행 맥락">
@@ -2846,13 +3134,18 @@ function ItemBlock({it, showTeacher, showCitations, onEdited, editing, anchorId}
         <div key={i}>
           <p className="kq">{q.label?`${q.label} `:""}<Ed v={q.stem} editing={editing} onC={nv=>{ q.stem=nv; onEdited&&onEdited(); }}/>{q.points?` (${q.points}점)`:""}</p>
           <KCond cond={q.conditions}/>
-          {!showTeacher &&
+          {!showTeacher && !periodic &&
             <div className="kans">
               <div className="kans-t">[답안 작성란]</div>
               {Array.from({length: Math.min(14, Math.max(5, (q.points||3)*2))}).map((_,k)=><div className="ln" key={k}></div>)}
             </div>}
         </div>
       ))}
+
+      {!showTeacher && periodic && <div className="kans periodic-answer-space">
+        <div className="kans-t">[답안 작성란 · 3~5문장 내외]</div>
+        {Array.from({length:PERIODIC_CONSTRAINTS.answerLines}).map((_,k)=><div className="ln" key={k}></div>)}
+      </div>}
 
       {showTeacher && <KCallout label="활용 Tip !" items={it.tips}/>}
 
@@ -2876,13 +3169,23 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
   const items = r.items || [];
   const ce = r.contentElements || {};
   const ap = r.applicationTip;
+  const periodic = assessmentTypeOf(r)==="periodic";
+  const assessmentLabel = periodic ? "정기시험용" : "수행평가용";
+  const exam = r.examConstraints||{};
+  const plan = r.evaluationPlan||{};
   const caseItem = n => items.find(x=>x.number===n) || items[0];
   const [editing, setEditing] = useState(false);
   const audit = auditResult(r);
   const showSourceCitations = (r.sourceReferences||[]).length > 0;
   const reviewStatus = r.reviewStatus || "draft";
-  const reviewItems = [
-    ["alignment","교육과정과 성취기준의 정합성"],
+  const reviewItems = periodic ? [
+    ["alignment",plan.linked?"교육과정·평가계획과 문항의 정합성":"교육과정과 성취기준의 정합성"],
+    ["evidence","자료와 질문의 연결"],
+    ["timing","문항당 5~10분·답안 3~5문장 적합성"],
+    ["scoring",`총배점 ${exam.totalScore||"-"}점과 채점기준의 일관성`],
+    ["sources","모호한 표현·출처·사용 조건"],
+  ] : [
+    ["alignment",plan.linked?"교육과정·평가계획과 문항의 정합성":"교육과정과 성취기준의 정합성"],
     ["evidence","자료와 질문의 연결"],
     ["scoring","예시 답안과 채점기준의 일관성"],
     ["clarity","모호한 표현·편향 여부"],
@@ -2984,6 +3287,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         <span className={"badge "+(r.curriculum==="2015"?"b15":"b22")}>
           {r.curriculum==="2015"?"2015 개정":"2022 개정"}
         </span>
+        <span className="tag assessment-type-tag">{assessmentLabel}</span>
         {r.standardCode && <span className="tag">{r.standardCode}</span>}
         <button type="button" className={"review-doc-status "+reviewStatus} onClick={goToReviewWorkspace}
           aria-label={(reviewStatus==="approved"?"최종 승인":reviewStatus==="reviewed"?"교사 검토 완료":"AI 초안")+" · 검토 및 승인 영역으로 이동"}>
@@ -3018,7 +3322,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         <div className="export-approval-prompt" role="dialog" aria-modal="true" aria-labelledby="export-approval-title">
           <div>
             <b id="export-approval-title">최종 승인 전 출력</b>
-            <p>다섯 가지 검토 항목을 확인한 뒤 최종 승인할 수 있습니다. 검토 작업공간으로 이동하거나, 미승인 상태임을 알고 현재 문서를 출력하세요.</p>
+            <p>{reviewItems.length}가지 검토 항목을 확인한 뒤 최종 승인할 수 있습니다. 검토 작업공간으로 이동하거나, 미승인 상태임을 알고 현재 문서를 출력하세요.</p>
           </div>
           <div className="export-approval-actions">
             <button type="button" ref={approvalFirstBtn} className="btn" onClick={goToReviewWorkspace}>검토·승인으로 이동</button>
@@ -3047,7 +3351,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
             <input type="checkbox" checked={!!reviewChecks[id]} onChange={()=>toggleReview(id)}/><span>{label}</span>
           </label>)}
         </div>
-        {!reviewComplete && <p className="review-note">다섯 항목을 모두 확인하면 최종 승인 상태로 바꿀 수 있습니다. 승인 전에도 출력은 가능하지만 검토 전 문서로 표시됩니다.</p>}
+        {!reviewComplete && <p className="review-note">{reviewItems.length}개 항목을 모두 확인하면 최종 승인 상태로 바꿀 수 있습니다. 승인 전에도 출력은 가능하지만 검토 전 문서로 표시됩니다.</p>}
         {canRestore && <p className="version-diff">이전 버전과 비교 · {changedSections.length?changedSections.join(" · ")+" 변경":"내용 변경이 아직 없습니다"}</p>}
         <div className="section-revise">
           <b>부분 수정</b><span>{runMode==="paste"?"선택 영역의 수정 요청문을 복사합니다.":"선택 영역만 다시 생성합니다."}</span>
@@ -3068,7 +3372,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
       {showTeacher && audit.length>0 &&
         <div className="note noprint" style={{maxWidth:840,margin:"0 auto 12px"}}>
-          <b>기본 점검 결과 · 확인할 항목 {audit.length}건</b> 배점, 채점 단계, 지시어, 출제 패턴과 GRASPS 구성을 확인한 결과입니다. 인쇄 전에 내용을 직접 검토하세요.
+          <b>기본 점검 결과 · 확인할 항목 {audit.length}건</b> 배점, 채점 단계, 평가계획, 답안 범위, 지시어와 출제 설계를 확인한 결과입니다. 인쇄 전에 내용을 직접 검토하세요.
           <ul style={{margin:"6px 0 0",paddingLeft:18}}>{audit.map((x,i)=><li key={i}>{x}</li>)}</ul>
         </div>}
       {r.standardNote && <div className="note noprint">⚠ {r.standardNote}</div>}
@@ -3096,7 +3400,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
       <div className={"kdoc "+(showTeacher?"view-teacher":"view-student")+(editing?" editing":"")} id="printArea">
         <div className="spine" aria-hidden="true">{showTeacher ? "교사용" : "학생 배부본"}</div>
         <div className="document-meta" aria-label="평가 문서 정보">
-          <span className="document-meta-name">평가 문서</span>
+          <span className="document-meta-name">{assessmentLabel}</span>
           <span>{info.subject||"과목 미지정"}</span>
           {showTeacher && standardCode && <span>[{standardCode}]</span>}
           <span>{documentType}</span>
@@ -3104,7 +3408,7 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
           <strong>{showTeacher?"교사용":"학생 배부본"}</strong>
         </div>
         <div className="keyebrow">
-          서·논술형 평가도구 자료
+          {periodic?"정기시험 논술형 평가도구":"수행평가 서·논술형 평가도구 자료"}
         </div>
         <div className="khead"><Ed v={info.toolName || "서·논술형 평가 문항"} editing={editing} onC={nv=>{ r.info=r.info||{}; r.info.toolName=nv; onUpdate&&onUpdate(r); }}/></div>
         {!showTeacher &&
@@ -3140,6 +3444,13 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
               </tr>
               <tr>
                 <th>평가 도구명</th><td colSpan={3}><b>{info.toolName||""}</b></td>
+              </tr>
+              <tr>
+                <th>평가 용도</th><td>{assessmentLabel}</td>
+                <th>{periodic?"시험 조건":"평가계획"}</th>
+                <td>{periodic
+                  ? `총 ${exam.totalScore||"-"}점 · ${exam.itemCount||items.length}문항 · 문항당 5~10분 · 답안 3~5문장`
+                  : (plan.linked?"평가계획 연계":"평가계획 미연계")}</td>
               </tr>
               {(r.standardText || (info.achievementLevels||[]).length>0) &&
                 <tr>
@@ -3186,6 +3497,14 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
               </tbody>
             </table>}
 
+          {plan.linked && (plan.elements||[]).length>0 && <table className="ktbl evaluation-plan-table">
+            <tbody>
+              <tr><th style={{width:120}}>평가계획 평가요소</th><td><ul className="kul" style={{margin:0}}>{plan.elements.map((x,i)=><li key={i}>{x}</li>)}</ul></td></tr>
+              {plan.expectedPerformance && <tr><th>기대 수행</th><td>{plan.expectedPerformance}</td></tr>}
+              {plan.notes && <tr><th>참고사항</th><td>{plan.notes}</td></tr>}
+            </tbody>
+          </table>}
+
           {(r.sourceReferences||[]).length>0 &&
             <table className="ktbl">
               <thead><tr><th style={{width:72}}>자료 ID</th><th style={{width:150}}>정보원</th><th>원자료</th></tr></thead>
@@ -3206,7 +3525,8 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
         <section className="document-section document-section-questions" aria-labelledby="document-questions-title">
           <div className="kban" id="document-questions-title">{showTeacher?"2. 평가 문항":"평가 문항"}</div>
           {items.map((it,i)=><ItemBlock key={i} it={it} anchorId={i===0?"first-question-heading":`question-item-${i+1}`}
-            showTeacher={showTeacher} showCitations={showSourceCitations} editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
+            showTeacher={showTeacher} showCitations={showSourceCitations} periodic={periodic}
+            editing={editing} onEdited={()=>onUpdate && onUpdate(r)}/>)}
         </section>
 
         {showTeacher && <section className="document-section document-section-teacher" aria-labelledby="teacher-guide-title">
@@ -3283,9 +3603,9 @@ const Result = React.memo(function Result({ r, showTeacher, setShowTeacher, copy
 
           <KCallout label="피드백 제공 시 유의점" items={r.feedbackNotes}/>
 
-          {/* 수행평가 적용을 위한 Tip */}
+          {/* 평가 적용을 위한 Tip */}
           {ap && <React.Fragment>
-            <div className="khd">수행평가 적용을 위한 Tip</div>
+            <div className="khd">{periodic?"정기시험 적용을 위한 Tip":"수행평가 적용을 위한 Tip"}</div>
             {(ap.planIntro||[]).length>0 && <React.Fragment>
               <div className="ksq">교수·학습 및 평가 계획</div>
               <ul className="kul">{(ap.planIntro||[]).map((x,i)=><li key={i}>{x}</li>)}</ul>
